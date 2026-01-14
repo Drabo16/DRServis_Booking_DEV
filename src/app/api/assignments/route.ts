@@ -39,18 +39,89 @@ export async function POST(request: NextRequest) {
     }
 
     // Získej event_id z pozice
-    const { data: position } = await supabase
+    const { data: position, error: positionError } = await supabase
       .from('positions')
       .select('event_id')
       .eq('id', position_id)
       .single();
 
-    if (!position) {
+    if (positionError) {
+      console.error('Position lookup error:', {
+        code: positionError.code,
+        message: positionError.message,
+        details: positionError.details,
+        hint: positionError.hint,
+        position_id,
+      });
       return NextResponse.json(
-        { error: 'Position not found' },
+        {
+          error: 'Position lookup failed',
+          details: positionError.message,
+          code: positionError.code,
+        },
         { status: 404 }
       );
     }
+
+    if (!position) {
+      console.error('Position not found:', { position_id });
+      return NextResponse.json(
+        { error: 'Position not found', position_id },
+        { status: 404 }
+      );
+    }
+
+    // Ověř, že technician existuje
+    const { data: technicianExists, error: techError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', technician_id)
+      .single();
+
+    if (techError || !technicianExists) {
+      console.error('Technician validation error:', {
+        technician_id,
+        error: techError,
+      });
+      return NextResponse.json(
+        {
+          error: 'Technician not found',
+          technician_id,
+          details: techError?.message,
+        },
+        { status: 404 }
+      );
+    }
+
+    // Zkontroluj duplicitní přiřazení
+    const { data: existing } = await supabase
+      .from('assignments')
+      .select('id')
+      .eq('position_id', position_id)
+      .eq('technician_id', technician_id)
+      .maybeSingle();
+
+    if (existing) {
+      console.warn('Duplicate assignment attempt:', {
+        position_id,
+        technician_id,
+        existing_id: existing.id,
+      });
+      return NextResponse.json(
+        {
+          error: 'Assignment already exists',
+          existing_assignment_id: existing.id,
+        },
+        { status: 409 }
+      );
+    }
+
+    console.log('Creating assignment:', {
+      position_id,
+      event_id: position.event_id,
+      technician_id,
+      assigned_by: profile.id,
+    });
 
     const { data, error } = await supabase
       .from('assignments')
@@ -66,16 +137,40 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
+      console.error('Assignment insert error:', {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        data: {
+          position_id,
+          event_id: position.event_id,
+          technician_id,
+          assigned_by: profile.id,
+        },
+      });
       throw error;
     }
 
+    console.log('Assignment created successfully:', { assignment_id: data.id });
     return NextResponse.json({ success: true, assignment: data });
-  } catch (error) {
-    console.error('Assignment creation error:', error);
+  } catch (error: any) {
+    console.error('Assignment creation error (catch):', {
+      name: error?.name,
+      message: error?.message,
+      code: error?.code,
+      details: error?.details,
+      hint: error?.hint,
+      stack: error?.stack,
+    });
+
     return NextResponse.json(
       {
         error: 'Failed to create assignment',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        message: error?.message || 'Unknown error',
+        code: error?.code,
+        details: error?.details,
+        hint: error?.hint,
       },
       { status: 500 }
     );
