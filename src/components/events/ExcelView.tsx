@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Table,
   TableBody,
@@ -38,12 +38,48 @@ export default function ExcelView({ events: initialEvents, isAdmin, allTechnicia
   const [events, setEvents] = useState(initialEvents);
   const [loading, setLoading] = useState<string | null>(null);
 
+  // Sync local state with prop changes (e.g., when parent refetches)
+  useEffect(() => {
+    setEvents(initialEvents);
+  }, [initialEvents]);
+
   // Přidej technika do role - vždy vytvoří novou pozici
   const handleAssignToRole = async (eventId: string, roleType: RoleType, technicianId: string) => {
-    setLoading(`${eventId}-${roleType}`);
-    try {
-      const roleLabel = ROLE_TYPES.find((t) => t.value === roleType)?.label || roleType;
+    const tech = allTechnicians.find(t => t.id === technicianId);
+    if (!tech) return;
 
+    const roleLabel = ROLE_TYPES.find((t) => t.value === roleType)?.label || roleType;
+
+    // OPTIMISTIC UPDATE - okamžitě přidej do UI s temporary IDs
+    const tempPositionId = `temp-pos-${Date.now()}`;
+    const tempAssignmentId = `temp-assign-${Date.now()}`;
+
+    const tempPosition = {
+      id: tempPositionId,
+      event_id: eventId,
+      title: roleLabel,
+      role_type: roleType,
+      assignments: [{
+        id: tempAssignmentId,
+        position_id: tempPositionId,
+        technician_id: technicianId,
+        attendance_status: 'pending' as const,
+        technician: tech
+      }]
+    };
+
+    setEvents(events.map(event => {
+      if (event.id === eventId) {
+        return {
+          ...event,
+          positions: [...(event.positions || []), tempPosition as any]
+        };
+      }
+      return event;
+    }));
+
+    // Server calls na pozadí
+    try {
       // 1. Vytvoř pozici
       const posResponse = await fetch('/api/positions', {
         method: 'POST',
@@ -71,69 +107,93 @@ export default function ExcelView({ events: initialEvents, isAdmin, allTechnicia
       if (!assignResponse.ok) throw new Error('Failed to create assignment');
       const { assignment } = await assignResponse.json();
 
-      // 3. Manuální state update - BEZ router.refresh()
-      const tech = allTechnicians.find(t => t.id === technicianId);
-      if (tech) {
-        setEvents(events.map(event => {
-          if (event.id === eventId) {
-            return {
-              ...event,
-              positions: [
-                ...(event.positions || []),
-                {
-                  ...position,
-                  assignments: [{
-                    ...assignment,
-                    technician: tech
-                  }]
-                }
-              ]
-            };
-          }
-          return event;
-        }));
-      }
-    } catch (error) {
-      alert('Chyba při přiřazování technika');
-    } finally {
-      setLoading(null);
-    }
-  };
-
-  const handleRemoveAssignment = async (assignmentId: string, eventId: string, positionId: string) => {
-    setLoading(assignmentId);
-    try {
-      const response = await fetch(`/api/assignments/${assignmentId}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) throw new Error('Failed to delete assignment');
-
-      // Manuální state update - BEZ router.refresh()
+      // 3. Nahraď temporary data skutečnými
       setEvents(events.map(event => {
         if (event.id === eventId) {
           return {
             ...event,
-            positions: (event.positions || []).map(pos => {
-              if (pos.id === positionId) {
-                return {
-                  ...pos,
-                  assignments: (pos.assignments || []).filter(a => a.id !== assignmentId)
-                };
-              }
-              return pos;
-            }).filter(pos =>
-              // Odstraň pozici, pokud už nemá žádné assignments
-              pos.id !== positionId || (pos.assignments && pos.assignments.length > 0)
+            positions: (event.positions || []).map(pos =>
+              pos.id === tempPositionId
+                ? {
+                    ...position,
+                    assignments: [{
+                      ...assignment,
+                      technician: tech
+                    }]
+                  }
+                : pos
             )
           };
         }
         return event;
       }));
     } catch (error) {
+      // ROLLBACK - odeber temporary pozici
+      setEvents(events.map(event => {
+        if (event.id === eventId) {
+          return {
+            ...event,
+            positions: (event.positions || []).filter(pos => pos.id !== tempPositionId)
+          };
+        }
+        return event;
+      }));
+      alert('Chyba při přiřazování technika');
+    }
+  };
+
+  const handleRemoveAssignment = async (assignmentId: string, eventId: string, positionId: string) => {
+    // Backup pro rollback
+    const backupEvent = events.find(e => e.id === eventId);
+    const backupPosition = backupEvent?.positions?.find(p => p.id === positionId);
+
+    // OPTIMISTIC UPDATE - okamžitě odeber assignment a případně i pozici
+    setEvents(events.map(event => {
+      if (event.id === eventId) {
+        return {
+          ...event,
+          positions: (event.positions || []).map(pos => {
+            if (pos.id === positionId) {
+              return {
+                ...pos,
+                assignments: (pos.assignments || []).filter(a => a.id !== assignmentId)
+              };
+            }
+            return pos;
+          }).filter(pos =>
+            // Odstraň pozici, pokud už nemá žádné assignments
+            pos.id !== positionId || (pos.assignments && pos.assignments.length > 0)
+          )
+        };
+      }
+      return event;
+    }));
+
+    try {
+      const response = await fetch(`/api/assignments/${assignmentId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) throw new Error('Failed to delete assignment');
+    } catch (error) {
+      // ROLLBACK - vrať původní stav
+      if (backupEvent && backupPosition) {
+        setEvents(events.map(event => {
+          if (event.id === eventId) {
+            const existingPositions = event.positions || [];
+            const positionExists = existingPositions.some(p => p.id === positionId);
+
+            return {
+              ...event,
+              positions: positionExists
+                ? existingPositions.map(pos => pos.id === positionId ? backupPosition : pos)
+                : [...existingPositions, backupPosition]
+            };
+          }
+          return event;
+        }));
+      }
       alert('Chyba při odebírání přiřazení');
-    } finally {
-      setLoading(null);
     }
   };
 
@@ -244,7 +304,33 @@ export default function ExcelView({ events: initialEvents, isAdmin, allTechnicia
 
   // Změna statusu přiřazení
   const handleStatusChange = async (assignmentId: string, newStatus: string, eventId: string, positionId: string) => {
-    setLoading(assignmentId);
+    // Backup starého statusu pro rollback
+    const oldStatus = events
+      .find(e => e.id === eventId)
+      ?.positions?.find(p => p.id === positionId)
+      ?.assignments?.find(a => a.id === assignmentId)?.attendance_status;
+
+    // OPTIMISTIC UPDATE - okamžitě změň status v UI
+    setEvents(events.map(event => {
+      if (event.id === eventId) {
+        return {
+          ...event,
+          positions: (event.positions || []).map(pos => {
+            if (pos.id === positionId) {
+              return {
+                ...pos,
+                assignments: (pos.assignments || []).map(a =>
+                  a.id === assignmentId ? { ...a, attendance_status: newStatus as any } : a
+                )
+              };
+            }
+            return pos;
+          })
+        };
+      }
+      return event;
+    }) as any);
+
     try {
       const response = await fetch(`/api/assignments/${assignmentId}`, {
         method: 'PATCH',
@@ -253,31 +339,30 @@ export default function ExcelView({ events: initialEvents, isAdmin, allTechnicia
       });
 
       if (!response.ok) throw new Error('Failed to update status');
-
-      // Manuální state update - BEZ router.refresh()
-      setEvents(events.map(event => {
-        if (event.id === eventId) {
-          return {
-            ...event,
-            positions: (event.positions || []).map(pos => {
-              if (pos.id === positionId) {
-                return {
-                  ...pos,
-                  assignments: (pos.assignments || []).map(a =>
-                    a.id === assignmentId ? { ...a, attendance_status: newStatus as any } : a
-                  )
-                };
-              }
-              return pos;
-            })
-          };
-        }
-        return event;
-      }) as any);
     } catch (error) {
+      // ROLLBACK - vrať starý status
+      if (oldStatus) {
+        setEvents(events.map(event => {
+          if (event.id === eventId) {
+            return {
+              ...event,
+              positions: (event.positions || []).map(pos => {
+                if (pos.id === positionId) {
+                  return {
+                    ...pos,
+                    assignments: (pos.assignments || []).map(a =>
+                      a.id === assignmentId ? { ...a, attendance_status: oldStatus as any } : a
+                    )
+                  };
+                }
+                return pos;
+              })
+            };
+          }
+          return event;
+        }) as any);
+      }
       alert('Chyba při aktualizaci statusu');
-    } finally {
-      setLoading(null);
     }
   };
 

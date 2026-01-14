@@ -129,6 +129,30 @@ export default function PositionsManager({
   };
 
   const handleAssignTechnician = async (positionId: string, technicianId: string) => {
+    const tech = allTechnicians.find(t => t.id === technicianId);
+    if (!tech) return;
+
+    // OPTIMISTIC UPDATE - okamžitě aktualizuj UI s temporary ID
+    const tempAssignment = {
+      id: `temp-${Date.now()}`,
+      position_id: positionId,
+      technician_id: technicianId,
+      attendance_status: 'pending' as const,
+      technician: tech,
+    };
+
+    setPositions(positions.map(pos => {
+      if (pos.id === positionId) {
+        return {
+          ...pos,
+          assignments: [...(pos.assignments || []), tempAssignment as any]
+        };
+      }
+      return pos;
+    }));
+    setSelectedTechnician({ ...selectedTechnician, [positionId]: '' });
+
+    // Server call na pozadí
     try {
       const response = await fetch('/api/assignments', {
         method: 'POST',
@@ -142,26 +166,30 @@ export default function PositionsManager({
       if (!response.ok) throw new Error('Failed to assign technician');
 
       const { assignment } = await response.json();
-      const tech = allTechnicians.find(t => t.id === technicianId);
 
-      // Manuální update UI bez router.refresh
-      if (tech && assignment) {
-        setPositions(positions.map(pos => {
-          if (pos.id === positionId) {
-            return {
-              ...pos,
-              assignments: [...(pos.assignments || []), {
-                ...assignment,
-                technician: tech,
-              }]
-            };
-          }
-          return pos;
-        }));
-      }
-
-      setSelectedTechnician({ ...selectedTechnician, [positionId]: '' });
+      // Nahraď temporary assignment skutečným
+      setPositions(positions.map(pos => {
+        if (pos.id === positionId) {
+          return {
+            ...pos,
+            assignments: (pos.assignments || []).map(a =>
+              a.id === tempAssignment.id ? { ...assignment, technician: tech } : a
+            )
+          };
+        }
+        return pos;
+      }));
     } catch (error) {
+      // ROLLBACK - odeber temporary assignment při chybě
+      setPositions(positions.map(pos => {
+        if (pos.id === positionId) {
+          return {
+            ...pos,
+            assignments: (pos.assignments || []).filter(a => a.id !== tempAssignment.id)
+          };
+        }
+        return pos;
+      }));
       alert('Chyba při přiřazování technika');
     }
   };
@@ -169,25 +197,54 @@ export default function PositionsManager({
   const handleRemoveAssignment = async (assignmentId: string) => {
     if (!confirm('Opravdu odebrat přiřazení?')) return;
 
+    // Backup pro rollback
+    const backup = positions.find(pos =>
+      pos.assignments?.some(a => a.id === assignmentId)
+    )?.assignments?.find(a => a.id === assignmentId);
+
+    // OPTIMISTIC UPDATE - okamžitě odeber z UI
+    setPositions(positions.map(pos => ({
+      ...pos,
+      assignments: (pos.assignments || []).filter(a => a.id !== assignmentId)
+    })));
+
     try {
       const response = await fetch(`/api/assignments/${assignmentId}`, {
         method: 'DELETE',
       });
 
       if (!response.ok) throw new Error('Failed to remove assignment');
-
-      // Manuální update UI bez router.refresh
-      setPositions(positions.map(pos => ({
-        ...pos,
-        assignments: (pos.assignments || []).filter(a => a.id !== assignmentId)
-      })));
     } catch (error) {
+      // ROLLBACK - vrať assignment zpět
+      if (backup) {
+        setPositions(positions.map(pos => {
+          if (pos.assignments?.some(a => a.id === assignmentId) ||
+              pos.id === backup.position_id) {
+            return {
+              ...pos,
+              assignments: [...(pos.assignments || []), backup]
+            };
+          }
+          return pos;
+        }));
+      }
       alert('Chyba při odebírání přiřazení');
     }
   };
 
   const handleStatusChange = async (assignmentId: string, newStatus: AttendanceStatus) => {
-    setUpdatingStatus(assignmentId);
+    // Backup starého statusu pro rollback
+    const oldStatus = positions
+      .flatMap(pos => pos.assignments || [])
+      .find(a => a.id === assignmentId)?.attendance_status;
+
+    // OPTIMISTIC UPDATE - okamžitě změň status v UI
+    setPositions(positions.map(pos => ({
+      ...pos,
+      assignments: (pos.assignments || []).map(a =>
+        a.id === assignmentId ? { ...a, attendance_status: newStatus } : a
+      )
+    })));
 
     try {
       const response = await fetch(`/api/assignments/${assignmentId}`, {
@@ -197,18 +254,17 @@ export default function PositionsManager({
       });
 
       if (!response.ok) throw new Error('Failed to update status');
-
-      // Manuální update UI bez router.refresh
-      setPositions(positions.map(pos => ({
-        ...pos,
-        assignments: (pos.assignments || []).map(a =>
-          a.id === assignmentId ? { ...a, attendance_status: newStatus } : a
-        )
-      })));
     } catch (error) {
+      // ROLLBACK - vrať starý status
+      if (oldStatus) {
+        setPositions(positions.map(pos => ({
+          ...pos,
+          assignments: (pos.assignments || []).map(a =>
+            a.id === assignmentId ? { ...a, attendance_status: oldStatus } : a
+          )
+        })));
+      }
       alert('Chyba při aktualizaci statusu');
-    } finally {
-      setUpdatingStatus(null);
     }
   };
 

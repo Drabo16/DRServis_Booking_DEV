@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
       throw error;
     }
 
-    return NextResponse.json({ success: true, data });
+    return NextResponse.json({ success: true, assignment: data });
   } catch (error) {
     console.error('Assignment creation error:', error);
     return NextResponse.json(
