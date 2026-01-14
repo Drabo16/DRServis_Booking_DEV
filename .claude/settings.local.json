@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir /S /B \"c:\\\\Users\\\\matej\\\\Documents\\\\DRServis_Booking\\\\src\\\\app\")",
+      "Bash(findstr:*)",
+      "Bash(cat:*)",
+      "Bash(npx shadcn@latest init:*)",
+      "Bash(npx shadcn@latest add:*)"
+    ]
+  }
+}
