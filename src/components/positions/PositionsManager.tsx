@@ -35,12 +35,13 @@ interface PositionsManagerProps {
 }
 
 export default function PositionsManager({
-  positions,
+  positions: initialPositions,
   eventId,
   isAdmin,
   allTechnicians = [],
 }: PositionsManagerProps) {
   const router = useRouter();
+  const [positions, setPositions] = useState(initialPositions);
   const [isAddingPosition, setIsAddingPosition] = useState(false);
   const [newPosition, setNewPosition] = useState<{ role_type: RoleType | '', technicianId: string }>({
     role_type: '',
@@ -54,10 +55,37 @@ export default function PositionsManager({
     if (!newPosition.role_type) return;
 
     setLoading(true);
-    try {
-      const roleLabel = ROLE_TYPES.find((t) => t.value === newPosition.role_type)?.label || newPosition.role_type;
+    const roleLabel = ROLE_TYPES.find((t) => t.value === newPosition.role_type)?.label || newPosition.role_type;
 
-      // Vytvoř pozici
+    // Optimistic update - okamžitě přidej pozici do UI
+    const tempId = `temp-${Date.now()}`;
+    const optimisticPosition: any = {
+      id: tempId,
+      event_id: eventId,
+      title: roleLabel,
+      role_type: newPosition.role_type,
+      assignments: [],
+    };
+
+    if (newPosition.technicianId) {
+      const tech = allTechnicians.find(t => t.id === newPosition.technicianId);
+      if (tech) {
+        optimisticPosition.assignments = [{
+          id: `temp-assign-${Date.now()}`,
+          position_id: tempId,
+          technician_id: newPosition.technicianId,
+          attendance_status: 'pending',
+          technician: tech,
+        }];
+      }
+    }
+
+    setPositions([...positions, optimisticPosition]);
+    setNewPosition({ role_type: '', technicianId: '' });
+    setIsAddingPosition(false);
+
+    try {
+      // Server call na pozadí
       const response = await fetch('/api/positions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -69,7 +97,6 @@ export default function PositionsManager({
       });
 
       if (!response.ok) throw new Error('Failed to create position');
-
       const { position } = await response.json();
 
       // Přiřaď technika pokud je vybraný
@@ -84,11 +111,12 @@ export default function PositionsManager({
         });
       }
 
-      setNewPosition({ role_type: '', technicianId: '' });
-      setIsAddingPosition(false);
+      // Refresh na pozadí pro synchronizaci
       router.refresh();
     } catch (error) {
       alert('Chyba při vytváření pozice');
+      // Rollback optimistic update
+      setPositions(positions.filter(p => p.id !== tempId));
     } finally {
       setLoading(false);
     }
@@ -96,6 +124,10 @@ export default function PositionsManager({
 
   const handleDeletePosition = async (positionId: string) => {
     if (!confirm('Opravdu smazat tuto pozici?')) return;
+
+    // Optimistic update - okamžitě odeber z UI
+    const oldPositions = positions;
+    setPositions(positions.filter(p => p.id !== positionId));
 
     try {
       const response = await fetch(`/api/positions?id=${positionId}`, {
@@ -106,10 +138,36 @@ export default function PositionsManager({
       router.refresh();
     } catch (error) {
       alert('Chyba při mazání pozice');
+      // Rollback
+      setPositions(oldPositions);
     }
   };
 
   const handleAssignTechnician = async (positionId: string, technicianId: string) => {
+    // Optimistic update
+    const tech = allTechnicians.find(t => t.id === technicianId);
+    const oldPositions = [...positions];
+
+    if (tech) {
+      setPositions(positions.map(pos => {
+        if (pos.id === positionId) {
+          return {
+            ...pos,
+            assignments: [...(pos.assignments || []), {
+              id: `temp-${Date.now()}`,
+              position_id: positionId,
+              technician_id: technicianId,
+              attendance_status: 'pending' as AttendanceStatus,
+              technician: tech,
+            } as any]
+          };
+        }
+        return pos;
+      }));
+    }
+
+    setSelectedTechnician({ ...selectedTechnician, [positionId]: '' });
+
     try {
       const response = await fetch('/api/assignments', {
         method: 'POST',
@@ -121,16 +179,22 @@ export default function PositionsManager({
       });
 
       if (!response.ok) throw new Error('Failed to assign technician');
-
-      setSelectedTechnician({ ...selectedTechnician, [positionId]: '' });
       router.refresh();
     } catch (error) {
       alert('Chyba při přiřazování technika');
+      setPositions(oldPositions);
     }
   };
 
   const handleRemoveAssignment = async (assignmentId: string) => {
     if (!confirm('Opravdu odebrat přiřazení?')) return;
+
+    // Optimistic update
+    const oldPositions = [...positions];
+    setPositions(positions.map(pos => ({
+      ...pos,
+      assignments: (pos.assignments || []).filter(a => a.id !== assignmentId)
+    })));
 
     try {
       const response = await fetch(`/api/assignments/${assignmentId}`, {
@@ -141,11 +205,22 @@ export default function PositionsManager({
       router.refresh();
     } catch (error) {
       alert('Chyba při odebírání přiřazení');
+      setPositions(oldPositions);
     }
   };
 
   const handleStatusChange = async (assignmentId: string, newStatus: AttendanceStatus) => {
     setUpdatingStatus(assignmentId);
+
+    // Optimistic update
+    const oldPositions = [...positions];
+    setPositions(positions.map(pos => ({
+      ...pos,
+      assignments: (pos.assignments || []).map(a =>
+        a.id === assignmentId ? { ...a, attendance_status: newStatus } : a
+      )
+    })));
+
     try {
       const response = await fetch(`/api/assignments/${assignmentId}`, {
         method: 'PATCH',
@@ -157,6 +232,7 @@ export default function PositionsManager({
       router.refresh();
     } catch (error) {
       alert('Chyba při aktualizaci statusu');
+      setPositions(oldPositions);
     } finally {
       setUpdatingStatus(null);
     }

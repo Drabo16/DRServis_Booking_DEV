@@ -1,6 +1,9 @@
 import { createClient } from '@/lib/supabase/server';
 import EventsWithSidebar from '@/components/events/EventsWithSidebar';
 
+// Cache data na 30 sekund
+export const revalidate = 30;
+
 export default async function HomePage() {
   const supabase = await createClient();
 
@@ -52,6 +55,7 @@ export default async function HomePage() {
         )
       `)
       .gte('start_time', new Date().toISOString())
+      .lte('start_time', new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString()) // max 3 měsíce dopředu
       .order('start_time', { ascending: true })
       .limit(50);
 
@@ -90,6 +94,7 @@ export default async function HomePage() {
         )
       `)
       .gte('start_time', new Date().toISOString())
+      .lte('start_time', new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString()) // max 3 měsíce dopředu
       .order('start_time', { ascending: true })
       .limit(50);
 
