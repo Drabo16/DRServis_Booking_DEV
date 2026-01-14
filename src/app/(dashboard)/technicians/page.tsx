@@ -52,7 +52,7 @@ export default async function TechniciansPage() {
                 <div className="pt-3 border-t">
                   <p className="text-xs text-slate-500 mb-2">Specializace:</p>
                   <div className="flex flex-wrap gap-1">
-                    {tech.specialization.map((spec) => (
+                    {tech.specialization.map((spec: string) => (
                       <Badge key={spec} variant="outline" className="text-xs">
                         {spec}
                       </Badge>

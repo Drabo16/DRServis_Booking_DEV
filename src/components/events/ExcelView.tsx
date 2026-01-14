@@ -127,7 +127,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
   };
 
   // Smaž všechny pozice dané role
-  const handleRemoveAllPositionsForRole = async (rolePositions: Position[], roleName: string) => {
+  const handleRemoveAllPositionsForRole = async (rolePositions: any[], roleName: string) => {
     const totalAssignments = rolePositions.reduce(
       (sum, p) => sum + (p.assignments?.length || 0),
       0

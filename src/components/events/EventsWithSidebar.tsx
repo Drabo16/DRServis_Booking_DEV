@@ -91,7 +91,7 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
           </TabsContent>
 
           <TabsContent value="excel" className="mt-6">
-            <ExcelView events={events} isAdmin={isAdmin} allTechnicians={allTechnicians} userId={userId} />
+            <ExcelView events={events as any} isAdmin={isAdmin} allTechnicians={allTechnicians} userId={userId} />
           </TabsContent>
         </Tabs>
       </div>

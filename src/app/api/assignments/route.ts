@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     // Kontrola admin role
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('id, role')
       .eq('auth_user_id', user.id)
       .single();
 

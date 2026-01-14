@@ -99,8 +99,8 @@ export default async function HomePage() {
 
     // Filtruj pouze akce kde má technik assignment
     events = data?.filter((event) =>
-      event.positions?.some((position) =>
-        position.assignments?.some((assignment) => assignment.technician_id === profile?.id)
+      event.positions?.some((position: any) =>
+        position.assignments?.some((assignment: any) => assignment.technician_id === profile?.id)
       )
     );
   }

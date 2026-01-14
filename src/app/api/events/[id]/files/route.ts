@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { google } from 'googleapis';
-import { getAuthClient } from '@/lib/google/auth';
+import { getGoogleAuth } from '@/lib/google/auth';
 
 export async function GET(
   request: NextRequest,
@@ -36,7 +36,7 @@ export async function GET(
     }
 
     // Načti soubory z Google Drive
-    const auth = await getAuthClient();
+    const auth = getGoogleAuth();
     const drive = google.drive({ version: 'v3', auth });
 
     const response = await drive.files.list({
