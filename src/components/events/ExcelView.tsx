@@ -68,7 +68,7 @@ export default function ExcelView({ events: initialEvents, isAdmin, allTechnicia
       }]
     };
 
-    setEvents(events.map(event => {
+    setEvents(prev => prev.map(event => {
       if (event.id === eventId) {
         return {
           ...event,
@@ -107,8 +107,8 @@ export default function ExcelView({ events: initialEvents, isAdmin, allTechnicia
       if (!assignResponse.ok) throw new Error('Failed to create assignment');
       const { assignment } = await assignResponse.json();
 
-      // 3. Nahraď temporary data skutečnými
-      setEvents(events.map(event => {
+      // 3. Nahraď temporary data skutečnými - POUŽIJ PREV!
+      setEvents(prev => prev.map(event => {
         if (event.id === eventId) {
           return {
             ...event,
@@ -128,8 +128,8 @@ export default function ExcelView({ events: initialEvents, isAdmin, allTechnicia
         return event;
       }));
     } catch (error) {
-      // ROLLBACK - odeber temporary pozici
-      setEvents(events.map(event => {
+      // ROLLBACK - odeber temporary pozici - POUŽIJ PREV!
+      setEvents(prev => prev.map(event => {
         if (event.id === eventId) {
           return {
             ...event,
@@ -148,7 +148,7 @@ export default function ExcelView({ events: initialEvents, isAdmin, allTechnicia
     const backupPosition = backupEvent?.positions?.find(p => p.id === positionId);
 
     // OPTIMISTIC UPDATE - okamžitě odeber assignment a případně i pozici
-    setEvents(events.map(event => {
+    setEvents(prev => prev.map(event => {
       if (event.id === eventId) {
         return {
           ...event,
@@ -178,7 +178,7 @@ export default function ExcelView({ events: initialEvents, isAdmin, allTechnicia
     } catch (error) {
       // ROLLBACK - vrať původní stav
       if (backupEvent && backupPosition) {
-        setEvents(events.map(event => {
+        setEvents(prev => prev.map(event => {
           if (event.id === eventId) {
             const existingPositions = event.positions || [];
             const positionExists = existingPositions.some(p => p.id === positionId);
@@ -215,7 +215,7 @@ export default function ExcelView({ events: initialEvents, isAdmin, allTechnicia
       if (!response.ok) throw new Error('Failed to delete position');
 
       // Manuální state update - BEZ router.refresh()
-      setEvents(events.map(event => {
+      setEvents(prev => prev.map(event => {
         if (event.id === eventId) {
           return {
             ...event,
@@ -260,7 +260,7 @@ export default function ExcelView({ events: initialEvents, isAdmin, allTechnicia
 
       // Manuální state update - BEZ router.refresh()
       const positionIds = rolePositions.map(p => p.id);
-      setEvents(events.map(event => {
+      setEvents(prev => prev.map(event => {
         if (event.id === eventId) {
           return {
             ...event,
@@ -311,7 +311,7 @@ export default function ExcelView({ events: initialEvents, isAdmin, allTechnicia
       ?.assignments?.find(a => a.id === assignmentId)?.attendance_status;
 
     // OPTIMISTIC UPDATE - okamžitě změň status v UI
-    setEvents(events.map(event => {
+    setEvents(prev => prev.map(event => {
       if (event.id === eventId) {
         return {
           ...event,
@@ -342,7 +342,7 @@ export default function ExcelView({ events: initialEvents, isAdmin, allTechnicia
     } catch (error) {
       // ROLLBACK - vrať starý status
       if (oldStatus) {
-        setEvents(events.map(event => {
+        setEvents(prev => prev.map(event => {
           if (event.id === eventId) {
             return {
               ...event,
@@ -386,7 +386,7 @@ export default function ExcelView({ events: initialEvents, isAdmin, allTechnicia
       const { position } = await response.json();
 
       // Manuální state update - BEZ router.refresh()
-      setEvents(events.map(event => {
+      setEvents(prev => prev.map(event => {
         if (event.id === eventId) {
           return {
             ...event,

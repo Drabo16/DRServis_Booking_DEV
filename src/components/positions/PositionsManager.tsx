@@ -141,7 +141,7 @@ export default function PositionsManager({
       technician: tech,
     };
 
-    setPositions(positions.map(pos => {
+    setPositions(prev => prev.map(pos => {
       if (pos.id === positionId) {
         return {
           ...pos,
@@ -167,8 +167,8 @@ export default function PositionsManager({
 
       const { assignment } = await response.json();
 
-      // Nahraď temporary assignment skutečným
-      setPositions(positions.map(pos => {
+      // Nahraď temporary assignment skutečným - POUŽIJ PREV!
+      setPositions(prev => prev.map(pos => {
         if (pos.id === positionId) {
           return {
             ...pos,
@@ -180,8 +180,8 @@ export default function PositionsManager({
         return pos;
       }));
     } catch (error) {
-      // ROLLBACK - odeber temporary assignment při chybě
-      setPositions(positions.map(pos => {
+      // ROLLBACK - odeber temporary assignment při chybě - POUŽIJ PREV!
+      setPositions(prev => prev.map(pos => {
         if (pos.id === positionId) {
           return {
             ...pos,
@@ -197,16 +197,19 @@ export default function PositionsManager({
   const handleRemoveAssignment = async (assignmentId: string) => {
     if (!confirm('Opravdu odebrat přiřazení?')) return;
 
-    // Backup pro rollback
-    const backup = positions.find(pos =>
-      pos.assignments?.some(a => a.id === assignmentId)
-    )?.assignments?.find(a => a.id === assignmentId);
+    // Backup pro rollback - extrahuj PŘED optimistic update
+    let backup: any = null;
+    setPositions(prev => {
+      backup = prev.find(pos =>
+        pos.assignments?.some(a => a.id === assignmentId)
+      )?.assignments?.find(a => a.id === assignmentId);
 
-    // OPTIMISTIC UPDATE - okamžitě odeber z UI
-    setPositions(positions.map(pos => ({
-      ...pos,
-      assignments: (pos.assignments || []).filter(a => a.id !== assignmentId)
-    })));
+      // OPTIMISTIC UPDATE - okamžitě odeber z UI
+      return prev.map(pos => ({
+        ...pos,
+        assignments: (pos.assignments || []).filter(a => a.id !== assignmentId)
+      }));
+    });
 
     try {
       const response = await fetch(`/api/assignments/${assignmentId}`, {
@@ -215,11 +218,10 @@ export default function PositionsManager({
 
       if (!response.ok) throw new Error('Failed to remove assignment');
     } catch (error) {
-      // ROLLBACK - vrať assignment zpět
+      // ROLLBACK - vrať assignment zpět - POUŽIJ PREV!
       if (backup) {
-        setPositions(positions.map(pos => {
-          if (pos.assignments?.some(a => a.id === assignmentId) ||
-              pos.id === backup.position_id) {
+        setPositions(prev => prev.map(pos => {
+          if (pos.id === backup.position_id) {
             return {
               ...pos,
               assignments: [...(pos.assignments || []), backup]
@@ -233,18 +235,21 @@ export default function PositionsManager({
   };
 
   const handleStatusChange = async (assignmentId: string, newStatus: AttendanceStatus) => {
-    // Backup starého statusu pro rollback
-    const oldStatus = positions
-      .flatMap(pos => pos.assignments || [])
-      .find(a => a.id === assignmentId)?.attendance_status;
+    // Backup starého statusu pro rollback - extrahuj PŘED optimistic update
+    let oldStatus: AttendanceStatus | undefined;
+    setPositions(prev => {
+      oldStatus = prev
+        .flatMap(pos => pos.assignments || [])
+        .find(a => a.id === assignmentId)?.attendance_status;
 
-    // OPTIMISTIC UPDATE - okamžitě změň status v UI
-    setPositions(positions.map(pos => ({
-      ...pos,
-      assignments: (pos.assignments || []).map(a =>
-        a.id === assignmentId ? { ...a, attendance_status: newStatus } : a
-      )
-    })));
+      // OPTIMISTIC UPDATE - okamžitě změň status v UI
+      return prev.map(pos => ({
+        ...pos,
+        assignments: (pos.assignments || []).map(a =>
+          a.id === assignmentId ? { ...a, attendance_status: newStatus } : a
+        )
+      }));
+    });
 
     try {
       const response = await fetch(`/api/assignments/${assignmentId}`, {
@@ -255,12 +260,12 @@ export default function PositionsManager({
 
       if (!response.ok) throw new Error('Failed to update status');
     } catch (error) {
-      // ROLLBACK - vrať starý status
+      // ROLLBACK - vrať starý status - POUŽIJ PREV!
       if (oldStatus) {
-        setPositions(positions.map(pos => ({
+        setPositions(prev => prev.map(pos => ({
           ...pos,
           assignments: (pos.assignments || []).map(a =>
-            a.id === assignmentId ? { ...a, attendance_status: oldStatus } : a
+            a.id === assignmentId ? { ...a, attendance_status: oldStatus! } : a
           )
         })));
       }
