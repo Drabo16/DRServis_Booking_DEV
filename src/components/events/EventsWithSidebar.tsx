@@ -1,13 +1,16 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import EventCard from './EventCard';
-import CalendarView from '@/components/calendar/CalendarView';
 import EventDetailPanel from './EventDetailPanel';
-import ExcelView from './ExcelView';
 import type { Event, Profile } from '@/types';
+import { Loader2 } from 'lucide-react';
+
+// Lazy load heavy components for better initial load time
+const CalendarView = lazy(() => import('@/components/calendar/CalendarView'));
+const ExcelView = lazy(() => import('./ExcelView'));
 
 interface EventsWithSidebarProps {
   events: Array<Event & {
@@ -87,11 +90,23 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
           </TabsContent>
 
           <TabsContent value="calendar" className="mt-6">
-            <CalendarView events={events} onEventClick={handleOpenEvent} />
+            <Suspense fallback={
+              <div className="flex items-center justify-center min-h-[400px]">
+                <Loader2 className="w-8 h-8 animate-spin text-slate-600" />
+              </div>
+            }>
+              <CalendarView events={events} onEventClick={handleOpenEvent} />
+            </Suspense>
           </TabsContent>
 
           <TabsContent value="excel" className="mt-6">
-            <ExcelView events={events as any} isAdmin={isAdmin} allTechnicians={allTechnicians} userId={userId} />
+            <Suspense fallback={
+              <div className="flex items-center justify-center min-h-[400px]">
+                <Loader2 className="w-8 h-8 animate-spin text-slate-600" />
+              </div>
+            }>
+              <ExcelView events={events as any} isAdmin={isAdmin} allTechnicians={allTechnicians} userId={userId} />
+            </Suspense>
           </TabsContent>
         </Tabs>
       </div>

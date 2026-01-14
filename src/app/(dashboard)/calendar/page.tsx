@@ -1,23 +1,33 @@
-import { createClient } from '@/lib/supabase/server';
-import { redirect } from 'next/navigation';
+'use client';
+
+import { useEvents } from '@/hooks/useEvents';
 import CalendarView from '@/components/calendar/CalendarView';
+import { Loader2 } from 'lucide-react';
 
-export default async function CalendarPage() {
-  const supabase = await createClient();
+export default function CalendarPage() {
+  const { data: events = [], isLoading, error } = useEvents();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect('/login');
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[600px]">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-slate-600" />
+          <p className="text-slate-600">Načítání kalendáře...</p>
+        </div>
+      </div>
+    );
   }
 
-  // Načti všechny akce pro kalendář
-  const { data: events } = await supabase
-    .from('events')
-    .select('*')
-    .order('start_time', { ascending: true });
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[600px]">
+        <div className="text-center">
+          <p className="text-red-600 mb-2">Chyba při načítání akcí</p>
+          <p className="text-sm text-slate-500">{error.message}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -26,7 +36,7 @@ export default async function CalendarPage() {
         <p className="text-slate-600 mt-1">Přehled všech nadcházejících akcí</p>
       </div>
 
-      <CalendarView events={events || []} />
+      <CalendarView events={events} />
     </div>
   );
 }

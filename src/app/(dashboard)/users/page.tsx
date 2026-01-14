@@ -1,39 +1,36 @@
-import { createClient } from '@/lib/supabase/server';
-import { redirect } from 'next/navigation';
+'use client';
+
+import { useUsers } from '@/hooks/useUsers';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import CreateUserDialog from '@/components/users/CreateUserDialog';
 import EditUserDialog from '@/components/users/EditUserDialog';
+import { Loader2 } from 'lucide-react';
 
-export default async function UsersPage() {
-  const supabase = await createClient();
+export default function UsersPage() {
+  const { data: users = [], isLoading, error } = useUsers();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect('/login');
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[600px]">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-slate-600" />
+          <p className="text-slate-600">Načítání uživatelů...</p>
+        </div>
+      </div>
+    );
   }
 
-  // Načti profil pro kontrolu role
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('auth_user_id', user.id)
-    .single();
-
-  const isAdmin = profile?.role === 'admin';
-
-  if (!isAdmin) {
-    redirect('/');
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[600px]">
+        <div className="text-center">
+          <p className="text-red-600 mb-2">Chyba při načítání uživatelů</p>
+          <p className="text-sm text-slate-500">{error.message}</p>
+        </div>
+      </div>
+    );
   }
-
-  // Načti všechny uživatele
-  const { data: users } = await supabase
-    .from('profiles')
-    .select('*')
-    .order('created_at', { ascending: false });
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -46,7 +43,7 @@ export default async function UsersPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {users?.map((user) => (
+        {users.map((user) => (
           <Card key={user.id}>
             <CardHeader>
               <div className="flex items-start justify-between">
@@ -89,7 +86,7 @@ export default async function UsersPage() {
         ))}
       </div>
 
-      {!users || users.length === 0 && (
+      {users.length === 0 && (
         <Card>
           <CardContent className="py-12 text-center">
             <p className="text-slate-600">Žádní uživatelé v systému</p>

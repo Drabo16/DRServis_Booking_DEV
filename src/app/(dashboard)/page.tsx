@@ -1,8 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
-import EventsWithSidebar from '@/components/events/EventsWithSidebar';
+import EventsClientWrapper from '@/components/events/EventsClientWrapper';
 
-// Cache data na 30 sekund
-export const revalidate = 30;
+// Disable SSR caching - let React Query handle it
+export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
   const supabase = await createClient();
@@ -31,91 +31,11 @@ export default async function HomePage() {
 
   const isAdmin = profile?.role === 'admin';
 
-  let events;
-  let technicians = [];
-
-  if (isAdmin) {
-    // Admin vidí všechny akce
-    const { data, error } = await supabase
-      .from('events')
-      .select(`
-        *,
-        positions (
-          id,
-          title,
-          role_type,
-          shift_start,
-          shift_end,
-          requirements,
-          assignments (
-            id,
-            attendance_status,
-            technician:profiles!assignments_technician_id_fkey(*)
-          )
-        )
-      `)
-      .gte('start_time', new Date().toISOString())
-      .lte('start_time', new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString()) // max 3 měsíce dopředu
-      .order('start_time', { ascending: true })
-      .limit(50);
-
-    if (error) {
-      console.error('[HomePage] Error fetching events:', error);
-    }
-    events = data;
-
-    // Načti všechny techniky pro Excel view
-    const { data: techData } = await supabase
-      .from('profiles')
-      .select('*')
-      .in('role', ['technician', 'admin'])
-      .eq('is_active', true)
-      .order('full_name');
-
-    technicians = techData || [];
-  } else {
-    // Technik vidí pouze akce, na které je přiřazen
-    const { data, error } = await supabase
-      .from('events')
-      .select(`
-        *,
-        positions (
-          id,
-          title,
-          role_type,
-          shift_start,
-          shift_end,
-          requirements,
-          assignments (
-            id,
-            attendance_status,
-            technician_id
-          )
-        )
-      `)
-      .gte('start_time', new Date().toISOString())
-      .lte('start_time', new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString()) // max 3 měsíce dopředu
-      .order('start_time', { ascending: true })
-      .limit(50);
-
-    if (error) {
-      console.error('[HomePage] Error fetching events:', error);
-    }
-
-    // Filtruj pouze akce kde má technik assignment
-    events = data?.filter((event) =>
-      event.positions?.some((position: any) =>
-        position.assignments?.some((assignment: any) => assignment.technician_id === profile?.id)
-      )
-    );
-  }
-
+  // Pass minimal data - let client handle fetching with React Query
   return (
-    <EventsWithSidebar
-      events={events || []}
+    <EventsClientWrapper
       isAdmin={isAdmin}
       userId={profile?.id || ''}
-      allTechnicians={technicians}
     />
   );
 }
