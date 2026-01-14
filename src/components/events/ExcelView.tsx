@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import {
   Table,
   TableBody,
@@ -35,54 +34,65 @@ interface ExcelViewProps {
   userId: string;
 }
 
-// Přidej novou pozici s technikem
-const createPositionWithTechnician = async (
-  eventId: string,
-  roleType: RoleType,
-  technicianId: string
-) => {
-  const roleLabel = ROLE_TYPES.find((t) => t.value === roleType)?.label || roleType;
-
-  const response = await fetch('/api/positions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      event_id: eventId,
-      title: roleLabel,
-      role_type: roleType,
-    }),
-  });
-
-  if (!response.ok) throw new Error('Failed to create position');
-
-  const { position } = await response.json();
-
-  await fetch('/api/assignments', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      position_id: position.id,
-      technician_id: technicianId,
-    }),
-  });
-};
-
-export default function ExcelView({ events, isAdmin, allTechnicians, userId }: ExcelViewProps) {
-  const router = useRouter();
+export default function ExcelView({ events: initialEvents, isAdmin, allTechnicians, userId }: ExcelViewProps) {
+  const [events, setEvents] = useState(initialEvents);
   const [loading, setLoading] = useState<string | null>(null);
-
-  // State pro přidávání nových rolí
-  const [addingRoleForEvent, setAddingRoleForEvent] = useState<string | null>(null);
-  const [newRoleType, setNewRoleType] = useState<RoleType | ''>('');
 
   // Přidej technika do role - vždy vytvoří novou pozici
   const handleAssignToRole = async (eventId: string, roleType: RoleType, technicianId: string) => {
     setLoading(`${eventId}-${roleType}`);
     try {
-      // Vždy vytvoř novou pozici pro každého technika
-      // To umožní mít například 2 zvukaře, 3 osvětlovače atd.
-      await createPositionWithTechnician(eventId, roleType, technicianId);
-      router.refresh();
+      const roleLabel = ROLE_TYPES.find((t) => t.value === roleType)?.label || roleType;
+
+      // 1. Vytvoř pozici
+      const posResponse = await fetch('/api/positions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event_id: eventId,
+          title: roleLabel,
+          role_type: roleType,
+        }),
+      });
+
+      if (!posResponse.ok) throw new Error('Failed to create position');
+      const { position } = await posResponse.json();
+
+      // 2. Přiřaď technika
+      const assignResponse = await fetch('/api/assignments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          position_id: position.id,
+          technician_id: technicianId,
+        }),
+      });
+
+      if (!assignResponse.ok) throw new Error('Failed to create assignment');
+      const { assignment } = await assignResponse.json();
+
+      // 3. Manuální state update - BEZ router.refresh()
+      const tech = allTechnicians.find(t => t.id === technicianId);
+      if (tech) {
+        setEvents(events.map(event => {
+          if (event.id === eventId) {
+            return {
+              ...event,
+              positions: [
+                ...(event.positions || []),
+                {
+                  ...position,
+                  assignments: [{
+                    ...assignment,
+                    technician: tech
+                  }]
+                }
+              ]
+            };
+          }
+          return event;
+        }));
+      }
     } catch (error) {
       alert('Chyba při přiřazování technika');
     } finally {
@@ -90,13 +100,36 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
     }
   };
 
-  const handleRemoveAssignment = async (assignmentId: string) => {
+  const handleRemoveAssignment = async (assignmentId: string, eventId: string, positionId: string) => {
     setLoading(assignmentId);
     try {
-      await fetch(`/api/assignments/${assignmentId}`, {
+      const response = await fetch(`/api/assignments/${assignmentId}`, {
         method: 'DELETE',
       });
-      router.refresh();
+
+      if (!response.ok) throw new Error('Failed to delete assignment');
+
+      // Manuální state update - BEZ router.refresh()
+      setEvents(events.map(event => {
+        if (event.id === eventId) {
+          return {
+            ...event,
+            positions: (event.positions || []).map(pos => {
+              if (pos.id === positionId) {
+                return {
+                  ...pos,
+                  assignments: (pos.assignments || []).filter(a => a.id !== assignmentId)
+                };
+              }
+              return pos;
+            }).filter(pos =>
+              // Odstraň pozici, pokud už nemá žádné assignments
+              pos.id !== positionId || (pos.assignments && pos.assignments.length > 0)
+            )
+          };
+        }
+        return event;
+      }));
     } catch (error) {
       alert('Chyba při odebírání přiřazení');
     } finally {
@@ -104,7 +137,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
     }
   };
 
-  const handleRemovePosition = async (positionId: string, hasAssignments: boolean = false) => {
+  const handleRemovePosition = async (positionId: string, eventId: string, hasAssignments: boolean = false) => {
     const message = hasAssignments
       ? 'Opravdu chcete smazat tuto pozici? Všichni přiřazení technici budou odebráni.'
       : 'Opravdu chcete smazat tuto prázdnou pozici?';
@@ -115,10 +148,22 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
 
     setLoading(`position-${positionId}`);
     try {
-      await fetch(`/api/positions?id=${positionId}`, {
+      const response = await fetch(`/api/positions?id=${positionId}`, {
         method: 'DELETE',
       });
-      router.refresh();
+
+      if (!response.ok) throw new Error('Failed to delete position');
+
+      // Manuální state update - BEZ router.refresh()
+      setEvents(events.map(event => {
+        if (event.id === eventId) {
+          return {
+            ...event,
+            positions: (event.positions || []).filter(p => p.id !== positionId)
+          };
+        }
+        return event;
+      }));
     } catch (error) {
       alert('Chyba při mazání pozice');
     } finally {
@@ -127,7 +172,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
   };
 
   // Smaž všechny pozice dané role
-  const handleRemoveAllPositionsForRole = async (rolePositions: any[], roleName: string) => {
+  const handleRemoveAllPositionsForRole = async (rolePositions: any[], roleName: string, eventId: string) => {
     const totalAssignments = rolePositions.reduce(
       (sum, p) => sum + (p.assignments?.length || 0),
       0
@@ -152,7 +197,18 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
           })
         )
       );
-      router.refresh();
+
+      // Manuální state update - BEZ router.refresh()
+      const positionIds = rolePositions.map(p => p.id);
+      setEvents(events.map(event => {
+        if (event.id === eventId) {
+          return {
+            ...event,
+            positions: (event.positions || []).filter(p => !positionIds.includes(p.id))
+          };
+        }
+        return event;
+      }));
     } catch (error) {
       alert('Chyba při mazání role');
     } finally {
@@ -187,7 +243,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
   };
 
   // Změna statusu přiřazení
-  const handleStatusChange = async (assignmentId: string, newStatus: string) => {
+  const handleStatusChange = async (assignmentId: string, newStatus: string, eventId: string, positionId: string) => {
     setLoading(assignmentId);
     try {
       const response = await fetch(`/api/assignments/${assignmentId}`, {
@@ -197,11 +253,68 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
       });
 
       if (!response.ok) throw new Error('Failed to update status');
-      router.refresh();
+
+      // Manuální state update - BEZ router.refresh()
+      setEvents(events.map(event => {
+        if (event.id === eventId) {
+          return {
+            ...event,
+            positions: (event.positions || []).map(pos => {
+              if (pos.id === positionId) {
+                return {
+                  ...pos,
+                  assignments: (pos.assignments || []).map(a =>
+                    a.id === assignmentId ? { ...a, attendance_status: newStatus as any } : a
+                  )
+                };
+              }
+              return pos;
+            })
+          };
+        }
+        return event;
+      }) as any);
     } catch (error) {
       alert('Chyba při aktualizaci statusu');
     } finally {
       setLoading(null);
+    }
+  };
+
+  const handleAddRole = async (eventId: string, roleValue: string) => {
+    if (!roleValue) return;
+
+    const roleLabel = ROLE_TYPES.find((t) => t.value === roleValue)?.label || roleValue;
+
+    try {
+      const response = await fetch('/api/positions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event_id: eventId,
+          title: roleLabel,
+          role_type: roleValue,
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to create position');
+      const { position } = await response.json();
+
+      // Manuální state update - BEZ router.refresh()
+      setEvents(events.map(event => {
+        if (event.id === eventId) {
+          return {
+            ...event,
+            positions: [
+              ...(event.positions || []),
+              { ...position, assignments: [] }
+            ]
+          };
+        }
+        return event;
+      }));
+    } catch (error) {
+      alert('Chyba při vytváření role');
     }
   };
 
@@ -247,7 +360,6 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
 
                         // Najdi všechny pozice pro tuto roli
                         const rolePositions = positions.filter((p) => p.role_type === roleValue);
-                        const assignedTechs = rolePositions.flatMap((p) => p.assignments || []);
 
                         return (
                           <div key={roleValue} className="border border-slate-200 rounded p-2 min-w-[180px]">
@@ -256,7 +368,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                               <div className="font-semibold text-xs text-slate-700">{role.label}</div>
                               {isAdmin && (
                                 <button
-                                  onClick={() => handleRemoveAllPositionsForRole(rolePositions, role.label)}
+                                  onClick={() => handleRemoveAllPositionsForRole(rolePositions, role.label, event.id)}
                                   disabled={loading === `role-${roleValue}`}
                                   className="text-red-500 hover:text-red-700 transition-colors"
                                   title={`Smazat celou roli ${role.label}`}
@@ -289,7 +401,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                                             {canChangeStatus && (
                                               <Select
                                                 value={assignment.attendance_status}
-                                                onValueChange={(value) => handleStatusChange(assignment.id, value)}
+                                                onValueChange={(value) => handleStatusChange(assignment.id, value, event.id, position.id)}
                                                 disabled={loading === assignment.id}
                                               >
                                                 <SelectTrigger className="h-5 w-5 p-0 border-none bg-transparent hover:bg-black/10 [&>svg]:hidden">
@@ -307,7 +419,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                                             )}
                                             {isAdmin && (
                                               <button
-                                                onClick={() => handleRemoveAssignment(assignment.id)}
+                                                onClick={() => handleRemoveAssignment(assignment.id, event.id, position.id)}
                                                 disabled={loading === assignment.id}
                                                 className="hover:opacity-70"
                                                 title="Odebrat technika z této pozice"
@@ -354,20 +466,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                         <div className="border border-dashed border-slate-300 rounded p-2 min-w-[120px]">
                           <Select
                             value=""
-                            onValueChange={(value) => {
-                              if (value) {
-                                const roleLabel = ROLE_TYPES.find((t) => t.value === value)?.label || value;
-                                fetch('/api/positions', {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({
-                                    event_id: event.id,
-                                    title: roleLabel,
-                                    role_type: value,
-                                  }),
-                                }).then(() => router.refresh());
-                              }
-                            }}
+                            onValueChange={(value) => handleAddRole(event.id, value)}
                           >
                             <SelectTrigger className="h-7 text-xs border-none">
                               <SelectValue placeholder="+ Role" />

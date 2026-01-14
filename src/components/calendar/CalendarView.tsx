@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { Calendar, dateFnsLocalizer, Event as BigCalendarEvent, ToolbarProps } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
 import { cs } from 'date-fns/locale';
@@ -37,8 +37,8 @@ export default function CalendarView({ events, onEventClick }: CalendarViewProps
   const router = useRouter();
   const [currentDate, setCurrentDate] = useState(new Date());
 
-  // Vypočítej obsazenost pro každou akci
-  const getEventFillRate = (event: typeof events[0]) => {
+  // Memoizovaný výpočet fill rate - přepočítá se pouze když se změní events array
+  const getEventFillRate = useCallback((event: typeof events[0]) => {
     const positions = event.positions || [];
     const totalPositions = positions.length;
     if (totalPositions === 0) return { filled: 0, total: 0, percentage: 0 };
@@ -52,29 +52,34 @@ export default function CalendarView({ events, onEventClick }: CalendarViewProps
       total: totalPositions,
       percentage: Math.round((filledPositions / totalPositions) * 100),
     };
-  };
+  }, []);
 
-  // Transformuj events do formátu pro react-big-calendar
-  const calendarEvents: BigCalendarEvent[] = events.map((event) => {
-    const fillRate = getEventFillRate(event);
-    return {
-      title: `${event.title} (${fillRate.filled}/${fillRate.total})`,
-      start: new Date(event.start_time),
-      end: new Date(event.end_time),
-      resource: { event, fillRate }, // Uložíme celý event a fill rate
-    };
-  });
+  // Transformace events do formátu pro react-big-calendar
+  // POUŽIJ useMemo - přepočítá se POUZE když se změní events array
+  const calendarEvents: BigCalendarEvent[] = useMemo(() => {
+    return events.map((event) => {
+      const fillRate = getEventFillRate(event);
+      return {
+        title: `${event.title} (${fillRate.filled}/${fillRate.total})`,
+        start: new Date(event.start_time),
+        end: new Date(event.end_time),
+        resource: { event, fillRate },
+      };
+    });
+  }, [events, getEventFillRate]);
 
-  const handleSelectEvent = (event: BigCalendarEvent) => {
+  // Memoizovaný handler
+  const handleSelectEvent = useCallback((event: BigCalendarEvent) => {
     const { event: originalEvent } = event.resource as { event: Event; fillRate: any };
     if (onEventClick) {
       onEventClick(originalEvent.id);
     } else {
       router.push(`/events/${originalEvent.id}`);
     }
-  };
+  }, [onEventClick, router]);
 
-  const eventStyleGetter = (event: BigCalendarEvent) => {
+  // Memoizovaný style getter
+  const eventStyleGetter = useCallback((event: BigCalendarEvent) => {
     const { event: originalEvent, fillRate } = event.resource as { event: Event; fillRate: any };
 
     let backgroundColor = '#334155'; // slate-700 default
@@ -109,9 +114,9 @@ export default function CalendarView({ events, onEventClick }: CalendarViewProps
         padding: '2px 6px',
       },
     };
-  };
+  }, []);
 
-  const messages = {
+  const messages = useMemo(() => ({
     allDay: 'Celý den',
     previous: 'Předchozí',
     next: 'Další',
@@ -125,10 +130,10 @@ export default function CalendarView({ events, onEventClick }: CalendarViewProps
     event: 'Akce',
     noEventsInRange: 'V tomto období nejsou žádné akce',
     showMore: (total: number) => `+ další (${total})`,
-  };
+  }), []);
 
   // Vlastní toolbar pouze s navigací měsíců
-  const CustomToolbar = ({ label, onNavigate }: ToolbarProps) => {
+  const CustomToolbar = useCallback(({ label, onNavigate }: ToolbarProps) => {
     return (
       <div className="flex items-center justify-between mb-4 pb-4 border-b">
         <Button
@@ -150,7 +155,12 @@ export default function CalendarView({ events, onEventClick }: CalendarViewProps
         </Button>
       </div>
     );
-  };
+  }, []);
+
+  // Memoizované komponenty objekty
+  const components = useMemo(() => ({
+    toolbar: CustomToolbar,
+  }), [CustomToolbar]);
 
   return (
     <div className="bg-white p-4 rounded-lg shadow-sm" style={{ height: '800px' }}>
@@ -160,7 +170,7 @@ export default function CalendarView({ events, onEventClick }: CalendarViewProps
         startAccessor="start"
         endAccessor="end"
         date={currentDate}
-        onNavigate={(newDate) => setCurrentDate(newDate)}
+        onNavigate={setCurrentDate}
         onSelectEvent={handleSelectEvent}
         eventPropGetter={eventStyleGetter}
         messages={messages}
@@ -168,9 +178,7 @@ export default function CalendarView({ events, onEventClick }: CalendarViewProps
         views={['month']}
         defaultView="month"
         popup
-        components={{
-          toolbar: CustomToolbar,
-        }}
+        components={components}
       />
     </div>
   );

@@ -1,0 +1,54 @@
+
+> drservis-booking@1.0.0 build
+> next build
+
+▲ Next.js 16.1.1 (Turbopack)
+- Environments: .env.local
+
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+  Creating an optimized production build ...
+✓ Compiled successfully in 6.7s
+  Running TypeScript ...
+  Collecting page data using 11 workers ...
+  Generating static pages using 11 workers (0/19) ...
+  Generating static pages using 11 workers (4/19) 
+  Generating static pages using 11 workers (9/19) 
+  Generating static pages using 11 workers (14/19) 
+✓ Generating static pages using 11 workers (19/19) in 172.6ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ƒ /
+├ ○ /_not-found
+├ ƒ /api/assignments
+├ ƒ /api/assignments/[id]
+├ ƒ /api/events/[id]
+├ ƒ /api/events/[id]/drive
+├ ƒ /api/events/[id]/files
+├ ƒ /api/events/[id]/invite
+├ ƒ /api/events/[id]/sync-status
+├ ƒ /api/positions
+├ ƒ /api/role-types
+├ ƒ /api/role-types/[id]
+├ ƒ /api/sync/calendar
+├ ƒ /api/technicians
+├ ƒ /api/users
+├ ƒ /api/users/[id]
+├ ƒ /auth/callback
+├ ○ /auth/unauthorized
+├ ƒ /calendar
+├ ƒ /debug
+├ ƒ /events/[id]
+├ ○ /login
+├ ƒ /settings
+├ ƒ /settings/roles
+├ ƒ /technicians
+├ ƒ /test-event
+└ ƒ /users
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
