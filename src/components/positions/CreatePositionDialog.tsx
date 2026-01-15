@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
+import { eventKeys } from '@/hooks/useEvents';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -36,7 +37,7 @@ export default function CreatePositionDialog({ eventId }: CreatePositionDialogPr
     description: '',
     hourly_rate: '',
   });
-  const router = useRouter();
+  const queryClient = useQueryClient();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,7 +59,9 @@ export default function CreatePositionDialog({ eventId }: CreatePositionDialogPr
       if (response.ok) {
         setOpen(false);
         setFormData({ title: '', role_type: 'sound', description: '', hourly_rate: '' });
-        router.refresh();
+
+        // Invalidate cache to sync all views
+        await queryClient.invalidateQueries({ queryKey: eventKeys.all });
       } else {
         alert('Chyba při vytváření pozice');
       }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 
 // PATCH /api/role-types/[id] - Aktualizovat typ role (admin only)
 export async function PATCH(
@@ -33,7 +33,10 @@ export async function PATCH(
     const body = await request.json();
     const { value, label } = body;
 
-    const { data, error } = await supabase
+    // Use service role client to bypass RLS
+    const serviceClient = createServiceRoleClient();
+
+    const { data, error } = await serviceClient
       .from('role_types')
       .update({ value, label })
       .eq('id', id)
@@ -81,8 +84,18 @@ export async function DELETE(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    // Use service role client to bypass RLS
+    const serviceClient = createServiceRoleClient();
+
+    // Nejdříve získáme hodnotu role type pro aktualizaci pozic
+    const { data: roleType } = await serviceClient
+      .from('role_types')
+      .select('value')
+      .eq('id', id)
+      .single();
+
     // Smazání role type
-    const { error } = await supabase
+    const { error } = await serviceClient
       .from('role_types')
       .delete()
       .eq('id', id);
@@ -90,10 +103,12 @@ export async function DELETE(
     if (error) throw error;
 
     // Aktualizace pozic které měly tuto roli - nastavit na 'other'
-    await supabase
-      .from('positions')
-      .update({ role_type: 'other' })
-      .eq('role_type', id);
+    if (roleType?.value) {
+      await serviceClient
+        .from('positions')
+        .update({ role_type: 'other' })
+        .eq('role_type', roleType.value);
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

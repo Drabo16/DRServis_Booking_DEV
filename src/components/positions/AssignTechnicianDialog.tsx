@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -20,6 +19,8 @@ import {
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { createClient } from '@/lib/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
+import { eventKeys } from '@/hooks/useEvents';
 import type { Profile } from '@/types';
 
 interface AssignTechnicianDialogProps {
@@ -39,7 +40,7 @@ export default function AssignTechnicianDialog({
   const [technicians, setTechnicians] = useState<Profile[]>([]);
   const [selectedTechnicianId, setSelectedTechnicianId] = useState('');
   const [notes, setNotes] = useState('');
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const supabase = createClient();
 
   useEffect(() => {
@@ -82,7 +83,8 @@ export default function AssignTechnicianDialog({
         onOpenChange(false);
         setSelectedTechnicianId('');
         setNotes('');
-        router.refresh();
+        // Invalidate React Query cache to update all views
+        await queryClient.invalidateQueries({ queryKey: eventKeys.all });
       } else {
         alert('Chyba při přiřazování technika');
       }

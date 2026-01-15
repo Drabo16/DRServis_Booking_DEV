@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
 import EventCard from './EventCard';
 import EventDetailPanel from './EventDetailPanel';
 import type { Event, Profile } from '@/types';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Filter, X } from 'lucide-react';
 
 // Lazy load heavy components for better initial load time
 const CalendarView = lazy(() => import('@/components/calendar/CalendarView'));
@@ -30,6 +31,7 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
   const eventId = searchParams.get('event');
   const [selectedEventId, setSelectedEventId] = useState<string | null>(eventId);
   const [activeTab, setActiveTab] = useState('list');
+  const [showIncompleteOnly, setShowIncompleteOnly] = useState(false);
 
   useEffect(() => {
     setSelectedEventId(eventId);
@@ -49,17 +51,53 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
     router.push(`/?${params.toString()}`, { scroll: false });
   };
 
+  // Filter events - show only incomplete if filter is active
+  const filteredEvents = useMemo(() => {
+    if (!showIncompleteOnly) return events;
+
+    return events.filter(event => {
+      const totalPositions = event.positions?.length || 0;
+      if (totalPositions === 0) return true; // Show events with no positions
+
+      const filledPositions = event.positions?.filter(pos =>
+        pos.assignments && pos.assignments.length > 0
+      ).length || 0;
+
+      return filledPositions < totalPositions; // Show if not all positions filled
+    });
+  }, [events, showIncompleteOnly]);
+
   // Excel view má full width, ostatní mají split view
   const isExcelView = activeTab === 'excel';
 
   return (
-    <div className={isExcelView ? '' : 'flex gap-6 h-full'}>
+    <div className={isExcelView ? '' : 'flex gap-6'}>
       {/* Levý panel nebo full width panel */}
-      <div className={isExcelView ? 'w-full' : 'w-1/2'}>
-        <div className="mb-4">
+      <div className={isExcelView ? 'w-full' : 'w-1/2 flex-shrink-0'}>
+        <div className="mb-4 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-slate-900">
             {isAdmin ? 'Akce' : 'Moje akce'}
           </h1>
+
+          {/* Filter button */}
+          <Button
+            variant={showIncompleteOnly ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setShowIncompleteOnly(!showIncompleteOnly)}
+            className="gap-2"
+          >
+            {showIncompleteOnly ? (
+              <>
+                <X className="w-4 h-4" />
+                Zrušit filtr
+              </>
+            ) : (
+              <>
+                <Filter className="w-4 h-4" />
+                Neúplné obsazení
+              </>
+            )}
+          </Button>
         </div>
 
         <Tabs defaultValue="list" className="w-full" onValueChange={setActiveTab}>
@@ -70,15 +108,18 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
           </TabsList>
 
           <TabsContent value="list" className="mt-6">
-            {!events || events.length === 0 ? (
+            {!filteredEvents || filteredEvents.length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-slate-600">
-                  Žádné nadcházející akce. Pro načtení akcí z Google Calendar použijte tlačítko &quot;Synchronizovat&quot; v hlavičce.
+                  {showIncompleteOnly
+                    ? 'Žádné akce s neúplným obsazením.'
+                    : 'Žádné nadcházející akce. Pro načtení akcí z Google Calendar použijte tlačítko "Synchronizovat" v hlavičce.'
+                  }
                 </p>
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-4">
-                {events.map((event) => (
+                {filteredEvents.map((event) => (
                   <EventCard
                     key={event.id}
                     event={event}
@@ -95,7 +136,7 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
                 <Loader2 className="w-8 h-8 animate-spin text-slate-600" />
               </div>
             }>
-              <CalendarView events={events} onEventClick={handleOpenEvent} />
+              <CalendarView events={filteredEvents} onEventClick={handleOpenEvent} />
             </Suspense>
           </TabsContent>
 
@@ -105,7 +146,7 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
                 <Loader2 className="w-8 h-8 animate-spin text-slate-600" />
               </div>
             }>
-              <ExcelView events={events as any} isAdmin={isAdmin} allTechnicians={allTechnicians} userId={userId} />
+              <ExcelView events={filteredEvents as any} isAdmin={isAdmin} allTechnicians={allTechnicians} userId={userId} />
             </Suspense>
           </TabsContent>
         </Tabs>
@@ -113,7 +154,7 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
 
       {/* Pravý panel - detail akce (pouze pro Seznam a Kalendář view) */}
       {!isExcelView && (
-        <div className="w-1/2 border-l border-slate-200 pl-6 overflow-y-auto max-h-screen">
+        <div className="w-1/2 border-l border-slate-200 pl-6 overflow-y-auto sticky top-0 h-screen">
           {selectedEventId ? (
             <EventDetailPanel
               eventId={selectedEventId}

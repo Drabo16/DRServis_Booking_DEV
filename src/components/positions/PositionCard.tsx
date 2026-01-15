@@ -14,7 +14,8 @@ import { getRoleTypeLabel, getAttendanceStatusLabel, getAttendanceStatusColor } 
 import { UserPlus, Mail } from 'lucide-react';
 import type { Position, Assignment, Profile, AttendanceStatus } from '@/types';
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
+import { eventKeys } from '@/hooks/useEvents';
 import AssignTechnicianDialog from './AssignTechnicianDialog';
 
 interface PositionCardProps {
@@ -25,7 +26,7 @@ interface PositionCardProps {
 }
 
 export default function PositionCard({ position, isAdmin }: PositionCardProps) {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
 
@@ -39,7 +40,7 @@ export default function PositionCard({ position, isAdmin }: PositionCardProps) {
 
       if (response.ok) {
         alert('Pozvánka odeslána!');
-        router.refresh();
+        // No need to refresh - invites don't change the data structure
       } else {
         alert('Chyba při odesílání pozvánky');
       }
@@ -61,7 +62,8 @@ export default function PositionCard({ position, isAdmin }: PositionCardProps) {
         throw new Error('Failed to update status');
       }
 
-      router.refresh();
+      // Invalidate React Query cache to update all views
+      await queryClient.invalidateQueries({ queryKey: eventKeys.all });
     } catch (error) {
       alert('Chyba při aktualizaci statusu');
     } finally {

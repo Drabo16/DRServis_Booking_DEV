@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
+import { eventKeys } from '@/hooks/useEvents';
 import {
   Table,
   TableBody,
@@ -29,7 +30,7 @@ interface PositionTableProps {
 }
 
 export default function PositionTable({ positions, eventId }: PositionTableProps) {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const [isAdding, setIsAdding] = useState(false);
   const [loading, setLoading] = useState(false);
   const [newPosition, setNewPosition] = useState({
@@ -60,7 +61,9 @@ export default function PositionTable({ positions, eventId }: PositionTableProps
 
       setNewPosition({ title: '', role_type: 'sound' });
       setIsAdding(false);
-      router.refresh();
+
+      // Invalidate cache to sync all views
+      await queryClient.invalidateQueries({ queryKey: eventKeys.all });
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Chyba při vytváření pozice');
     } finally {
@@ -88,7 +91,8 @@ export default function PositionTable({ positions, eventId }: PositionTableProps
         throw new Error(error.error || 'Failed to delete position');
       }
 
-      router.refresh();
+      // Invalidate cache to sync all views
+      await queryClient.invalidateQueries({ queryKey: eventKeys.all });
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Chyba při mazání pozice');
     }

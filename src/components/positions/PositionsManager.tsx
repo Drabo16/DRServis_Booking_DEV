@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -23,7 +23,8 @@ import { Plus, Trash2, X, Mail, UserPlus } from 'lucide-react';
 import { ROLE_TYPES } from '@/lib/constants';
 import { getRoleTypeLabel, getAttendanceStatusLabel, getAttendanceStatusColor } from '@/lib/utils';
 import type { Position, Assignment, Profile, RoleType, AttendanceStatus } from '@/types';
-import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
+import { eventKeys } from '@/hooks/useEvents';
 
 interface PositionsManagerProps {
   positions: (Position & {
@@ -40,7 +41,7 @@ export default function PositionsManager({
   isAdmin,
   allTechnicians = [],
 }: PositionsManagerProps) {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const [positions, setPositions] = useState(initialPositions);
   const [isAddingPosition, setIsAddingPosition] = useState(false);
   const [newPosition, setNewPosition] = useState<{ role_type: RoleType | '', technicianId: string }>({
@@ -50,6 +51,11 @@ export default function PositionsManager({
   const [loading, setLoading] = useState(false);
   const [selectedTechnician, setSelectedTechnician] = useState<{ [key: string]: string }>({});
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
+
+  // Sync local state with props when React Query cache updates
+  useEffect(() => {
+    setPositions(initialPositions);
+  }, [initialPositions]);
 
   const handleAddPosition = async () => {
     if (!newPosition.role_type) return;
@@ -104,6 +110,9 @@ export default function PositionsManager({
 
       setNewPosition({ role_type: '', technicianId: '' });
       setIsAddingPosition(false);
+
+      // Invalidate cache to sync all views
+      await queryClient.invalidateQueries({ queryKey: eventKeys.all });
     } catch (error) {
       alert('Chyba při vytváření pozice');
     } finally {
@@ -123,6 +132,9 @@ export default function PositionsManager({
 
       // Manuální update UI bez router.refresh
       setPositions(positions.filter(p => p.id !== positionId));
+
+      // Invalidate cache to sync all views
+      await queryClient.invalidateQueries({ queryKey: eventKeys.all });
     } catch (error) {
       alert('Chyba při mazání pozice');
     }
@@ -179,6 +191,9 @@ export default function PositionsManager({
         }
         return pos;
       }));
+
+      // Invalidate cache to sync all views
+      await queryClient.invalidateQueries({ queryKey: eventKeys.all });
     } catch (error) {
       // ROLLBACK - odeber temporary assignment při chybě - POUŽIJ PREV!
       setPositions(prev => prev.map(pos => {
@@ -217,6 +232,9 @@ export default function PositionsManager({
       });
 
       if (!response.ok) throw new Error('Failed to remove assignment');
+
+      // Invalidate cache to sync all views
+      await queryClient.invalidateQueries({ queryKey: eventKeys.all });
     } catch (error) {
       // ROLLBACK - vrať assignment zpět - POUŽIJ PREV!
       if (backup) {
@@ -259,6 +277,9 @@ export default function PositionsManager({
       });
 
       if (!response.ok) throw new Error('Failed to update status');
+
+      // Invalidate cache to sync all views
+      await queryClient.invalidateQueries({ queryKey: eventKeys.all });
     } catch (error) {
       // ROLLBACK - vrať starý status - POUŽIJ PREV!
       if (oldStatus) {

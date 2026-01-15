@@ -5,11 +5,12 @@ import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Calendar, MapPin, ExternalLink, FolderOpen, X, Loader2 } from 'lucide-react';
+import { Calendar, MapPin, ExternalLink, FolderOpen, X, Loader2, FileText } from 'lucide-react';
 import { formatDateRange } from '@/lib/utils';
 import PositionsManager from '@/components/positions/PositionsManager';
 import CreateDriveFolderButton from '@/components/events/CreateDriveFolderButton';
 import SyncStatusButton from '@/components/events/SyncStatusButton';
+import DriveFilesList from '@/components/events/DriveFilesList';
 
 interface EventDetailPanelProps {
   eventId: string;
@@ -79,16 +80,11 @@ export default function EventDetailPanel({ eventId, onClose, isAdmin }: EventDet
       {/* Event Header */}
       <Card>
         <CardHeader>
-          <div className="flex items-start justify-between">
-            <div className="space-y-2 flex-1">
-              <CardTitle className="text-2xl">{event.title}</CardTitle>
-              {event.description && (
-                <CardDescription>{event.description}</CardDescription>
-              )}
-            </div>
-            <Badge variant={event.status === 'confirmed' ? 'default' : 'secondary'}>
-              {event.status === 'confirmed' ? 'Potvrzeno' : 'Předběžně'}
-            </Badge>
+          <div className="space-y-2">
+            <CardTitle className="text-2xl">{event.title}</CardTitle>
+            {event.description && (
+              <CardDescription>{event.description}</CardDescription>
+            )}
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -112,19 +108,24 @@ export default function EventDetailPanel({ eventId, onClose, isAdmin }: EventDet
             )}
 
             {event.drive_folder_url && (
-              <div className="flex items-center gap-3 text-slate-700">
-                <FolderOpen className="w-5 h-5 text-slate-400" />
-                <div>
-                  <p className="text-sm text-slate-500">Google Drive</p>
+              <div className="flex items-start gap-3 text-slate-700">
+                <FolderOpen className="w-5 h-5 text-slate-400 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-slate-500 mb-2">Google Drive</p>
                   <a
                     href={event.drive_folder_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-medium text-blue-600 hover:underline flex items-center gap-1"
+                    className="font-medium text-blue-600 hover:underline flex items-center gap-1 mb-3"
                   >
                     Otevřít složku
                     <ExternalLink className="w-3 h-3" />
                   </a>
+                  <DriveFilesList
+                    eventId={event.id}
+                    driveFolderId={event.drive_folder_id}
+                    compact={true}
+                  />
                 </div>
               </div>
             )}

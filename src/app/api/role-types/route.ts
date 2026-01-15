@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 
 // GET /api/role-types - Načíst všechny typy rolí
 export async function GET() {
@@ -58,7 +58,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data, error } = await supabase
+    // Use service role client to bypass RLS
+    const serviceClient = createServiceRoleClient();
+
+    const { data, error } = await serviceClient
       .from('role_types')
       .insert({ value, label })
       .select()
