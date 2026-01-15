@@ -7,9 +7,10 @@ import { useRouter } from 'next/navigation';
 
 interface SyncStatusButtonProps {
   eventId: string;
+  onSync?: () => void;
 }
 
-export default function SyncStatusButton({ eventId }: SyncStatusButtonProps) {
+export default function SyncStatusButton({ eventId, onSync }: SyncStatusButtonProps) {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
@@ -25,7 +26,11 @@ export default function SyncStatusButton({ eventId }: SyncStatusButtonProps) {
 
       if (response.ok) {
         alert(`Aktualizováno ${data.updated} statusů`);
-        router.refresh();
+        if (onSync) {
+          onSync();
+        } else {
+          router.refresh();
+        }
       } else {
         alert('Chyba při synchronizaci statusů');
       }

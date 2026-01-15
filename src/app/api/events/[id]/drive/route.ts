@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { createEventFolderStructure } from '@/lib/google/drive';
+import { createEventFolderStructure, updateInfoFile } from '@/lib/google/drive';
 
 /**
  * POST /api/events/[id]/drive
@@ -35,10 +35,24 @@ export async function POST(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Načtení eventu
+    // Načtení eventu s pozicemi a přiřazenými techniky
     const { data: event, error: eventError } = await supabase
       .from('events')
-      .select('*')
+      .select(`
+        *,
+        positions (
+          id,
+          role_type,
+          title,
+          assignments (
+            id,
+            attendance_status,
+            technician:profiles (
+              full_name
+            )
+          )
+        )
+      `)
       .eq('id', eventId)
       .single();
 
@@ -59,10 +73,27 @@ export async function POST(
       );
     }
 
-    // Vytvoření složky
+    // Připravíme data o potvrzených technicích
+    const confirmedTechnicians = (event.positions || []).flatMap((pos: any) =>
+      (pos.assignments || [])
+        .filter((a: any) => a.attendance_status === 'accepted')
+        .map((a: any) => ({
+          name: a.technician?.full_name || 'Neznámý',
+          role: pos.title || pos.role_type,
+          status: 'Potvrzeno',
+        }))
+    );
+
+    // Vytvoření složky s info souborem
     const folderResult = await createEventFolderStructure(
       event.title,
-      new Date(event.start_time)
+      new Date(event.start_time),
+      {
+        endTime: event.end_time ? new Date(event.end_time) : undefined,
+        location: event.location,
+        description: event.description,
+        confirmedTechnicians,
+      }
     );
 
     // Uložení odkazu do DB
@@ -86,6 +117,97 @@ export async function POST(
     return NextResponse.json(
       {
         error: 'Failed to create Drive folder',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * PATCH /api/events/[id]/drive
+ * Aktualizace info souboru v existující Drive složce
+ */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id: eventId } = await params;
+
+    const supabase = await createClient();
+
+    // Ověření autentizace
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Načtení eventu s pozicemi a techniky
+    const { data: event, error: eventError } = await supabase
+      .from('events')
+      .select(`
+        *,
+        positions (
+          id,
+          role_type,
+          title,
+          assignments (
+            id,
+            attendance_status,
+            technician:profiles (
+              full_name
+            )
+          )
+        )
+      `)
+      .eq('id', eventId)
+      .single();
+
+    if (eventError || !event) {
+      return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+    }
+
+    if (!event.drive_folder_id) {
+      return NextResponse.json(
+        { error: 'No Drive folder exists for this event' },
+        { status: 400 }
+      );
+    }
+
+    // Připravíme data o potvrzených technicích
+    const confirmedTechnicians = (event.positions || []).flatMap((pos: any) =>
+      (pos.assignments || [])
+        .filter((a: any) => a.attendance_status === 'accepted')
+        .map((a: any) => ({
+          name: a.technician?.full_name || 'Neznámý',
+          role: pos.title || pos.role_type,
+          status: 'Potvrzeno',
+        }))
+    );
+
+    // Aktualizujeme info soubor
+    await updateInfoFile(event.drive_folder_id, {
+      title: event.title,
+      startTime: new Date(event.start_time),
+      endTime: event.end_time ? new Date(event.end_time) : undefined,
+      location: event.location,
+      description: event.description,
+      confirmedTechnicians,
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: 'Info file updated successfully',
+    });
+  } catch (error) {
+    console.error('Drive info update error:', error);
+    return NextResponse.json(
+      {
+        error: 'Failed to update info file',
         message: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }

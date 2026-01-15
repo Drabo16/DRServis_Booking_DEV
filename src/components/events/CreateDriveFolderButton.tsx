@@ -7,10 +7,12 @@ import { useRouter } from 'next/navigation';
 
 interface CreateDriveFolderButtonProps {
   eventId: string;
+  onSuccess?: () => void;
 }
 
 export default function CreateDriveFolderButton({
   eventId,
+  onSuccess,
 }: CreateDriveFolderButtonProps) {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -31,7 +33,11 @@ export default function CreateDriveFolderButton({
 
       if (response.ok) {
         alert('Složka úspěšně vytvořena!');
-        router.refresh();
+        if (onSuccess) {
+          onSuccess();
+        } else {
+          router.refresh();
+        }
       } else {
         alert(data.message || 'Chyba při vytváření složky');
       }

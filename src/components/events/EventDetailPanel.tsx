@@ -1,16 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Calendar, MapPin, ExternalLink, FolderOpen, X, Loader2, FileText } from 'lucide-react';
+import { Calendar, MapPin, ExternalLink, FolderOpen, X, Loader2, FileText, Link } from 'lucide-react';
 import { formatDateRange } from '@/lib/utils';
 import PositionsManager from '@/components/positions/PositionsManager';
 import CreateDriveFolderButton from '@/components/events/CreateDriveFolderButton';
 import SyncStatusButton from '@/components/events/SyncStatusButton';
 import DriveFilesList from '@/components/events/DriveFilesList';
+import { useQueryClient } from '@tanstack/react-query';
+import { eventKeys } from '@/hooks/useEvents';
 
 interface EventDetailPanelProps {
   eventId: string;
@@ -20,37 +22,69 @@ interface EventDetailPanelProps {
 
 export default function EventDetailPanel({ eventId, onClose, isAdmin }: EventDetailPanelProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [event, setEvent] = useState<any>(null);
   const [technicians, setTechnicians] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [attachingDrive, setAttachingDrive] = useState(false);
+
+  const fetchEventDetail = useCallback(async () => {
+    setLoading(true);
+    try {
+      // Fetch event detail
+      const eventRes = await fetch(`/api/events/${eventId}`);
+      if (!eventRes.ok) throw new Error('Failed to fetch event');
+      const eventData = await eventRes.json();
+      setEvent(eventData.event);
+
+      // Fetch technicians if admin
+      if (isAdmin) {
+        const techRes = await fetch('/api/technicians');
+        if (techRes.ok) {
+          const techData = await techRes.json();
+          setTechnicians(techData.technicians || []);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching event detail:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [eventId, isAdmin]);
 
   useEffect(() => {
-    const fetchEventDetail = async () => {
-      setLoading(true);
-      try {
-        // Fetch event detail
-        const eventRes = await fetch(`/api/events/${eventId}`);
-        if (!eventRes.ok) throw new Error('Failed to fetch event');
-        const eventData = await eventRes.json();
-        setEvent(eventData.event);
-
-        // Fetch technicians if admin
-        if (isAdmin) {
-          const techRes = await fetch('/api/technicians');
-          if (techRes.ok) {
-            const techData = await techRes.json();
-            setTechnicians(techData.technicians || []);
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching event detail:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchEventDetail();
-  }, [eventId, isAdmin]);
+  }, [fetchEventDetail]);
+
+  // Auto-refresh po synchronizaci (volané z child komponent)
+  const handleRefresh = useCallback(() => {
+    fetchEventDetail();
+    queryClient.invalidateQueries({ queryKey: eventKeys.list() });
+  }, [fetchEventDetail, queryClient]);
+
+  // Připojení Drive složky ke kalendáři
+  const handleAttachDriveToCalendar = async () => {
+    if (!event?.drive_folder_url || !event?.google_event_id) return;
+
+    setAttachingDrive(true);
+    try {
+      const res = await fetch(`/api/events/${eventId}/attach-drive`, {
+        method: 'POST',
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to attach');
+      }
+
+      // Refresh data
+      handleRefresh();
+    } catch (error) {
+      console.error('Error attaching Drive to calendar:', error);
+    } finally {
+      setAttachingDrive(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -132,11 +166,26 @@ export default function EventDetailPanel({ eventId, onClose, isAdmin }: EventDet
           </div>
 
           {isAdmin && (
-            <div className="flex gap-3 pt-4 border-t">
+            <div className="flex flex-wrap gap-3 pt-4 border-t">
               {!event.drive_folder_url && (
-                <CreateDriveFolderButton eventId={event.id} />
+                <CreateDriveFolderButton eventId={event.id} onSuccess={handleRefresh} />
               )}
-              <SyncStatusButton eventId={event.id} />
+              {event.drive_folder_url && event.google_event_id && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAttachDriveToCalendar}
+                  disabled={attachingDrive}
+                >
+                  {attachingDrive ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Link className="w-4 h-4 mr-2" />
+                  )}
+                  Připojit složku do kalendáře
+                </Button>
+              )}
+              <SyncStatusButton eventId={event.id} onSync={handleRefresh} />
             </div>
           )}
         </CardContent>

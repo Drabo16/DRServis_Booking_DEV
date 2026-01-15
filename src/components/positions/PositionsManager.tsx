@@ -19,12 +19,17 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, Trash2, X, Mail, UserPlus } from 'lucide-react';
-import { ROLE_TYPES } from '@/lib/constants';
+import { Plus, Trash2, X, Mail, UserPlus, Loader2 } from 'lucide-react';
 import { getRoleTypeLabel, getAttendanceStatusLabel, getAttendanceStatusColor } from '@/lib/utils';
 import type { Position, Assignment, Profile, RoleType, AttendanceStatus } from '@/types';
 import { useQueryClient } from '@tanstack/react-query';
 import { eventKeys } from '@/hooks/useEvents';
+
+interface RoleTypeDB {
+  id: string;
+  value: string;
+  label: string;
+}
 
 interface PositionsManagerProps {
   positions: (Position & {
@@ -52,6 +57,28 @@ export default function PositionsManager({
   const [selectedTechnician, setSelectedTechnician] = useState<{ [key: string]: string }>({});
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
 
+  // Dynamic role types from database
+  const [roleTypes, setRoleTypes] = useState<RoleTypeDB[]>([]);
+  const [loadingRoles, setLoadingRoles] = useState(true);
+
+  // Load role types from database
+  useEffect(() => {
+    const fetchRoleTypes = async () => {
+      try {
+        const res = await fetch('/api/role-types');
+        if (res.ok) {
+          const data = await res.json();
+          setRoleTypes(data.roleTypes || []);
+        }
+      } catch (error) {
+        console.error('Error fetching role types:', error);
+      } finally {
+        setLoadingRoles(false);
+      }
+    };
+    fetchRoleTypes();
+  }, []);
+
   // Sync local state with props when React Query cache updates
   useEffect(() => {
     setPositions(initialPositions);
@@ -61,7 +88,7 @@ export default function PositionsManager({
     if (!newPosition.role_type) return;
 
     setLoading(true);
-    const roleLabel = ROLE_TYPES.find((t) => t.value === newPosition.role_type)?.label || newPosition.role_type;
+    const roleLabel = roleTypes.find((t) => t.value === newPosition.role_type)?.label || newPosition.role_type;
 
     try {
       // Server call
@@ -469,8 +496,8 @@ export default function PositionsManager({
                       <SelectValue placeholder="Vyberte typ role..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {ROLE_TYPES.map((role) => (
-                        <SelectItem key={role.value} value={role.value}>
+                      {roleTypes.map((role) => (
+                        <SelectItem key={role.id} value={role.value}>
                           {role.label}
                         </SelectItem>
                       ))}

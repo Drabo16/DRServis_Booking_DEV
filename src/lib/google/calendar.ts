@@ -207,3 +207,104 @@ export async function createCalendarEvent(
     throw new Error('Failed to create calendar event');
   }
 }
+
+/**
+ * Připojení Drive složky k události v kalendáři
+ * Přidá odkaz do popisu události
+ */
+export async function attachDriveFolderToEvent(
+  eventId: string,
+  driveFolderUrl: string,
+  driveFolderName: string
+) {
+  const calendar = getCalendarClient();
+
+  try {
+    // Získáme aktuální event
+    const event = await calendar.events.get({
+      calendarId: CALENDAR_ID,
+      eventId,
+    });
+
+    const currentDescription = event.data.description || '';
+
+    // Zkontrolujeme, jestli už odkaz není v popisu
+    if (currentDescription.includes(driveFolderUrl)) {
+      console.log('Drive folder link already exists in event description');
+      return event.data;
+    }
+
+    // Přidáme odkaz na Drive složku do popisu
+    const driveSection = `\n\n📁 Google Drive složka:\n${driveFolderUrl}`;
+    const newDescription = currentDescription + driveSection;
+
+    // Aktualizujeme event
+    const response = await calendar.events.update({
+      calendarId: CALENDAR_ID,
+      eventId,
+      requestBody: {
+        ...event.data,
+        description: newDescription,
+      },
+    });
+
+    return response.data;
+  } catch (error: any) {
+    console.error('Error attaching Drive folder to event:', error);
+    throw new Error(`Failed to attach Drive folder: ${error?.message || 'Unknown error'}`);
+  }
+}
+
+/**
+ * Aktualizace popisu události s informacemi o technicích
+ */
+export async function updateEventDescription(
+  eventId: string,
+  techniciansInfo: Array<{ name: string; role: string; status: string }>
+) {
+  const calendar = getCalendarClient();
+
+  try {
+    const event = await calendar.events.get({
+      calendarId: CALENDAR_ID,
+      eventId,
+    });
+
+    let description = event.data.description || '';
+
+    // Odstraníme starou sekci s techniky (pokud existuje)
+    const techSectionRegex = /\n\n👥 Přiřazení technici:[\s\S]*?(?=\n\n📁|$)/;
+    description = description.replace(techSectionRegex, '');
+
+    // Přidáme novou sekci s techniky (před Drive link, pokud existuje)
+    if (techniciansInfo.length > 0) {
+      let techSection = '\n\n👥 Přiřazení technici:';
+      techniciansInfo.forEach(tech => {
+        const statusIcon = tech.status === 'Potvrzeno' ? '✅' : tech.status === 'Odmítnuto' ? '❌' : '⏳';
+        techSection += `\n${statusIcon} ${tech.name} - ${tech.role}`;
+      });
+
+      // Vložíme před Drive sekci nebo na konec
+      const driveIndex = description.indexOf('\n\n📁');
+      if (driveIndex !== -1) {
+        description = description.slice(0, driveIndex) + techSection + description.slice(driveIndex);
+      } else {
+        description += techSection;
+      }
+    }
+
+    const response = await calendar.events.update({
+      calendarId: CALENDAR_ID,
+      eventId,
+      requestBody: {
+        ...event.data,
+        description,
+      },
+    });
+
+    return response.data;
+  } catch (error: any) {
+    console.error('Error updating event description:', error);
+    throw new Error(`Failed to update event description: ${error?.message || 'Unknown error'}`);
+  }
+}
