@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { X, Plus, Check, Loader2, Save, Users, FolderPlus, Settings } from 'lucide-react';
+import { X, Plus, Check, Loader2, Save, Users, FolderPlus, Settings, FolderOpen, Calendar, Link2 } from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { cs } from 'date-fns/locale';
@@ -104,17 +104,35 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
     fetchRoleTypes();
   }, []);
 
-  // Schedule auto-save after 2 seconds of inactivity (faster!)
-  const scheduleAutoSave = useCallback(() => {
+  // Auto-save effect - triggers when pendingOperations change
+  useEffect(() => {
+    if (pendingOperations.length === 0) return;
+
+    // Clear any existing timeout
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
 
     setSaveStatus('unsaved');
 
+    // Schedule save after 2 seconds
     saveTimeoutRef.current = setTimeout(() => {
-      saveToDatabase();
-    }, 2000); // Reduced from 5000 to 2000ms
+      // Call save directly - this effect has access to current pendingOperations
+      if (pendingOperations.length > 0 && !isSavingRef.current) {
+        performSave(pendingOperations);
+      }
+    }, 2000);
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [pendingOperations]);
+
+  // Schedule auto-save (just marks as unsaved, actual save happens via effect)
+  const scheduleAutoSave = useCallback(() => {
+    setSaveStatus('unsaved');
   }, []);
 
   // CTRL+S handler
@@ -122,7 +140,9 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
-        saveToDatabase();
+        if (pendingOperations.length > 0) {
+          performSave(pendingOperations);
+        }
       }
     };
 
@@ -130,10 +150,10 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [pendingOperations]);
 
-  // Save all pending operations to database
-  const saveToDatabase = useCallback(async () => {
-    if (isSavingRef.current || pendingOperations.length === 0) {
-      if (pendingOperations.length === 0) {
+  // Perform save with given operations (avoids stale closure)
+  const performSave = async (operations: PendingOperation[]) => {
+    if (isSavingRef.current || operations.length === 0) {
+      if (operations.length === 0) {
         setSaveStatus('saved');
       }
       return;
@@ -146,8 +166,6 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
 
     isSavingRef.current = true;
     setSaveStatus('saving');
-
-    const operations = [...pendingOperations];
 
     try {
       for (const op of operations) {
@@ -242,7 +260,12 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
     } finally {
       isSavingRef.current = false;
     }
-  }, [pendingOperations, queryClient, roleTypes]);
+  };
+
+  // Save wrapper for button click
+  const saveToDatabase = useCallback(() => {
+    performSave(pendingOperations);
+  }, [pendingOperations, roleTypes, queryClient]);
 
   // Add technician to role
   const addTechnician = useCallback((eventId: string, roleType: string, technicianId: string) => {
@@ -526,6 +549,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
               )}
               <TableHead className="w-[180px] sticky left-0 bg-white z-10">Akce</TableHead>
               <TableHead className="w-[90px]">Datum</TableHead>
+              <TableHead className="w-[60px] text-center">Status</TableHead>
               {/* Dynamic role columns */}
               {roleTypes.map(role => (
                 <TableHead key={role.id} className="min-w-[150px]">
@@ -559,6 +583,26 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                   {/* Date */}
                   <TableCell className="text-xs text-slate-600">
                     {format(new Date(event.start_time), 'd.M.yy', { locale: cs })}
+                  </TableCell>
+
+                  {/* Status icons - Drive & Calendar */}
+                  <TableCell className="text-center">
+                    <div className="flex items-center justify-center gap-1">
+                      {/* Drive folder status */}
+                      <div
+                        className={`p-1 rounded ${event.drive_folder_id ? 'text-green-600 bg-green-50' : 'text-slate-300'}`}
+                        title={event.drive_folder_id ? 'Drive složka vytvořena' : 'Bez Drive složky'}
+                      >
+                        <FolderOpen className="w-4 h-4" />
+                      </div>
+                      {/* Calendar attachment status */}
+                      <div
+                        className={`p-1 rounded ${event.google_event_id ? 'text-blue-600 bg-blue-50' : 'text-slate-300'}`}
+                        title={event.google_event_id ? 'Synchronizováno s kalendářem' : 'Není v kalendáři'}
+                      >
+                        <Calendar className="w-4 h-4" />
+                      </div>
+                    </div>
                   </TableCell>
 
                   {/* Role columns */}

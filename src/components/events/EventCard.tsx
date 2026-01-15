@@ -1,7 +1,7 @@
 import { memo, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, MapPin, CheckCircle2 } from 'lucide-react';
+import { Calendar, MapPin, CheckCircle2, FolderOpen } from 'lucide-react';
 import { formatDateRange } from '@/lib/utils';
 import type { Event } from '@/types';
 
@@ -11,6 +11,8 @@ interface EventCardProps {
       id: string;
       assignments?: Array<{ id: string; attendance_status: string }>;
     }>;
+    drive_folder_id?: string | null;
+    google_event_id?: string | null;
   };
   onOpen?: (id: string) => void;
 }
@@ -51,7 +53,28 @@ function EventCard({ event, onOpen }: EventCardProps) {
       onClick={() => onOpen?.(event.id)}
     >
         <CardHeader className="pb-2">
-          <CardTitle className="text-base font-semibold line-clamp-1">{event.title}</CardTitle>
+          <div className="flex items-start justify-between gap-2">
+            <CardTitle className="text-base font-semibold line-clamp-1 flex-1">{event.title}</CardTitle>
+            {/* Status icons */}
+            <div className="flex items-center gap-1 flex-shrink-0">
+              {event.drive_folder_id && (
+                <div
+                  className="p-1 rounded text-green-600 bg-green-50"
+                  title="Drive složka vytvořena"
+                >
+                  <FolderOpen className="w-3.5 h-3.5" />
+                </div>
+              )}
+              {event.google_event_id && (
+                <div
+                  className="p-1 rounded text-blue-600 bg-blue-50"
+                  title="Synchronizováno s kalendářem"
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                </div>
+              )}
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="space-y-1.5 pt-0">
           <div className="flex items-center gap-1.5 text-xs text-slate-600">

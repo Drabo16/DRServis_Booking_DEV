@@ -203,8 +203,8 @@ export async function updateInfoFile(
 
 /**
  * Vytvoření struktury složek pro akci
- * V2: Složky jsou organizovány do měsíčních podložek
- * Struktura: Parent / YYYY-MM / YYYY-MM-DD - Název akce / [Podklady, Foto, Video, Dokumenty]
+ * V3: Jednoduchá struktura - pouze složka s info.txt (bez podsložek)
+ * Struktura: Parent / YYYY-MM / YYYY-MM-DD - Název akce / info_akce.txt
  */
 export async function createEventFolderStructure(
   eventTitle: string,
@@ -216,25 +216,24 @@ export async function createEventFolderStructure(
     confirmedTechnicians?: Array<{ name: string; role: string; status: string }>;
   }
 ) {
+  console.log('[Drive] Creating folder structure for:', eventTitle, eventDate);
+
   try {
     // Získáme nebo vytvoříme měsíční složku
+    console.log('[Drive] Getting/creating month folder...');
     const monthFolder = await getOrCreateMonthFolder(eventDate);
+    console.log('[Drive] Month folder:', monthFolder.id, monthFolder.name);
 
     const dateStr = eventDate.toISOString().split('T')[0]; // YYYY-MM-DD
     const mainFolderName = `${dateStr} - ${eventTitle}`;
 
     // Vytvoříme hlavní složku akce v měsíční složce
+    console.log('[Drive] Creating main folder:', mainFolderName);
     const mainFolder = await createFolder(mainFolderName, monthFolder.id);
+    console.log('[Drive] Main folder created:', mainFolder.id);
 
-    // Vytvoříme podsložky
-    const subfolders = ['Podklady', 'Foto', 'Video', 'Dokumenty'];
-    const subfolderPromises = subfolders.map(name =>
-      createFolder(name, mainFolder.id)
-    );
-
-    await Promise.all(subfolderPromises);
-
-    // Vytvoříme info soubor
+    // Vytvoříme pouze info soubor (bez podsložek)
+    console.log('[Drive] Creating info file...');
     await createInfoFile(mainFolder.id, {
       title: eventTitle,
       startTime: eventDate,
@@ -243,6 +242,7 @@ export async function createEventFolderStructure(
       description: eventData?.description,
       confirmedTechnicians: eventData?.confirmedTechnicians,
     });
+    console.log('[Drive] Info file created');
 
     return {
       folderId: mainFolder.id,
@@ -250,9 +250,14 @@ export async function createEventFolderStructure(
       folderName: mainFolder.name,
       monthFolderId: monthFolder.id,
     };
-  } catch (error) {
-    console.error('Error creating event folder structure:', error);
-    throw new Error('Failed to create event folder structure');
+  } catch (error: any) {
+    console.error('[Drive] Error creating event folder structure:', error);
+    console.error('[Drive] Error details:', {
+      message: error?.message,
+      response: error?.response?.data,
+      status: error?.response?.status,
+    });
+    throw new Error(`Failed to create event folder structure: ${error?.message || 'Unknown error'}`);
   }
 }
 
