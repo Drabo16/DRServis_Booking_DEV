@@ -23,7 +23,8 @@ import {
 } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { X, Plus, Check, Loader2, Save, Users, FolderPlus, Trash2 } from 'lucide-react';
+import { X, Plus, Check, Loader2, Save, Users, FolderPlus, Settings } from 'lucide-react';
+import Link from 'next/link';
 import { format } from 'date-fns';
 import { cs } from 'date-fns/locale';
 import type { Event, Position, Assignment, Profile, RoleType, AttendanceStatus } from '@/types';
@@ -431,6 +432,26 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
     );
   }
 
+  if (roleTypes.length === 0) {
+    return (
+      <div className="bg-white rounded-lg shadow-sm p-8 text-center">
+        <Users className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+        <h3 className="text-lg font-medium text-slate-700 mb-2">Žádné typy rolí</h3>
+        <p className="text-slate-500 mb-4">
+          Nejprve vytvořte typy rolí v nastavení, aby se zobrazily sloupce pro přiřazování techniků.
+        </p>
+        {isAdmin && (
+          <Button variant="outline" asChild>
+            <Link href="/settings">
+              <Settings className="w-4 h-4 mr-2" />
+              Přejít do nastavení
+            </Link>
+          </Button>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white rounded-lg shadow-sm">
       {/* Header with save status, bulk actions, and button */}
@@ -490,9 +511,9 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
         </Button>
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto">
-        <Table>
+      {/* Table with horizontal scroll */}
+      <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100">
+        <Table className="min-w-max">
           <TableHeader>
             <TableRow>
               {isAdmin && (
@@ -512,7 +533,6 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                 </TableHead>
               ))}
               <TableHead className="w-[70px] text-center">Obsaz.</TableHead>
-              <TableHead className="w-[50px] sticky right-0 bg-white z-10">Role</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -645,46 +665,6 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                       </div>
                     ) : (
                       <span className="text-xs text-slate-400">-</span>
-                    )}
-                  </TableCell>
-
-                  {/* Add role button */}
-                  <TableCell className="sticky right-0 bg-white">
-                    {isAdmin && (
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
-                            <Users className="w-4 h-4" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-48 p-2" align="end">
-                          <div className="text-xs font-medium text-slate-500 mb-2">
-                            Přidat roli pro akci
-                          </div>
-                          <div className="space-y-1">
-                            {roleTypes.map(role => {
-                              const hasRole = (event.positions || []).some(p => p.role_type === role.value);
-                              return (
-                                <label
-                                  key={role.id}
-                                  className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-100 cursor-pointer"
-                                >
-                                  <Checkbox
-                                    checked={hasRole}
-                                    disabled={true}
-                                  />
-                                  <span className="text-sm">{role.label}</span>
-                                  {hasRole && (
-                                    <span className="text-xs text-green-600 ml-auto">
-                                      ({getAssignmentsForRole(event, role.value).length})
-                                    </span>
-                                  )}
-                                </label>
-                              );
-                            })}
-                          </div>
-                        </PopoverContent>
-                      </Popover>
                     )}
                   </TableCell>
                 </TableRow>

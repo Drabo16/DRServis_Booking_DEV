@@ -209,13 +209,14 @@ export async function createCalendarEvent(
 }
 
 /**
- * Připojení Drive složky k události v kalendáři
- * Přidá odkaz do popisu události
+ * Připojení Drive složky k události v kalendáři jako příloha (attachment)
+ * Používá Google Calendar API attachments field
  */
 export async function attachDriveFolderToEvent(
   eventId: string,
   driveFolderUrl: string,
-  driveFolderName: string
+  driveFolderId: string,
+  driveFolderName?: string
 ) {
   const calendar = getCalendarClient();
 
@@ -226,31 +227,45 @@ export async function attachDriveFolderToEvent(
       eventId,
     });
 
-    const currentDescription = event.data.description || '';
+    const existingAttachments = event.data.attachments || [];
 
-    // Zkontrolujeme, jestli už odkaz není v popisu
-    if (currentDescription.includes(driveFolderUrl)) {
-      console.log('Drive folder link already exists in event description');
+    // Zkontrolujeme, jestli už příloha není přidaná
+    const alreadyAttached = existingAttachments.some(
+      (att) => att.fileId === driveFolderId || att.fileUrl === driveFolderUrl
+    );
+
+    if (alreadyAttached) {
+      console.log('Drive folder already attached to event');
       return event.data;
     }
 
-    // Přidáme odkaz na Drive složku do popisu
-    const driveSection = `\n\n📁 Google Drive složka:\n${driveFolderUrl}`;
-    const newDescription = currentDescription + driveSection;
+    // Přidáme Drive složku jako přílohu
+    const newAttachment = {
+      fileUrl: driveFolderUrl,
+      title: driveFolderName || 'Podklady akce',
+      mimeType: 'application/vnd.google-apps.folder',
+      iconLink: 'https://drive-thirdparty.googleusercontent.com/16/type/application/vnd.google-apps.folder',
+      fileId: driveFolderId,
+    };
 
-    // Aktualizujeme event
-    const response = await calendar.events.update({
+    // Aktualizujeme event s přílohou
+    const response = await calendar.events.patch({
       calendarId: CALENDAR_ID,
       eventId,
+      supportsAttachments: true,
       requestBody: {
-        ...event.data,
-        description: newDescription,
+        attachments: [...existingAttachments, newAttachment],
       },
     });
 
     return response.data;
   } catch (error: any) {
     console.error('Error attaching Drive folder to event:', error);
+    console.error('Error details:', {
+      message: error?.message,
+      response: error?.response?.data,
+      status: error?.response?.status,
+    });
     throw new Error(`Failed to attach Drive folder: ${error?.message || 'Unknown error'}`);
   }
 }

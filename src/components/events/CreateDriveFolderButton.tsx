@@ -39,10 +39,12 @@ export default function CreateDriveFolderButton({
           router.refresh();
         }
       } else {
-        alert(data.message || 'Chyba při vytváření složky');
+        console.error('Drive folder creation error:', response.status, data);
+        alert(data.message || data.error || `Chyba při vytváření složky (${response.status})`);
       }
     } catch (error) {
-      alert('Chyba při vytváření složky');
+      console.error('Drive folder creation exception:', error);
+      alert('Chyba při vytváření složky - zkontrolujte konzoli pro detaily');
     } finally {
       setLoading(false);
     }

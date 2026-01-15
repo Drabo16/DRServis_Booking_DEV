@@ -28,7 +28,7 @@ export async function POST(
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
-      .eq('id', user.id)
+      .eq('auth_user_id', user.id)
       .single();
 
     if (profile?.role !== 'admin') {
@@ -62,11 +62,12 @@ export async function POST(
       );
     }
 
-    // Připojíme Drive složku ke kalendáři
+    // Připojíme Drive složku ke kalendáři jako přílohu
     await attachDriveFolderToEvent(
       event.google_event_id,
       event.drive_folder_url,
-      event.title
+      event.drive_folder_id,
+      `Podklady - ${event.title}`
     );
 
     return NextResponse.json({

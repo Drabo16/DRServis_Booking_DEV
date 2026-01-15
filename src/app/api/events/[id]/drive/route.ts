@@ -12,6 +12,7 @@ export async function POST(
 ) {
   try {
     const { id: eventId } = await params;
+    console.log('[Drive API] Creating folder for event:', eventId);
 
     const supabase = await createClient();
 
@@ -28,7 +29,7 @@ export async function POST(
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
-      .eq('id', user.id)
+      .eq('auth_user_id', user.id)
       .single();
 
     if (profile?.role !== 'admin') {
@@ -57,8 +58,10 @@ export async function POST(
       .single();
 
     if (eventError || !event) {
-      return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+      console.log('[Drive API] Event not found:', eventId, 'Error:', eventError);
+      return NextResponse.json({ error: 'Event not found', details: eventError?.message }, { status: 404 });
     }
+    console.log('[Drive API] Found event:', event.title);
 
     // Kontrola, jestli už složka neexistuje
     if (event.drive_folder_id) {
