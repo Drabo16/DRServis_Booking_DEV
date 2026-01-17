@@ -140,18 +140,20 @@ export default function CalendarView({ events, onEventClick }: CalendarViewProps
           variant="outline"
           size="sm"
           onClick={() => onNavigate('PREV')}
+          className="px-2 sm:px-3"
         >
-          <ChevronLeft className="w-4 h-4 mr-1" />
-          Předchozí
+          <ChevronLeft className="w-4 h-4 sm:mr-1" />
+          <span className="hidden sm:inline">Předchozí</span>
         </Button>
-        <h2 className="text-lg font-semibold text-slate-900">{label}</h2>
+        <h2 className="text-sm sm:text-lg font-semibold text-slate-900">{label}</h2>
         <Button
           variant="outline"
           size="sm"
           onClick={() => onNavigate('NEXT')}
+          className="px-2 sm:px-3"
         >
-          Další
-          <ChevronRight className="w-4 h-4 ml-1" />
+          <span className="hidden sm:inline">Další</span>
+          <ChevronRight className="w-4 h-4 sm:ml-1" />
         </Button>
       </div>
     );
@@ -163,7 +165,7 @@ export default function CalendarView({ events, onEventClick }: CalendarViewProps
   }), [CustomToolbar]);
 
   return (
-    <div className="bg-white p-4 rounded-lg shadow-sm" style={{ height: '800px' }}>
+    <div className="bg-white p-2 sm:p-4 rounded-lg shadow-sm h-[500px] sm:h-[600px] md:h-[800px]">
       <Calendar
         localizer={localizer}
         events={calendarEvents}

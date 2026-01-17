@@ -6,11 +6,18 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import EventCard from './EventCard';
 import EventDetailPanel from './EventDetailPanel';
 import type { Event, Profile } from '@/types';
 import { eventKeys } from '@/hooks/useEvents';
-import { Loader2, Filter, X, FolderPlus, Link2, RefreshCw, Trash2 } from 'lucide-react';
+import { Loader2, Filter, X, FolderPlus, Link2, RefreshCw, Trash2, MoreHorizontal } from 'lucide-react';
 
 // Lazy load heavy components for better initial load time
 const CalendarView = lazy(() => import('@/components/calendar/CalendarView'));
@@ -37,6 +44,7 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
   const [selectedEventId, setSelectedEventId] = useState<string | null>(eventId);
   const [activeTab, setActiveTab] = useState('list');
   const [showIncompleteOnly, setShowIncompleteOnly] = useState(false);
+  const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
 
   // Multiselect state for Seznam view
   const [selectedEvents, setSelectedEvents] = useState<Set<string>>(new Set());
@@ -45,6 +53,9 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
 
   useEffect(() => {
     setSelectedEventId(eventId);
+    if (eventId) {
+      setMobileSheetOpen(true);
+    }
   }, [eventId]);
 
   // Clear selection when switching tabs
@@ -54,6 +65,7 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
 
   const handleOpenEvent = (id: string) => {
     setSelectedEventId(id);
+    setMobileSheetOpen(true);
     const params = new URLSearchParams(searchParams.toString());
     params.set('event', id);
     router.push(`/?${params.toString()}`, { scroll: false });
@@ -61,6 +73,7 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
 
   const handleCloseEvent = () => {
     setSelectedEventId(null);
+    setMobileSheetOpen(false);
     const params = new URLSearchParams(searchParams.toString());
     params.delete('event');
     router.push(`/?${params.toString()}`, { scroll: false });
@@ -225,12 +238,101 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
     setSelectedEvents(new Set());
   };
 
+  // Bulk actions bar component
+  const BulkActionsBar = () => (
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 p-3 bg-slate-50 rounded-lg border">
+      <div className="flex items-center gap-3 flex-wrap">
+        <Checkbox
+          checked={selectedEvents.size === filteredEvents.length && filteredEvents.length > 0}
+          onCheckedChange={toggleSelectAll}
+        />
+        <span className="text-sm text-slate-600">
+          {selectedEvents.size > 0 ? `Vybráno: ${selectedEvents.size}` : 'Vybrat vše'}
+        </span>
+
+        {selectedEvents.size > 0 && (
+          <>
+            {/* Desktop buttons */}
+            <div className="hidden md:flex items-center gap-2 pl-3 border-l">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={bulkCreateDriveFolders}
+                disabled={isProcessing}
+                className="gap-1"
+              >
+                {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <FolderPlus className="w-4 h-4" />}
+                Vytvořit podklady
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={bulkAttachToCalendar}
+                disabled={isProcessing}
+                className="gap-1"
+              >
+                {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
+                Připojit přílohy
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={bulkDeleteDriveFolders}
+                disabled={isProcessing}
+                className="gap-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+              >
+                {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                Smazat podklady
+              </Button>
+            </div>
+
+            {/* Mobile dropdown */}
+            <div className="md:hidden pl-3 border-l">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" variant="outline" disabled={isProcessing}>
+                    {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <MoreHorizontal className="w-4 h-4" />}
+                    <span className="ml-1">Akce</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem onClick={bulkCreateDriveFolders}>
+                    <FolderPlus className="w-4 h-4 mr-2" />
+                    Vytvořit podklady
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={bulkAttachToCalendar}>
+                    <Link2 className="w-4 h-4 mr-2" />
+                    Připojit přílohy
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={bulkDeleteDriveFolders} className="text-red-600">
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Smazat podklady
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </>
+        )}
+      </div>
+
+      <Button
+        size="sm"
+        variant="ghost"
+        onClick={validateDriveFolders}
+        disabled={isValidatingDrive}
+        title="Ověřit Drive složky"
+      >
+        <RefreshCw className={`w-4 h-4 ${isValidatingDrive ? 'animate-spin' : ''}`} />
+      </Button>
+    </div>
+  );
+
   return (
-    <div className={isFullWidthView ? '' : 'flex gap-6'}>
+    <div className={isFullWidthView ? '' : 'flex flex-col lg:flex-row gap-6'}>
       {/* Levý panel nebo full width panel */}
-      <div className={isFullWidthView ? 'w-full' : 'w-1/2 flex-shrink-0'}>
-        <div className="mb-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-slate-900">
+      <div className={isFullWidthView ? 'w-full' : 'w-full lg:w-1/2 lg:flex-shrink-0'}>
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <h1 className="text-xl md:text-2xl font-bold text-slate-900">
             {isAdmin ? 'Akce' : 'Moje akce'}
           </h1>
 
@@ -239,94 +341,36 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
             variant={showIncompleteOnly ? 'default' : 'outline'}
             size="sm"
             onClick={() => setShowIncompleteOnly(!showIncompleteOnly)}
-            className="gap-2"
+            className="gap-1 md:gap-2"
           >
             {showIncompleteOnly ? (
               <>
                 <X className="w-4 h-4" />
-                Zrušit filtr
+                <span className="hidden sm:inline">Zrušit filtr</span>
               </>
             ) : (
               <>
                 <Filter className="w-4 h-4" />
-                Neúplné obsazení
+                <span className="hidden sm:inline">Neúplné obsazení</span>
               </>
             )}
           </Button>
         </div>
 
         <Tabs defaultValue="list" className="w-full" onValueChange={setActiveTab}>
-          <TabsList className={`grid w-full max-w-lg ${isAdmin ? 'grid-cols-4' : 'grid-cols-3'}`}>
-            <TabsTrigger value="list">Seznam</TabsTrigger>
-            <TabsTrigger value="calendar">Kalendář</TabsTrigger>
-            <TabsTrigger value="excel">Excel</TabsTrigger>
-            {isAdmin && <TabsTrigger value="responses">Odpovědi</TabsTrigger>}
+          <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-4' : 'grid-cols-3'}`}>
+            <TabsTrigger value="list" className="text-xs sm:text-sm">Seznam</TabsTrigger>
+            <TabsTrigger value="calendar" className="text-xs sm:text-sm">Kalendář</TabsTrigger>
+            <TabsTrigger value="excel" className="text-xs sm:text-sm">Excel</TabsTrigger>
+            {isAdmin && <TabsTrigger value="responses" className="text-xs sm:text-sm">Odpovědi</TabsTrigger>}
           </TabsList>
 
-          <TabsContent value="list" className="mt-6">
-            {/* Bulk actions bar for admin */}
-            {isAdmin && filteredEvents.length > 0 && (
-              <div className="flex items-center justify-between mb-4 p-3 bg-slate-50 rounded-lg border">
-                <div className="flex items-center gap-3">
-                  <Checkbox
-                    checked={selectedEvents.size === filteredEvents.length && filteredEvents.length > 0}
-                    onCheckedChange={toggleSelectAll}
-                  />
-                  <span className="text-sm text-slate-600">
-                    {selectedEvents.size > 0 ? `Vybráno: ${selectedEvents.size}` : 'Vybrat vše'}
-                  </span>
-
-                  {selectedEvents.size > 0 && (
-                    <div className="flex items-center gap-2 pl-3 border-l">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={bulkCreateDriveFolders}
-                        disabled={isProcessing}
-                        className="gap-1"
-                      >
-                        {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <FolderPlus className="w-4 h-4" />}
-                        Vytvořit podklady
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={bulkAttachToCalendar}
-                        disabled={isProcessing}
-                        className="gap-1"
-                      >
-                        {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
-                        Připojit přílohy
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={bulkDeleteDriveFolders}
-                        disabled={isProcessing}
-                        className="gap-1 text-red-600 hover:text-red-700 hover:bg-red-50"
-                      >
-                        {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                        Smazat podklady
-                      </Button>
-                    </div>
-                  )}
-                </div>
-
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={validateDriveFolders}
-                  disabled={isValidatingDrive}
-                  title="Ověřit Drive složky"
-                >
-                  <RefreshCw className={`w-4 h-4 ${isValidatingDrive ? 'animate-spin' : ''}`} />
-                </Button>
-              </div>
-            )}
+          <TabsContent value="list" className="mt-4 md:mt-6">
+            {isAdmin && filteredEvents.length > 0 && <BulkActionsBar />}
 
             {!filteredEvents || filteredEvents.length === 0 ? (
               <div className="text-center py-12">
-                <p className="text-slate-600">
+                <p className="text-slate-600 text-sm md:text-base">
                   {showIncompleteOnly
                     ? 'Žádné akce s neúplným obsazením.'
                     : 'Žádné nadcházející akce. Pro načtení akcí z Google Calendar použijte tlačítko "Synchronizovat" v hlavičce.'
@@ -334,7 +378,7 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-4">
+              <div className="grid grid-cols-1 gap-3 md:gap-4">
                 {filteredEvents.map((event) => (
                   <EventCard
                     key={event.id}
@@ -349,69 +393,11 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
             )}
           </TabsContent>
 
-          <TabsContent value="calendar" className="mt-6">
-            {/* Bulk actions bar for calendar view */}
-            {isAdmin && filteredEvents.length > 0 && (
-              <div className="flex items-center justify-between mb-4 p-3 bg-slate-50 rounded-lg border">
-                <div className="flex items-center gap-3">
-                  <Checkbox
-                    checked={selectedEvents.size === filteredEvents.length && filteredEvents.length > 0}
-                    onCheckedChange={toggleSelectAll}
-                  />
-                  <span className="text-sm text-slate-600">
-                    {selectedEvents.size > 0 ? `Vybráno: ${selectedEvents.size}` : `Vybrat vše (${filteredEvents.length})`}
-                  </span>
-
-                  {selectedEvents.size > 0 && (
-                    <div className="flex items-center gap-2 pl-3 border-l">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={bulkCreateDriveFolders}
-                        disabled={isProcessing}
-                        className="gap-1"
-                      >
-                        {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <FolderPlus className="w-4 h-4" />}
-                        Vytvořit podklady
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={bulkAttachToCalendar}
-                        disabled={isProcessing}
-                        className="gap-1"
-                      >
-                        {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
-                        Připojit přílohy
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={bulkDeleteDriveFolders}
-                        disabled={isProcessing}
-                        className="gap-1 text-red-600 hover:text-red-700 hover:bg-red-50"
-                      >
-                        {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                        Smazat podklady
-                      </Button>
-                    </div>
-                  )}
-                </div>
-
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={validateDriveFolders}
-                  disabled={isValidatingDrive}
-                  title="Ověřit Drive složky"
-                >
-                  <RefreshCw className={`w-4 h-4 ${isValidatingDrive ? 'animate-spin' : ''}`} />
-                </Button>
-              </div>
-            )}
+          <TabsContent value="calendar" className="mt-4 md:mt-6">
+            {isAdmin && filteredEvents.length > 0 && <BulkActionsBar />}
 
             <Suspense fallback={
-              <div className="flex items-center justify-center min-h-[400px]">
+              <div className="flex items-center justify-center min-h-[300px] md:min-h-[400px]">
                 <Loader2 className="w-8 h-8 animate-spin text-slate-600" />
               </div>
             }>
@@ -419,9 +405,9 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
             </Suspense>
           </TabsContent>
 
-          <TabsContent value="excel" className="mt-6">
+          <TabsContent value="excel" className="mt-4 md:mt-6">
             <Suspense fallback={
-              <div className="flex items-center justify-center min-h-[400px]">
+              <div className="flex items-center justify-center min-h-[300px] md:min-h-[400px]">
                 <Loader2 className="w-8 h-8 animate-spin text-slate-600" />
               </div>
             }>
@@ -430,9 +416,9 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
           </TabsContent>
 
           {isAdmin && (
-            <TabsContent value="responses" className="mt-6">
+            <TabsContent value="responses" className="mt-4 md:mt-6">
               <Suspense fallback={
-                <div className="flex items-center justify-center min-h-[400px]">
+                <div className="flex items-center justify-center min-h-[300px] md:min-h-[400px]">
                   <Loader2 className="w-8 h-8 animate-spin text-slate-600" />
                 </div>
               }>
@@ -448,9 +434,9 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
         </Tabs>
       </div>
 
-      {/* Pravý panel - detail akce (pouze pro Seznam a Kalendář view) */}
+      {/* Pravý panel - detail akce - DESKTOP only */}
       {!isFullWidthView && (
-        <div className="w-1/2 border-l border-slate-200 pl-6 overflow-y-auto sticky top-0 h-screen">
+        <div className="hidden lg:block w-1/2 border-l border-slate-200 pl-6 overflow-y-auto sticky top-0 h-screen">
           {selectedEventId ? (
             <EventDetailPanel
               eventId={selectedEventId}
@@ -466,6 +452,21 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
           )}
         </div>
       )}
+
+      {/* Mobile sheet for event detail */}
+      <Sheet open={mobileSheetOpen && !isFullWidthView} onOpenChange={(open) => {
+        if (!open) handleCloseEvent();
+      }}>
+        <SheetContent side="bottom" className="h-[90vh] overflow-y-auto lg:hidden">
+          {selectedEventId && (
+            <EventDetailPanel
+              eventId={selectedEventId}
+              onClose={handleCloseEvent}
+              isAdmin={isAdmin}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

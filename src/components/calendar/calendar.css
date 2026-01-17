@@ -6,12 +6,19 @@
 }
 
 .rbc-header {
-  padding: 14px 6px;
+  padding: 8px 4px;
   font-weight: 600;
-  font-size: 13px;
+  font-size: 11px;
   color: #0f172a;
   border-bottom: 2px solid #e2e8f0;
   background-color: #f8fafc;
+}
+
+@media (min-width: 640px) {
+  .rbc-header {
+    padding: 14px 6px;
+    font-size: 13px;
+  }
 }
 
 .rbc-today {
@@ -25,8 +32,14 @@
 .rbc-event {
   cursor: pointer;
   transition: all 0.2s;
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 500;
+}
+
+@media (min-width: 640px) {
+  .rbc-event {
+    font-size: 12px;
+  }
 }
 
 .rbc-event:hover {
@@ -107,7 +120,13 @@
 
 .rbc-month-row {
   border-top: 1px solid #e2e8f0;
-  min-height: 90px;
+  min-height: 60px;
+}
+
+@media (min-width: 640px) {
+  .rbc-month-row {
+    min-height: 90px;
+  }
 }
 
 .rbc-date-cell {

@@ -609,66 +609,73 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
   return (
     <div className="bg-white rounded-lg shadow-sm">
       {/* Header with save status, bulk actions, and button */}
-      <div className="flex items-center justify-between px-4 py-3 border-b bg-slate-50">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-3 sm:px-4 py-3 border-b bg-slate-50">
+        <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
           {/* Save status */}
           <div className="flex items-center gap-2">
             {saveStatus === 'saving' && (
               <>
                 <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-                <span className="text-sm text-blue-600">Ukládám...</span>
+                <span className="text-xs sm:text-sm text-blue-600">Ukládám...</span>
               </>
             )}
             {saveStatus === 'saved' && (
               <>
                 <Check className="w-4 h-4 text-green-600" />
-                <span className="text-sm text-green-600">Uloženo</span>
+                <span className="text-xs sm:text-sm text-green-600">Uloženo</span>
               </>
             )}
             {saveStatus === 'unsaved' && (
               <>
                 <div className="w-2 h-2 bg-amber-500 rounded-full" />
-                <span className="text-sm text-amber-600">
+                <span className="text-xs sm:text-sm text-amber-600">
                   Neuložené změny ({pendingOperations.length})
                 </span>
               </>
             )}
           </div>
 
-          {/* Bulk actions */}
+          {/* Bulk actions - hidden on mobile, shown in dropdown */}
           {isAdmin && selectedEvents.size > 0 && (
-            <div className="flex items-center gap-2 pl-4 border-l">
-              <span className="text-sm text-slate-600">
+            <>
+              {/* Desktop bulk actions */}
+              <div className="hidden md:flex items-center gap-2 pl-4 border-l">
+                <span className="text-sm text-slate-600">
+                  Vybráno: {selectedEvents.size}
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={bulkCreateDriveFolders}
+                  className="gap-1"
+                >
+                  <FolderPlus className="w-4 h-4" />
+                  Vytvořit podklady
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={bulkAttachToCalendar}
+                  className="gap-1"
+                >
+                  <Link2 className="w-4 h-4" />
+                  Připojit přílohy
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={bulkDeleteDriveFolders}
+                  className="gap-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Smazat podklady
+                </Button>
+              </div>
+              {/* Mobile bulk actions count */}
+              <span className="md:hidden text-xs text-slate-600 pl-2 border-l">
                 Vybráno: {selectedEvents.size}
               </span>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={bulkCreateDriveFolders}
-                className="gap-1"
-              >
-                <FolderPlus className="w-4 h-4" />
-                Vytvořit podklady
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={bulkAttachToCalendar}
-                className="gap-1"
-              >
-                <Link2 className="w-4 h-4" />
-                Připojit přílohy
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={bulkDeleteDriveFolders}
-                className="gap-1 text-red-600 hover:text-red-700 hover:bg-red-50"
-              >
-                <Trash2 className="w-4 h-4" />
-                Smazat podklady
-              </Button>
-            </div>
+            </>
           )}
         </div>
 
@@ -690,12 +697,20 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
             size="sm"
             onClick={saveToDatabase}
             disabled={saveStatus === 'saving' || pendingOperations.length === 0}
-            className="gap-2"
+            className="gap-1 sm:gap-2"
           >
             <Save className="w-4 h-4" />
-            Uložit (Ctrl+S)
+            <span className="hidden sm:inline">Uložit (Ctrl+S)</span>
+            <span className="sm:hidden">Uložit</span>
           </Button>
         </div>
+      </div>
+
+      {/* Mobile scroll hint */}
+      <div className="md:hidden px-3 py-2 bg-blue-50 text-blue-700 text-xs flex items-center gap-2">
+        <span>←</span>
+        <span>Posuňte tabulku horizontálně pro zobrazení všech sloupců</span>
+        <span>→</span>
       </div>
 
       {/* Table with horizontal scroll */}

@@ -230,8 +230,8 @@ export default function InviteResponsesTab({
   return (
     <>
       {/* Statistiky a filtr */}
-      <div className="flex items-center justify-between mb-4 p-3 bg-slate-50 rounded-lg border">
-        <div className="flex items-center gap-4 text-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 p-3 bg-slate-50 rounded-lg border">
+        <div className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm flex-wrap">
           <span className="text-slate-600 font-medium">Celkem: {stats.total}</span>
           <span className="text-green-600">✓ {stats.accepted}</span>
           <span className="text-red-600">✗ {stats.declined}</span>
@@ -242,7 +242,7 @@ export default function InviteResponsesTab({
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-slate-400" />
           <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as FilterStatus)}>
-            <SelectTrigger className="w-40 h-8">
+            <SelectTrigger className="w-32 sm:w-40 h-8 text-xs sm:text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -256,18 +256,25 @@ export default function InviteResponsesTab({
         </div>
       </div>
 
+      {/* Mobile scroll hint */}
+      <div className="md:hidden px-3 py-2 mb-2 bg-blue-50 text-blue-700 text-xs flex items-center gap-2 rounded">
+        <span>←</span>
+        <span>Posuňte tabulku horizontálně</span>
+        <span>→</span>
+      </div>
+
       {/* Tabulka odpovědí */}
-      <div className="border rounded-lg overflow-hidden">
-        <Table>
+      <div className="border rounded-lg overflow-x-auto">
+        <Table className="min-w-[700px]">
           <TableHeader>
             <TableRow className="bg-slate-50">
-              <TableHead className="w-[100px]">Status</TableHead>
-              <TableHead>Technik</TableHead>
-              <TableHead>Akce</TableHead>
-              <TableHead className="w-[120px]">Datum akce</TableHead>
-              <TableHead className="w-[100px]">Role</TableHead>
-              <TableHead className="w-[120px]">Odpověď</TableHead>
-              {isAdmin && <TableHead className="w-[120px] text-right">Nahradit</TableHead>}
+              <TableHead className="w-[80px] sm:w-[100px]">Status</TableHead>
+              <TableHead className="min-w-[120px]">Technik</TableHead>
+              <TableHead className="min-w-[150px]">Akce</TableHead>
+              <TableHead className="w-[100px] sm:w-[120px]">Datum</TableHead>
+              <TableHead className="w-[80px] sm:w-[100px]">Role</TableHead>
+              <TableHead className="w-[100px] sm:w-[120px]">Odpověď</TableHead>
+              {isAdmin && <TableHead className="w-[100px] sm:w-[120px] text-right">Nahradit</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
