@@ -27,6 +27,10 @@ yarn-error.log*
 .env.local
 .env
 
+# secrets & keys
+/key/
+*.json.bak
+
 # vercel
 .vercel
 
