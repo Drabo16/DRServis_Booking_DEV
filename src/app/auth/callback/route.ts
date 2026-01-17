@@ -1,4 +1,5 @@
-import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { createServiceRoleClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
@@ -7,7 +8,26 @@ export async function GET(request: NextRequest) {
   const code = requestUrl.searchParams.get('code');
 
   if (code) {
-    const supabase = await createClient();
+    // Create a response that we'll add cookies to
+    let response = NextResponse.redirect(`${requestUrl.origin}/`);
+
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return request.cookies.get(name)?.value;
+          },
+          set(name: string, value: string, options: CookieOptions) {
+            response.cookies.set({ name, value, ...options });
+          },
+          remove(name: string, options: CookieOptions) {
+            response.cookies.set({ name, value: '', ...options });
+          },
+        },
+      }
+    );
 
     // Exchange code for session
     const { data, error: authError } = await supabase.auth.exchangeCodeForSession(code);
@@ -16,7 +36,7 @@ export async function GET(request: NextRequest) {
 
     if (authError) {
       console.error('[OAuth Callback] Auth error:', authError);
-      return NextResponse.redirect(`${requestUrl.origin}/login?error=auth_failed`);
+      return NextResponse.redirect(`${requestUrl.origin}/login?error=auth_failed&message=${encodeURIComponent(authError.message)}`);
     }
 
     // Handle case where data might be stringified (Vercel edge case)
@@ -80,7 +100,8 @@ export async function GET(request: NextRequest) {
 
     console.log('[OAuth Callback] Profile found, redirecting to dashboard');
     // Profile exists and is active → redirect to dashboard
-    return NextResponse.redirect(`${requestUrl.origin}/`);
+    // Return the response with session cookies attached
+    return response;
   }
 
   // No code provided
