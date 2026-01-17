@@ -12,16 +12,19 @@ export async function GET(request: NextRequest) {
     // Exchange code for session
     const { data, error: authError } = await supabase.auth.exchangeCodeForSession(code);
 
+    console.log('[OAuth Callback] Raw data type:', typeof data);
+
     if (authError) {
       console.error('[OAuth Callback] Auth error:', authError);
       return NextResponse.redirect(`${requestUrl.origin}/login?error=auth_failed`);
     }
 
-    // Handle case where data might be stringified
-    let sessionData = data;
+    // Handle case where data might be stringified (Vercel edge case)
+    let sessionData: any = data;
     if (typeof data === 'string') {
+      console.log('[OAuth Callback] Data is string, parsing JSON...');
       try {
-        sessionData = JSON.parse(data);
+        sessionData = JSON.parse(data as string);
       } catch (e) {
         console.error('[OAuth Callback] Failed to parse session data:', e);
         return NextResponse.redirect(`${requestUrl.origin}/login?error=parse_failed`);
