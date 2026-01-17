@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
@@ -40,15 +40,20 @@ export async function GET(request: NextRequest) {
 
     console.log('[OAuth Callback] User authenticated:', user.email);
 
-    // Check if user's email exists in profiles table
-    const { data: profile, error: profileError } = await supabase
+    // Use service role client to bypass RLS for profile lookup and linking
+    const serviceClient = createServiceRoleClient();
+
+    // Check if user's email exists in profiles table (using service role to bypass RLS)
+    const { data: profile, error: profileError } = await serviceClient
       .from('profiles')
       .select('id, email, is_active, auth_user_id')
       .eq('email', user.email)
       .single();
 
+    console.log('[OAuth Callback] Profile lookup result:', { profile, profileError });
+
     if (profileError || !profile) {
-      console.warn('[OAuth Callback] Profile not found for email:', user.email);
+      console.warn('[OAuth Callback] Profile not found for email:', user.email, profileError);
       // User authenticated via Google but not in our profiles DB
       return NextResponse.redirect(`${requestUrl.origin}/auth/unauthorized`);
     }
@@ -58,13 +63,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${requestUrl.origin}/auth/unauthorized?reason=inactive`);
     }
 
-    // Link auth.users.id to profile if not already linked
+    // Link auth.users.id to profile if not already linked (using service role)
     if (!profile.auth_user_id) {
-      console.log('[OAuth Callback] Linking auth_user_id to profile');
-      await supabase
+      console.log('[OAuth Callback] Linking auth_user_id to profile:', user.id);
+      const { error: updateError } = await serviceClient
         .from('profiles')
         .update({ auth_user_id: user.id })
         .eq('id', profile.id);
+
+      if (updateError) {
+        console.error('[OAuth Callback] Failed to link auth_user_id:', updateError);
+      } else {
+        console.log('[OAuth Callback] Successfully linked auth_user_id');
+      }
     }
 
     console.log('[OAuth Callback] Profile found, redirecting to dashboard');
