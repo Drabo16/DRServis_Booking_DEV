@@ -17,11 +17,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Kontrola admin role
+    // Kontrola admin role - profil je linkovaný přes auth_user_id
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
-      .eq('id', user.id)
+      .eq('auth_user_id', user.id)
       .single();
 
     if (profile?.role !== 'admin') {
@@ -67,11 +67,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Kontrola admin role
+    // Kontrola admin role - profil je linkovaný přes auth_user_id
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
-      .eq('id', user.id)
+      .eq('auth_user_id', user.id)
       .single();
 
     if (profile?.role !== 'admin') {

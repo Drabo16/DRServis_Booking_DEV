@@ -45,11 +45,22 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
   const [activeTab, setActiveTab] = useState('list');
   const [showIncompleteOnly, setShowIncompleteOnly] = useState(false);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   // Multiselect state for Seznam view
   const [selectedEvents, setSelectedEvents] = useState<Set<string>>(new Set());
   const [isProcessing, setIsProcessing] = useState(false);
   const [isValidatingDrive, setIsValidatingDrive] = useState(false);
+
+  // Detect mobile/desktop for sheet rendering
+  useEffect(() => {
+    const checkIsMobile = () => {
+      setIsMobile(window.innerWidth < 1024); // lg breakpoint
+    };
+    checkIsMobile();
+    window.addEventListener('resize', checkIsMobile);
+    return () => window.removeEventListener('resize', checkIsMobile);
+  }, []);
 
   useEffect(() => {
     setSelectedEventId(eventId);
@@ -453,20 +464,22 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
         </div>
       )}
 
-      {/* Mobile sheet for event detail */}
-      <Sheet open={mobileSheetOpen && !isFullWidthView} onOpenChange={(open) => {
-        if (!open) handleCloseEvent();
-      }}>
-        <SheetContent side="bottom" className="h-[90vh] overflow-y-auto lg:hidden">
-          {selectedEventId && (
-            <EventDetailPanel
-              eventId={selectedEventId}
-              onClose={handleCloseEvent}
-              isAdmin={isAdmin}
-            />
-          )}
-        </SheetContent>
-      </Sheet>
+      {/* Mobile sheet for event detail - only render on mobile/tablet */}
+      {isMobile && (
+        <Sheet open={mobileSheetOpen && !isFullWidthView} onOpenChange={(open) => {
+          if (!open) handleCloseEvent();
+        }}>
+          <SheetContent side="bottom" className="h-[90vh] overflow-y-auto">
+            {selectedEventId && (
+              <EventDetailPanel
+                eventId={selectedEventId}
+                onClose={handleCloseEvent}
+                isAdmin={isAdmin}
+              />
+            )}
+          </SheetContent>
+        </Sheet>
+      )}
     </div>
   );
 }
