@@ -706,37 +706,157 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
         </div>
       </div>
 
-      {/* Mobile scroll hint */}
-      <div className="md:hidden px-3 py-2 bg-blue-50 text-blue-700 text-xs flex items-center gap-2">
-        <span>←</span>
-        <span>Posuňte tabulku horizontálně pro zobrazení všech sloupců</span>
-        <span>→</span>
+      {/* Mobile: Card layout */}
+      <div className="md:hidden space-y-3 p-3">
+        {localData.map((event) => {
+          const stats = getEventStats(event);
+
+          return (
+            <div key={event.id} className="border rounded-lg p-3 bg-white">
+              {/* Header: Checkbox + Title + Stats */}
+              <div className="flex items-start gap-2 mb-2">
+                {isAdmin && (
+                  <Checkbox
+                    checked={selectedEvents.has(event.id)}
+                    onCheckedChange={() => toggleSelectEvent(event.id)}
+                    className="mt-1"
+                  />
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm text-slate-900 line-clamp-2">{event.title}</p>
+                  <div className="flex items-center gap-2 mt-1 text-xs text-slate-500">
+                    <span>{format(new Date(event.start_time), 'd.M.yyyy', { locale: cs })}</span>
+                    {stats.total > 0 && (
+                      <span className={`font-semibold ${
+                        stats.percentage === 100 ? 'text-green-600' :
+                        stats.percentage >= 50 ? 'text-amber-600' : 'text-red-600'
+                      }`}>
+                        {stats.filled}/{stats.total}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {/* Status icons */}
+                <div className="flex items-center gap-1">
+                  <div className={`p-1 rounded ${event.drive_folder_id ? 'text-green-600 bg-green-50' : 'text-slate-300'}`}>
+                    <FolderOpen className="w-4 h-4" />
+                  </div>
+                  <div className={`p-1 rounded ${event.calendar_attachment_synced ? 'text-blue-600 bg-blue-50' : 'text-slate-300'}`}>
+                    <Link2 className="w-4 h-4" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Role assignments */}
+              <div className="space-y-2">
+                {roleTypes.map(role => {
+                  const assignments = getAssignmentsForRole(event, role.value);
+                  if (assignments.length === 0 && !isAdmin) return null;
+
+                  return (
+                    <div key={role.id} className="flex items-start gap-2">
+                      <span className="text-[10px] font-medium text-slate-500 w-16 shrink-0 pt-0.5">
+                        {role.label.substring(0, 8)}{role.label.length > 8 ? '.' : ''}
+                      </span>
+                      <div className="flex flex-wrap gap-1 flex-1">
+                        {assignments.map(assignment => (
+                          <div
+                            key={assignment.id}
+                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] border ${getStatusColor(assignment.attendance_status)}`}
+                          >
+                            <span className="font-medium truncate max-w-[80px]">
+                              {assignment.technician?.full_name || '?'}
+                            </span>
+                            {isAdmin && (
+                              <>
+                                <Select
+                                  value={assignment.attendance_status}
+                                  onValueChange={(v) => updateStatus(assignment.id, v as AttendanceStatus, event.id, assignment.positionId)}
+                                >
+                                  <SelectTrigger className="h-4 w-4 p-0 border-0 bg-transparent [&>svg]:hidden">
+                                    <span className="text-[10px]">▼</span>
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="pending">Čeká</SelectItem>
+                                    <SelectItem value="accepted">Přijato</SelectItem>
+                                    <SelectItem value="declined">Odmítnuto</SelectItem>
+                                    <SelectItem value="tentative">Možná</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <button
+                                  onClick={() => removeAssignment(assignment.id, assignment.positionId, event.id)}
+                                  className="hover:text-red-600"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        ))}
+                        {isAdmin && (
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button className="flex items-center justify-center w-5 h-5 rounded border border-dashed border-slate-300 text-slate-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50">
+                                <Plus className="w-3 h-3" />
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-48 p-1">
+                              <div className="text-xs font-medium text-slate-500 px-2 py-1">
+                                Poptat osobu
+                              </div>
+                              <div className="max-h-48 overflow-y-auto">
+                                {allTechnicians
+                                  .filter(t => !assignments.some(a => a.technician_id === t.id))
+                                  .map(tech => (
+                                    <button
+                                      key={tech.id}
+                                      onClick={() => addTechnician(event.id, role.value, tech.id)}
+                                      className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-slate-100"
+                                    >
+                                      {tech.full_name}
+                                    </button>
+                                  ))}
+                                {allTechnicians.filter(t => !assignments.some(a => a.technician_id === t.id)).length === 0 && (
+                                  <div className="px-2 py-1.5 text-sm text-slate-400">
+                                    Všichni přiřazeni
+                                  </div>
+                                )}
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
-      {/* Table with horizontal scroll */}
-      <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100">
+      {/* Desktop: Table layout */}
+      <div className="hidden md:block overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100">
         <Table className="min-w-max">
           <TableHeader>
             <TableRow>
               {isAdmin && (
-                <TableHead className="w-[40px] md:w-[40px]">
+                <TableHead className="w-[40px]">
                   <Checkbox
                     checked={selectedEvents.size === localData.length && localData.length > 0}
                     onCheckedChange={toggleSelectAll}
                   />
                 </TableHead>
               )}
-              <TableHead className="w-[120px] md:w-[180px] sticky left-0 bg-white z-10">Akce</TableHead>
-              <TableHead className="w-[70px] md:w-[90px]">Datum</TableHead>
-              <TableHead className="w-[50px] md:w-[60px] text-center">St.</TableHead>
-              {/* Dynamic role columns - narrower on mobile */}
+              <TableHead className="w-[180px] sticky left-0 bg-white z-10">Akce</TableHead>
+              <TableHead className="w-[90px]">Datum</TableHead>
+              <TableHead className="w-[60px] text-center">Status</TableHead>
               {roleTypes.map(role => (
-                <TableHead key={role.id} className="min-w-[100px] md:min-w-[150px] text-xs md:text-sm">
-                  <span className="md:hidden">{role.label.substring(0, 6)}{role.label.length > 6 ? '.' : ''}</span>
-                  <span className="hidden md:inline">{role.label}</span>
+                <TableHead key={role.id} className="min-w-[150px]">
+                  {role.label}
                 </TableHead>
               ))}
-              <TableHead className="w-[50px] md:w-[70px] text-center">%</TableHead>
+              <TableHead className="w-[70px] text-center">Obsaz.</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -745,7 +865,6 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
 
               return (
                 <TableRow key={event.id}>
-                  {/* Checkbox */}
                   {isAdmin && (
                     <TableCell>
                       <Checkbox
@@ -755,27 +874,22 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                     </TableCell>
                   )}
 
-                  {/* Event name */}
                   <TableCell className="font-medium sticky left-0 bg-white">
-                    <div className="line-clamp-1 md:line-clamp-2 text-xs md:text-sm max-w-[100px] md:max-w-none">{event.title}</div>
+                    <div className="line-clamp-2 text-sm">{event.title}</div>
                   </TableCell>
 
-                  {/* Date */}
-                  <TableCell className="text-[10px] md:text-xs text-slate-600 whitespace-nowrap">
-                    {format(new Date(event.start_time), 'd.M.', { locale: cs })}
+                  <TableCell className="text-xs text-slate-600">
+                    {format(new Date(event.start_time), 'd.M.yy', { locale: cs })}
                   </TableCell>
 
-                  {/* Status icons - Drive & Calendar */}
                   <TableCell className="text-center">
                     <div className="flex items-center justify-center gap-1">
-                      {/* Drive folder status */}
                       <div
                         className={`p-1 rounded ${event.drive_folder_id ? 'text-green-600 bg-green-50' : 'text-slate-300'}`}
                         title={event.drive_folder_id ? 'Drive složka vytvořena' : 'Bez Drive složky'}
                       >
                         <FolderOpen className="w-4 h-4" />
                       </div>
-                      {/* Calendar attachment status - shows only when attachment is synced */}
                       <div
                         className={`p-1 rounded ${event.calendar_attachment_synced ? 'text-blue-600 bg-blue-50' : 'text-slate-300'}`}
                         title={event.calendar_attachment_synced ? 'Příloha synchronizována s kalendářem' : 'Příloha není v kalendáři'}
@@ -785,7 +899,6 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                     </div>
                   </TableCell>
 
-                  {/* Role columns */}
                   {roleTypes.map(role => {
                     const assignments = getAssignmentsForRole(event, role.value);
 
@@ -795,9 +908,9 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                           {assignments.map(assignment => (
                             <div
                               key={assignment.id}
-                              className={`flex items-center gap-0.5 md:gap-1 px-1 md:px-2 py-0.5 rounded text-[10px] md:text-xs border ${getStatusColor(assignment.attendance_status)}`}
+                              className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs border ${getStatusColor(assignment.attendance_status)}`}
                             >
-                              <span className="font-medium max-w-[60px] md:max-w-[120px] truncate" title={assignment.technician?.full_name}>
+                              <span className="font-medium max-w-[120px] truncate" title={assignment.technician?.full_name}>
                                 {assignment.technician?.full_name || '?'}
                               </span>
 
@@ -828,13 +941,12 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                             </div>
                           ))}
 
-                          {/* Add person dropdown */}
                           {isAdmin && (
                             <Popover>
                               <PopoverTrigger asChild>
-                                <button className="flex items-center justify-center w-5 h-5 md:w-auto md:h-auto md:gap-0.5 md:px-1.5 md:py-0.5 rounded border border-dashed border-slate-300 text-xs text-slate-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors">
+                                <button className="flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-dashed border-slate-300 text-xs text-slate-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors">
                                   <Plus className="w-3 h-3" />
-                                  <span className="hidden md:inline">Poptat</span>
+                                  Poptat
                                 </button>
                               </PopoverTrigger>
                               <PopoverContent className="w-48 p-1">
@@ -867,7 +979,6 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                     );
                   })}
 
-                  {/* Stats */}
                   <TableCell className="text-center">
                     {stats.total > 0 ? (
                       <div className="flex flex-col items-center">
