@@ -17,7 +17,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${requestUrl.origin}/login?error=auth_failed`);
     }
 
-    const user = data.user;
+    // Handle case where data might be stringified
+    let sessionData = data;
+    if (typeof data === 'string') {
+      try {
+        sessionData = JSON.parse(data);
+      } catch (e) {
+        console.error('[OAuth Callback] Failed to parse session data:', e);
+        return NextResponse.redirect(`${requestUrl.origin}/login?error=parse_failed`);
+      }
+    }
+
+    const user = sessionData?.user;
 
     if (!user || !user.email) {
       console.error('[OAuth Callback] No user or email in session');
