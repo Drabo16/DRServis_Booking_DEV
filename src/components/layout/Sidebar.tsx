@@ -53,8 +53,12 @@ export default function Sidebar({ user, profile }: SidebarProps) {
         isCollapsed ? "p-3 justify-center" : "p-6"
       )}>
         {isCollapsed ? (
-          <div className="w-10 h-10 bg-slate-900 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-lg">DR</span>
+          <div className="w-10 h-10 flex items-end justify-center gap-[2px] pb-1">
+            {/* Logo bars - matching the logo icon */}
+            <div className="w-[5px] h-[14px] bg-[#b8d4e8] rounded-sm" />
+            <div className="w-[5px] h-[20px] bg-[#7eb8db] rounded-sm" />
+            <div className="w-[5px] h-[26px] bg-[#3a9fd5] rounded-sm" />
+            <div className="w-[5px] h-[32px] bg-[#0066b3] rounded-sm" />
           </div>
         ) : (
           <Image
