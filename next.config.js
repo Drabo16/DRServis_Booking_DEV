@@ -25,10 +25,20 @@ const nextConfig = {
       '@radix-ui/react-select',
       '@radix-ui/react-dropdown-menu',
       '@radix-ui/react-tabs',
+      '@radix-ui/react-checkbox',
+      '@radix-ui/react-popover',
       'react-big-calendar',
       'date-fns',
+      '@tanstack/react-query',
+      'cmdk',
     ],
   },
+  // Gzip compression
+  compress: true,
+  // Power header
+  poweredByHeader: false,
+  // Generate ETags for caching
+  generateEtags: true,
 }
 
 module.exports = withBundleAnalyzer(nextConfig)

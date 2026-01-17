@@ -271,6 +271,78 @@ export async function attachDriveFolderToEvent(
 }
 
 /**
+ * Odebrání Drive složky z přílohy události v kalendáři
+ */
+export async function removeDriveFolderFromEvent(
+  eventId: string,
+  driveFolderId: string
+) {
+  const calendar = getCalendarClient();
+
+  try {
+    // Získáme aktuální event
+    const event = await calendar.events.get({
+      calendarId: CALENDAR_ID,
+      eventId,
+    });
+
+    const existingAttachments = event.data.attachments || [];
+
+    console.log('[Calendar] Existing attachments:', JSON.stringify(existingAttachments, null, 2));
+    console.log('[Calendar] Looking for driveFolderId:', driveFolderId);
+
+    // Najdeme a odstraníme přílohu - kontrolujeme fileId i fileUrl (obsahuje folder ID)
+    const newAttachments = existingAttachments.filter((att) => {
+      const matchesFileId = att.fileId === driveFolderId;
+      const matchesFileUrl = att.fileUrl?.includes(driveFolderId);
+      const shouldRemove = matchesFileId || matchesFileUrl;
+
+      if (shouldRemove) {
+        console.log('[Calendar] Removing attachment:', att.title, att.fileId, att.fileUrl);
+      }
+
+      return !shouldRemove;
+    });
+
+    // Pokud se nic nezměnilo, nic neděláme
+    if (newAttachments.length === existingAttachments.length) {
+      console.log('[Calendar] Drive folder attachment not found in event. Attachments:',
+        existingAttachments.map(a => ({ fileId: a.fileId, fileUrl: a.fileUrl, title: a.title }))
+      );
+      return event.data;
+    }
+
+    console.log('[Calendar] Updating event with', newAttachments.length, 'attachments (was', existingAttachments.length, ')');
+
+    // Aktualizujeme event bez přílohy
+    const response = await calendar.events.patch({
+      calendarId: CALENDAR_ID,
+      eventId,
+      supportsAttachments: true,
+      requestBody: {
+        attachments: newAttachments,
+      },
+    });
+
+    console.log('[Calendar] Drive folder attachment removed from calendar event');
+    return response.data;
+  } catch (error: any) {
+    console.error('[Calendar] Error removing Drive folder from event:', error);
+    console.error('[Calendar] Error details:', {
+      message: error?.message,
+      response: error?.response?.data,
+      status: error?.response?.status,
+    });
+    // Pokud event neexistuje nebo jiná chyba, jen logujeme
+    if (error?.response?.status === 404) {
+      console.log('[Calendar] Calendar event not found, skipping attachment removal');
+      return null;
+    }
+    throw new Error(`Failed to remove Drive folder attachment: ${error?.message || 'Unknown error'}`);
+  }
+}
+
+/**
  * Aktualizace popisu události s informacemi o technicích
  */
 export async function updateEventDescription(

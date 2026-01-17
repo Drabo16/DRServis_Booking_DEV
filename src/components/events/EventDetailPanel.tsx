@@ -1,18 +1,18 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Calendar, MapPin, ExternalLink, FolderOpen, X, Loader2, FileText, Link } from 'lucide-react';
+import { Calendar, MapPin, ExternalLink, FolderOpen, X, Loader2, Link, Trash2, AlertCircle, RefreshCw } from 'lucide-react';
 import { formatDateRange } from '@/lib/utils';
 import PositionsManager from '@/components/positions/PositionsManager';
 import CreateDriveFolderButton from '@/components/events/CreateDriveFolderButton';
 import SyncStatusButton from '@/components/events/SyncStatusButton';
 import DriveFilesList from '@/components/events/DriveFilesList';
+import { EventDetailSkeleton } from '@/components/events/EventDetailSkeleton';
 import { useQueryClient } from '@tanstack/react-query';
 import { eventKeys } from '@/hooks/useEvents';
+import type { EventWithAssignments, Profile } from '@/types';
 
 interface EventDetailPanelProps {
   eventId: string;
@@ -21,32 +21,51 @@ interface EventDetailPanelProps {
 }
 
 export default function EventDetailPanel({ eventId, onClose, isAdmin }: EventDetailPanelProps) {
-  const router = useRouter();
   const queryClient = useQueryClient();
-  const [event, setEvent] = useState<any>(null);
-  const [technicians, setTechnicians] = useState<any[]>([]);
+  const [event, setEvent] = useState<EventWithAssignments | null>(null);
+  const [technicians, setTechnicians] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [attachingDrive, setAttachingDrive] = useState(false);
+  const [deletingDrive, setDeletingDrive] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchEventDetail = useCallback(async () => {
+    // Cancel previous request if any
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
     setLoading(true);
+    setError(null);
+
     try {
       // Fetch event detail
-      const eventRes = await fetch(`/api/events/${eventId}`);
-      if (!eventRes.ok) throw new Error('Failed to fetch event');
+      const eventRes = await fetch(`/api/events/${eventId}`, {
+        signal: abortControllerRef.current.signal,
+      });
+      if (!eventRes.ok) {
+        throw new Error(eventRes.status === 404 ? 'Akce nebyla nalezena' : 'Nepodařilo se načíst detail akce');
+      }
       const eventData = await eventRes.json();
       setEvent(eventData.event);
 
       // Fetch technicians if admin
       if (isAdmin) {
-        const techRes = await fetch('/api/technicians');
+        const techRes = await fetch('/api/technicians', {
+          signal: abortControllerRef.current.signal,
+        });
         if (techRes.ok) {
           const techData = await techRes.json();
           setTechnicians(techData.technicians || []);
         }
       }
-    } catch (error) {
-      console.error('Error fetching event detail:', error);
+    } catch (err) {
+      // Ignore abort errors
+      if (err instanceof Error && err.name === 'AbortError') return;
+      console.error('Error fetching event detail:', err);
+      setError(err instanceof Error ? err.message : 'Nepodařilo se načíst detail akce');
     } finally {
       setLoading(false);
     }
@@ -54,6 +73,13 @@ export default function EventDetailPanel({ eventId, onClose, isAdmin }: EventDet
 
   useEffect(() => {
     fetchEventDetail();
+
+    // Cleanup function
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, [fetchEventDetail]);
 
   // Auto-refresh po synchronizaci (volané z child komponent)
@@ -86,10 +112,44 @@ export default function EventDetailPanel({ eventId, onClose, isAdmin }: EventDet
     }
   };
 
+  // Smazání Drive složky
+  const handleDeleteDriveFolder = async () => {
+    if (!event?.drive_folder_id) return;
+    if (!confirm('Opravdu chcete smazat Drive složku? Tato akce je nevratná!')) return;
+
+    setDeletingDrive(true);
+    try {
+      const res = await fetch(`/api/events/${eventId}/drive`, {
+        method: 'DELETE',
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to delete');
+      }
+
+      // Refresh data
+      handleRefresh();
+    } catch (error) {
+      console.error('Error deleting Drive folder:', error);
+    } finally {
+      setDeletingDrive(false);
+    }
+  };
+
   if (loading) {
+    return <EventDetailSkeleton />;
+  }
+
+  if (error) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
+      <div className="text-center py-12 space-y-4">
+        <AlertCircle className="w-12 h-12 text-red-400 mx-auto" />
+        <p className="text-red-600">{error}</p>
+        <Button variant="outline" size="sm" onClick={fetchEventDetail}>
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Zkusit znovu
+        </Button>
       </div>
     );
   }
@@ -170,7 +230,7 @@ export default function EventDetailPanel({ eventId, onClose, isAdmin }: EventDet
               {!event.drive_folder_url && (
                 <CreateDriveFolderButton eventId={event.id} onSuccess={handleRefresh} />
               )}
-              {event.drive_folder_url && event.google_event_id && (
+              {event.drive_folder_url && event.google_event_id && !event.calendar_attachment_synced && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -182,7 +242,23 @@ export default function EventDetailPanel({ eventId, onClose, isAdmin }: EventDet
                   ) : (
                     <Link className="w-4 h-4 mr-2" />
                   )}
-                  Připojit složku do kalendáře
+                  Připojit přílohy
+                </Button>
+              )}
+              {event.drive_folder_url && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDeleteDriveFolder}
+                  disabled={deletingDrive}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  {deletingDrive ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-4 h-4 mr-2" />
+                  )}
+                  Smazat podklady
                 </Button>
               )}
               <SyncStatusButton eventId={event.id} onSync={handleRefresh} />

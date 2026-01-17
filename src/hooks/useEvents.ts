@@ -1,17 +1,27 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useCallback } from 'react';
 import type { Event, Position, Assignment, Profile } from '@/types';
 
 // Query keys for cache management
 export const eventKeys = {
   all: ['events'] as const,
   lists: () => [...eventKeys.all, 'list'] as const,
-  list: (filters?: any) => [...eventKeys.lists(), filters] as const,
+  list: (filters?: Record<string, unknown>) => [...eventKeys.lists(), filters] as const,
   details: () => [...eventKeys.all, 'detail'] as const,
   detail: (id: string) => [...eventKeys.details(), id] as const,
   files: (id: string) => [...eventKeys.all, 'files', id] as const,
   syncStatus: (id: string) => [...eventKeys.all, 'sync-status', id] as const,
+};
+
+// Type definitions for better type safety
+type EventWithPositions = Event & {
+  positions?: Array<
+    Position & {
+      assignments?: Array<Assignment & { technician: Profile }>;
+    }
+  >;
 };
 
 // Fetch all events
@@ -21,40 +31,50 @@ export function useEvents() {
     queryFn: async () => {
       const response = await fetch('/api/events');
       if (!response.ok) throw new Error('Failed to fetch events');
-      return response.json() as Promise<
-        Array<
-          Event & {
-            positions?: Array<
-              Position & {
-                assignments?: Array<Assignment & { technician: Profile }>;
-              }
-            >;
-          }
-        >
-      >;
+      return response.json() as Promise<EventWithPositions[]>;
     },
+    // Keep previous data while fetching new data for smoother UX
+    placeholderData: (previousData) => previousData,
   });
 }
 
-// Fetch single event
+// Fetch single event with prefetch support
 export function useEvent(eventId: string) {
   return useQuery({
     queryKey: eventKeys.detail(eventId),
     queryFn: async () => {
       const response = await fetch(`/api/events/${eventId}`);
       if (!response.ok) throw new Error('Failed to fetch event');
-      return response.json() as Promise<{
-        event: Event & {
-          positions?: Array<
-            Position & {
-              assignments?: Array<Assignment & { technician: Profile }>;
-            }
-          >;
-        };
-      }>;
+      return response.json() as Promise<{ event: EventWithPositions }>;
     },
     enabled: !!eventId,
+    // Keep previous data while fetching new data for smoother UX
+    placeholderData: (previousData) => previousData,
   });
+}
+
+// Prefetch hook for hovering over event cards
+export function usePrefetchEvent() {
+  const queryClient = useQueryClient();
+
+  return useCallback(
+    (eventId: string) => {
+      // Only prefetch if not already cached
+      const cached = queryClient.getQueryData(eventKeys.detail(eventId));
+      if (!cached) {
+        queryClient.prefetchQuery({
+          queryKey: eventKeys.detail(eventId),
+          queryFn: async () => {
+            const response = await fetch(`/api/events/${eventId}`);
+            if (!response.ok) throw new Error('Failed to fetch event');
+            return response.json() as Promise<{ event: EventWithPositions }>;
+          },
+          staleTime: 5 * 60 * 1000, // 5 minutes
+        });
+      }
+    },
+    [queryClient]
+  );
 }
 
 // Fetch event files from Drive
@@ -75,6 +95,8 @@ export function useEventFiles(eventId: string) {
       }>;
     },
     enabled: !!eventId,
+    // Files don't change often, cache longer
+    staleTime: 10 * 60 * 1000, // 10 minutes
   });
 }
 
@@ -98,7 +120,7 @@ export function useCreateEvent() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (eventData: any) => {
+    mutationFn: async (eventData: Partial<Event>) => {
       const response = await fetch('/api/events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -114,12 +136,12 @@ export function useCreateEvent() {
   });
 }
 
-// Update event mutation
+// Update event mutation with optimistic updates
 export function useUpdateEvent() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+    mutationFn: async ({ id, data }: { id: string; data: Partial<Event> }) => {
       const response = await fetch(`/api/events/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -128,7 +150,31 @@ export function useUpdateEvent() {
       if (!response.ok) throw new Error('Failed to update event');
       return response.json();
     },
-    onSuccess: (_, variables) => {
+    onMutate: async ({ id, data }) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: eventKeys.detail(id) });
+
+      // Snapshot the previous value
+      const previousEvent = queryClient.getQueryData(eventKeys.detail(id));
+
+      // Optimistically update the cache
+      queryClient.setQueryData(eventKeys.detail(id), (old: { event: EventWithPositions } | undefined) => {
+        if (!old) return old;
+        return {
+          ...old,
+          event: { ...old.event, ...data },
+        };
+      });
+
+      return { previousEvent };
+    },
+    onError: (_err, { id }, context) => {
+      // Rollback on error
+      if (context?.previousEvent) {
+        queryClient.setQueryData(eventKeys.detail(id), context.previousEvent);
+      }
+    },
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: eventKeys.detail(variables.id) });
       queryClient.invalidateQueries({ queryKey: eventKeys.lists() });
     },

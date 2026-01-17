@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { createEventFolderStructure, updateInfoFile } from '@/lib/google/drive';
+import { createEventFolderStructure, updateInfoFile, deleteFolder } from '@/lib/google/drive';
+import { removeDriveFolderFromEvent } from '@/lib/google/calendar';
 
 /**
  * POST /api/events/[id]/drive
@@ -37,6 +38,7 @@ export async function POST(
     }
 
     // Načtení eventu s pozicemi a přiřazenými techniky
+    // Použití explicitního foreign key pro disambiguaci vztahu profiles
     const { data: event, error: eventError } = await supabase
       .from('events')
       .select(`
@@ -48,7 +50,7 @@ export async function POST(
           assignments (
             id,
             attendance_status,
-            technician:profiles (
+            technician:profiles!assignments_technician_id_fkey (
               full_name
             )
           )
@@ -110,10 +112,14 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      message: 'Drive folder created successfully',
+      message: folderResult.infoFileCreated
+        ? 'Drive folder created successfully with info file'
+        : `Drive folder created (info file failed: ${folderResult.infoFileError})`,
       folderId: folderResult.folderId,
       folderUrl: folderResult.folderUrl,
       folderName: folderResult.folderName,
+      infoFileCreated: folderResult.infoFileCreated,
+      infoFileError: folderResult.infoFileError,
     });
   } catch (error) {
     console.error('Drive folder creation error:', error);
@@ -150,6 +156,7 @@ export async function PATCH(
     }
 
     // Načtení eventu s pozicemi a techniky
+    // Použití explicitního foreign key pro disambiguaci vztahu profiles
     const { data: event, error: eventError } = await supabase
       .from('events')
       .select(`
@@ -161,7 +168,7 @@ export async function PATCH(
           assignments (
             id,
             attendance_status,
-            technician:profiles (
+            technician:profiles!assignments_technician_id_fkey (
               full_name
             )
           )
@@ -211,6 +218,105 @@ export async function PATCH(
     return NextResponse.json(
       {
         error: 'Failed to update info file',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * DELETE /api/events/[id]/drive
+ * Smazání Drive složky pro akci
+ */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id: eventId } = await params;
+    console.log('[Drive API] Deleting folder for event:', eventId);
+
+    const supabase = await createClient();
+
+    // Ověření autentizace
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Kontrola admin role
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('auth_user_id', user.id)
+      .single();
+
+    if (profile?.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // Načtení eventu
+    const { data: event, error: eventError } = await supabase
+      .from('events')
+      .select('id, title, drive_folder_id, drive_folder_url, google_event_id, calendar_attachment_synced')
+      .eq('id', eventId)
+      .single();
+
+    if (eventError || !event) {
+      return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+    }
+
+    if (!event.drive_folder_id) {
+      return NextResponse.json(
+        { error: 'No Drive folder exists for this event' },
+        { status: 400 }
+      );
+    }
+
+    // Vždy zkusit odebrat přílohu z kalendáře (pokud existuje google_event_id)
+    // Neřídíme se jen flagem calendar_attachment_synced - příloha mohla být přidána ručně
+    let calendarAttachmentRemoved = false;
+    if (event.google_event_id && event.drive_folder_id) {
+      try {
+        await removeDriveFolderFromEvent(event.google_event_id, event.drive_folder_id);
+        calendarAttachmentRemoved = true;
+        console.log('[Drive API] Calendar attachment removed');
+      } catch (calendarError) {
+        console.error('[Drive API] Failed to remove calendar attachment:', calendarError);
+        // Pokračujeme dál i když se nepodaří odebrat přílohu z kalendáře
+      }
+    }
+
+    // Smazání složky na Google Drive
+    const deleteResult = await deleteFolder(event.drive_folder_id);
+
+    // Vymazání odkazu z DB
+    await supabase
+      .from('events')
+      .update({
+        drive_folder_id: null,
+        drive_folder_url: null,
+        calendar_attachment_synced: false,
+      })
+      .eq('id', eventId);
+
+    return NextResponse.json({
+      success: true,
+      message: deleteResult.alreadyDeleted
+        ? 'Folder was already deleted, DB reference cleared'
+        : 'Drive folder deleted successfully',
+      alreadyDeleted: deleteResult.alreadyDeleted || false,
+      calendarAttachmentRemoved,
+    });
+  } catch (error) {
+    console.error('Drive folder deletion error:', error);
+    return NextResponse.json(
+      {
+        error: 'Failed to delete Drive folder',
         message: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }

@@ -11,7 +11,8 @@
       "Bash(git commit -m \"$\\(cat <<''EOF''\nUpgrade na Next.js 16.1 a React 19\n\nZměny:\n- Next.js: 14.1.0 → 16.1.1\n- React: 18.3.1 → 19.2.3\n- React DOM: 18.3.1 → 19.2.3\n- lucide-react: 0.323.0 → 0.562.0\n- ESLint: 8.57.1 → 9.39.2\n- TypeScript typy aktualizovány na React 19\n\nOpravy konfigurace:\n- next.config.js: images.domains → images.remotePatterns\n- Odstraněn deprecated swcMinify flag\n- Turbopack je nyní výchozí \\(odstraněn --turbo flag\\)\n- Upraveny package.json scripts\n\nOpravy kódu:\n- Opravena chyba importu getAuthClient → getGoogleAuth\n- Přidány chybějící TypeScript typy pro inline funkce\n- Přidány @types/react-big-calendar\n\nBuild úspěšný ✅\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(du:*)",
       "Bash(git reset:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

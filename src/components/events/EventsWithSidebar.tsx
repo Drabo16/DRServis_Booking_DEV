@@ -2,16 +2,20 @@
 
 import { useState, useEffect, lazy, Suspense, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import EventCard from './EventCard';
 import EventDetailPanel from './EventDetailPanel';
 import type { Event, Profile } from '@/types';
-import { Loader2, Filter, X } from 'lucide-react';
+import { eventKeys } from '@/hooks/useEvents';
+import { Loader2, Filter, X, FolderPlus, Link2, RefreshCw, Trash2 } from 'lucide-react';
 
 // Lazy load heavy components for better initial load time
 const CalendarView = lazy(() => import('@/components/calendar/CalendarView'));
 const ExcelView = lazy(() => import('./ExcelView'));
+const InviteResponsesTab = lazy(() => import('./InviteResponsesTab'));
 
 interface EventsWithSidebarProps {
   events: Array<Event & {
@@ -28,14 +32,25 @@ interface EventsWithSidebarProps {
 export default function EventsWithSidebar({ events, isAdmin, userId, allTechnicians = [] }: EventsWithSidebarProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
   const eventId = searchParams.get('event');
   const [selectedEventId, setSelectedEventId] = useState<string | null>(eventId);
   const [activeTab, setActiveTab] = useState('list');
   const [showIncompleteOnly, setShowIncompleteOnly] = useState(false);
 
+  // Multiselect state for Seznam view
+  const [selectedEvents, setSelectedEvents] = useState<Set<string>>(new Set());
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isValidatingDrive, setIsValidatingDrive] = useState(false);
+
   useEffect(() => {
     setSelectedEventId(eventId);
   }, [eventId]);
+
+  // Clear selection when switching tabs
+  useEffect(() => {
+    setSelectedEvents(new Set());
+  }, [activeTab]);
 
   const handleOpenEvent = (id: string) => {
     setSelectedEventId(id);
@@ -67,13 +82,153 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
     });
   }, [events, showIncompleteOnly]);
 
-  // Excel view má full width, ostatní mají split view
-  const isExcelView = activeTab === 'excel';
+  // Excel view a Odpovědi mají full width, ostatní mají split view
+  const isFullWidthView = activeTab === 'excel' || activeTab === 'responses';
+
+  // Toggle select all (Seznam view)
+  const toggleSelectAll = () => {
+    if (selectedEvents.size === filteredEvents.length) {
+      setSelectedEvents(new Set());
+    } else {
+      setSelectedEvents(new Set(filteredEvents.map(e => e.id)));
+    }
+  };
+
+  // Toggle single event selection
+  const handleSelectChange = (eventId: string, selected: boolean) => {
+    const newSelected = new Set(selectedEvents);
+    if (selected) {
+      newSelected.add(eventId);
+    } else {
+      newSelected.delete(eventId);
+    }
+    setSelectedEvents(newSelected);
+  };
+
+  // Bulk create drive folders
+  const bulkCreateDriveFolders = async () => {
+    if (selectedEvents.size === 0) return;
+
+    const eventsWithoutFolder = Array.from(selectedEvents).filter(id => {
+      const event = filteredEvents.find(e => e.id === id);
+      return event && !(event as any).drive_folder_id;
+    });
+
+    if (eventsWithoutFolder.length === 0) {
+      alert('Všechny vybrané akce již mají Drive složku.');
+      return;
+    }
+
+    if (!confirm(`Vytvořit Drive složky pro ${eventsWithoutFolder.length} akcí?`)) return;
+
+    setIsProcessing(true);
+    let successCount = 0;
+
+    for (const id of eventsWithoutFolder) {
+      try {
+        const res = await fetch(`/api/events/${id}/drive`, { method: 'POST' });
+        if (res.ok) successCount++;
+      } catch (error) {
+        console.error(`Error creating folder for ${id}:`, error);
+      }
+    }
+
+    setIsProcessing(false);
+    queryClient.invalidateQueries({ queryKey: eventKeys.list() });
+    alert(`Úspěšně vytvořeno ${successCount}/${eventsWithoutFolder.length} složek.`);
+    setSelectedEvents(new Set());
+  };
+
+  // Bulk attach Drive folders to calendar
+  const bulkAttachToCalendar = async () => {
+    if (selectedEvents.size === 0) return;
+
+    const eligibleEvents = Array.from(selectedEvents).filter(id => {
+      const event = filteredEvents.find(e => e.id === id) as any;
+      return event && event.drive_folder_id && event.google_event_id && !event.calendar_attachment_synced;
+    });
+
+    if (eligibleEvents.length === 0) {
+      alert('Žádné vybrané akce nemají Drive složku nebo nejsou v kalendáři, nebo už mají přílohu připojenou.');
+      return;
+    }
+
+    if (!confirm(`Připojit Drive složky jako přílohu do kalendáře pro ${eligibleEvents.length} akcí?`)) return;
+
+    setIsProcessing(true);
+    let successCount = 0;
+
+    for (const id of eligibleEvents) {
+      try {
+        const res = await fetch(`/api/events/${id}/attach-drive`, { method: 'POST' });
+        if (res.ok) successCount++;
+      } catch (error) {
+        console.error(`Error attaching folder for ${id}:`, error);
+      }
+    }
+
+    setIsProcessing(false);
+    queryClient.invalidateQueries({ queryKey: eventKeys.list() });
+    alert(`Úspěšně připojeno ${successCount}/${eligibleEvents.length} příloh.`);
+    setSelectedEvents(new Set());
+  };
+
+  // Validate Drive folders
+  const validateDriveFolders = async () => {
+    setIsValidatingDrive(true);
+    try {
+      const res = await fetch('/api/events/validate-drive', { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        queryClient.invalidateQueries({ queryKey: eventKeys.list() });
+        alert(`Ověřeno ${data.validated} složek, odstraněno ${data.invalidated} neplatných odkazů.`);
+      }
+    } catch (error) {
+      console.error('Error validating drive folders:', error);
+      alert('Chyba při ověřování složek');
+    } finally {
+      setIsValidatingDrive(false);
+    }
+  };
+
+  // Bulk delete Drive folders
+  const bulkDeleteDriveFolders = async () => {
+    if (selectedEvents.size === 0) return;
+
+    const eventsWithFolder = Array.from(selectedEvents).filter(id => {
+      const event = filteredEvents.find(e => e.id === id) as any;
+      return event && event.drive_folder_id;
+    });
+
+    if (eventsWithFolder.length === 0) {
+      alert('Žádné vybrané akce nemají Drive složku.');
+      return;
+    }
+
+    if (!confirm(`Opravdu chcete SMAZAT Drive složky pro ${eventsWithFolder.length} akcí? Tato akce je nevratná!`)) return;
+
+    setIsProcessing(true);
+    let successCount = 0;
+
+    for (const id of eventsWithFolder) {
+      try {
+        const res = await fetch(`/api/events/${id}/drive`, { method: 'DELETE' });
+        if (res.ok) successCount++;
+      } catch (error) {
+        console.error(`Error deleting folder for ${id}:`, error);
+      }
+    }
+
+    setIsProcessing(false);
+    queryClient.invalidateQueries({ queryKey: eventKeys.list() });
+    alert(`Úspěšně smazáno ${successCount}/${eventsWithFolder.length} složek.`);
+    setSelectedEvents(new Set());
+  };
 
   return (
-    <div className={isExcelView ? '' : 'flex gap-6'}>
+    <div className={isFullWidthView ? '' : 'flex gap-6'}>
       {/* Levý panel nebo full width panel */}
-      <div className={isExcelView ? 'w-full' : 'w-1/2 flex-shrink-0'}>
+      <div className={isFullWidthView ? 'w-full' : 'w-1/2 flex-shrink-0'}>
         <div className="mb-4 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-slate-900">
             {isAdmin ? 'Akce' : 'Moje akce'}
@@ -101,13 +256,74 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
         </div>
 
         <Tabs defaultValue="list" className="w-full" onValueChange={setActiveTab}>
-          <TabsList className="grid w-full max-w-md grid-cols-3">
+          <TabsList className={`grid w-full max-w-lg ${isAdmin ? 'grid-cols-4' : 'grid-cols-3'}`}>
             <TabsTrigger value="list">Seznam</TabsTrigger>
             <TabsTrigger value="calendar">Kalendář</TabsTrigger>
             <TabsTrigger value="excel">Excel</TabsTrigger>
+            {isAdmin && <TabsTrigger value="responses">Odpovědi</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="list" className="mt-6">
+            {/* Bulk actions bar for admin */}
+            {isAdmin && filteredEvents.length > 0 && (
+              <div className="flex items-center justify-between mb-4 p-3 bg-slate-50 rounded-lg border">
+                <div className="flex items-center gap-3">
+                  <Checkbox
+                    checked={selectedEvents.size === filteredEvents.length && filteredEvents.length > 0}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                  <span className="text-sm text-slate-600">
+                    {selectedEvents.size > 0 ? `Vybráno: ${selectedEvents.size}` : 'Vybrat vše'}
+                  </span>
+
+                  {selectedEvents.size > 0 && (
+                    <div className="flex items-center gap-2 pl-3 border-l">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={bulkCreateDriveFolders}
+                        disabled={isProcessing}
+                        className="gap-1"
+                      >
+                        {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <FolderPlus className="w-4 h-4" />}
+                        Vytvořit podklady
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={bulkAttachToCalendar}
+                        disabled={isProcessing}
+                        className="gap-1"
+                      >
+                        {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
+                        Připojit přílohy
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={bulkDeleteDriveFolders}
+                        disabled={isProcessing}
+                        className="gap-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                        Smazat podklady
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={validateDriveFolders}
+                  disabled={isValidatingDrive}
+                  title="Ověřit Drive složky"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isValidatingDrive ? 'animate-spin' : ''}`} />
+                </Button>
+              </div>
+            )}
+
             {!filteredEvents || filteredEvents.length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-slate-600">
@@ -124,6 +340,9 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
                     key={event.id}
                     event={event}
                     onOpen={handleOpenEvent}
+                    selected={selectedEvents.has(event.id)}
+                    onSelectChange={handleSelectChange}
+                    showCheckbox={isAdmin}
                   />
                 ))}
               </div>
@@ -131,6 +350,66 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
           </TabsContent>
 
           <TabsContent value="calendar" className="mt-6">
+            {/* Bulk actions bar for calendar view */}
+            {isAdmin && filteredEvents.length > 0 && (
+              <div className="flex items-center justify-between mb-4 p-3 bg-slate-50 rounded-lg border">
+                <div className="flex items-center gap-3">
+                  <Checkbox
+                    checked={selectedEvents.size === filteredEvents.length && filteredEvents.length > 0}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                  <span className="text-sm text-slate-600">
+                    {selectedEvents.size > 0 ? `Vybráno: ${selectedEvents.size}` : `Vybrat vše (${filteredEvents.length})`}
+                  </span>
+
+                  {selectedEvents.size > 0 && (
+                    <div className="flex items-center gap-2 pl-3 border-l">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={bulkCreateDriveFolders}
+                        disabled={isProcessing}
+                        className="gap-1"
+                      >
+                        {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <FolderPlus className="w-4 h-4" />}
+                        Vytvořit podklady
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={bulkAttachToCalendar}
+                        disabled={isProcessing}
+                        className="gap-1"
+                      >
+                        {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
+                        Připojit přílohy
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={bulkDeleteDriveFolders}
+                        disabled={isProcessing}
+                        className="gap-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                        Smazat podklady
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={validateDriveFolders}
+                  disabled={isValidatingDrive}
+                  title="Ověřit Drive složky"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isValidatingDrive ? 'animate-spin' : ''}`} />
+                </Button>
+              </div>
+            )}
+
             <Suspense fallback={
               <div className="flex items-center justify-center min-h-[400px]">
                 <Loader2 className="w-8 h-8 animate-spin text-slate-600" />
@@ -149,11 +428,28 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
               <ExcelView events={filteredEvents as any} isAdmin={isAdmin} allTechnicians={allTechnicians} userId={userId} />
             </Suspense>
           </TabsContent>
+
+          {isAdmin && (
+            <TabsContent value="responses" className="mt-6">
+              <Suspense fallback={
+                <div className="flex items-center justify-center min-h-[400px]">
+                  <Loader2 className="w-8 h-8 animate-spin text-slate-600" />
+                </div>
+              }>
+                <InviteResponsesTab
+                  events={filteredEvents as any}
+                  isAdmin={isAdmin}
+                  allTechnicians={allTechnicians}
+                  onEventClick={handleOpenEvent}
+                />
+              </Suspense>
+            </TabsContent>
+          )}
         </Tabs>
       </div>
 
       {/* Pravý panel - detail akce (pouze pro Seznam a Kalendář view) */}
-      {!isExcelView && (
+      {!isFullWidthView && (
         <div className="w-1/2 border-l border-slate-200 pl-6 overflow-y-auto sticky top-0 h-screen">
           {selectedEventId ? (
             <EventDetailPanel

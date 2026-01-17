@@ -3,7 +3,9 @@
 import { useEvents } from '@/hooks/useEvents';
 import { useTechnicians } from '@/hooks/useTechnicians';
 import EventsWithSidebar from './EventsWithSidebar';
-import { Loader2 } from 'lucide-react';
+import { EventCardSkeletonList } from './EventCardSkeleton';
+import { AlertCircle, RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface EventsClientWrapperProps {
   isAdmin: boolean;
@@ -12,16 +14,18 @@ interface EventsClientWrapperProps {
 
 export default function EventsClientWrapper({ isAdmin, userId }: EventsClientWrapperProps) {
   // Use React Query for data fetching with aggressive caching
-  const { data: events = [], isLoading: eventsLoading, error: eventsError } = useEvents();
-  const { data: technicians = [], isLoading: techniciansLoading } = useTechnicians();
+  const { data: events = [], isLoading: eventsLoading, error: eventsError, refetch } = useEvents();
+  const { data: technicians = [] } = useTechnicians();
 
   if (eventsLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-slate-600" />
-          <p className="text-slate-600">Načítání akcí...</p>
+      <div className="w-full">
+        <div className="mb-4 flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-slate-900">
+            {isAdmin ? 'Akce' : 'Moje akce'}
+          </h1>
         </div>
+        <EventCardSkeletonList count={5} />
       </div>
     );
   }
@@ -29,9 +33,14 @@ export default function EventsClientWrapper({ isAdmin, userId }: EventsClientWra
   if (eventsError) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <p className="text-red-600 mb-2">Chyba při načítání akcí</p>
+        <div className="text-center space-y-4">
+          <AlertCircle className="w-12 h-12 text-red-400 mx-auto" />
+          <p className="text-red-600">Chyba při načítání akcí</p>
           <p className="text-sm text-slate-500">{eventsError.message}</p>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Zkusit znovu
+          </Button>
         </div>
       </div>
     );
@@ -41,8 +50,8 @@ export default function EventsClientWrapper({ isAdmin, userId }: EventsClientWra
   const filteredEvents = isAdmin
     ? events
     : events.filter((event) =>
-        event.positions?.some((position: any) =>
-          position.assignments?.some((assignment: any) => assignment.technician_id === userId)
+        event.positions?.some((position) =>
+          position.assignments?.some((assignment) => assignment.technician_id === userId)
         )
       );
 

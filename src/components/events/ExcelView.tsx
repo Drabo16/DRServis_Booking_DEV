@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { X, Plus, Check, Loader2, Save, Users, FolderPlus, Settings, FolderOpen, Calendar, Link2 } from 'lucide-react';
+import { X, Plus, Check, Loader2, Save, Users, FolderPlus, Settings, FolderOpen, Calendar, Link2, RefreshCw, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { cs } from 'date-fns/locale';
@@ -86,6 +86,10 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isSavingRef = useRef(false);
 
+  // State for drive validation
+  const [isValidatingDrive, setIsValidatingDrive] = useState(false);
+  const driveValidatedRef = useRef(false);
+
   // Load role types from database
   useEffect(() => {
     const fetchRoleTypes = async () => {
@@ -103,6 +107,37 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
     };
     fetchRoleTypes();
   }, []);
+
+  // Validate Drive folders on mount (only once per session)
+  useEffect(() => {
+    if (!isAdmin || driveValidatedRef.current) return;
+
+    const validateDriveFolders = async () => {
+      // Check if any events have drive_folder_id
+      const hasAnyDriveFolders = events.some(e => e.drive_folder_id);
+      if (!hasAnyDriveFolders) return;
+
+      driveValidatedRef.current = true;
+      setIsValidatingDrive(true);
+
+      try {
+        const res = await fetch('/api/events/validate-drive', { method: 'POST' });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.invalidated > 0) {
+            // Refresh data if any folders were invalidated
+            queryClient.invalidateQueries({ queryKey: eventKeys.list() });
+          }
+        }
+      } catch (error) {
+        console.error('Error validating drive folders:', error);
+      } finally {
+        setIsValidatingDrive(false);
+      }
+    };
+
+    validateDriveFolders();
+  }, [isAdmin, events, queryClient]);
 
   // Auto-save effect - triggers when pendingOperations change
   useEffect(() => {
@@ -447,6 +482,102 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
     setSelectedEvents(new Set());
   };
 
+  // Bulk attach Drive folders to calendar
+  const bulkAttachToCalendar = async () => {
+    if (selectedEvents.size === 0) return;
+
+    // Filter events that have drive folder but not yet attached to calendar
+    const eligibleEvents = Array.from(selectedEvents).filter(eventId => {
+      const event = localData.find(e => e.id === eventId);
+      return event && event.drive_folder_id && event.google_event_id && !event.calendar_attachment_synced;
+    });
+
+    if (eligibleEvents.length === 0) {
+      alert('Žádné vybrané akce nemají Drive složku nebo nejsou v kalendáři, nebo už mají přílohu připojenou.');
+      return;
+    }
+
+    if (!confirm(`Připojit Drive složky jako přílohu do kalendáře pro ${eligibleEvents.length} akcí?`)) return;
+
+    let successCount = 0;
+    for (const eventId of eligibleEvents) {
+      try {
+        const response = await fetch(`/api/events/${eventId}/attach-drive`, { method: 'POST' });
+        if (response.ok) {
+          successCount++;
+          // Update local state optimistically
+          setLocalData(prev => prev.map(e =>
+            e.id === eventId ? { ...e, calendar_attachment_synced: true } : e
+          ));
+        }
+      } catch (error) {
+        console.error(`Error attaching folder for ${eventId}:`, error);
+      }
+    }
+
+    if (successCount > 0) {
+      queryClient.invalidateQueries({ queryKey: eventKeys.list() });
+    }
+
+    alert(`Úspěšně připojeno ${successCount}/${eligibleEvents.length} příloh.`);
+    setSelectedEvents(new Set());
+  };
+
+  // Manual drive validation
+  const validateDriveFolders = async () => {
+    setIsValidatingDrive(true);
+    try {
+      const res = await fetch('/api/events/validate-drive', { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        queryClient.invalidateQueries({ queryKey: eventKeys.list() });
+        alert(`Ověřeno ${data.validated} složek, odstraněno ${data.invalidated} neplatných odkazů.`);
+      }
+    } catch (error) {
+      console.error('Error validating drive folders:', error);
+      alert('Chyba při ověřování složek');
+    } finally {
+      setIsValidatingDrive(false);
+    }
+  };
+
+  // Bulk delete Drive folders
+  const bulkDeleteDriveFolders = async () => {
+    if (selectedEvents.size === 0) return;
+
+    const eventsWithFolder = Array.from(selectedEvents).filter(eventId => {
+      const event = localData.find(e => e.id === eventId);
+      return event && event.drive_folder_id;
+    });
+
+    if (eventsWithFolder.length === 0) {
+      alert('Žádné vybrané akce nemají Drive složku.');
+      return;
+    }
+
+    if (!confirm(`Opravdu chcete SMAZAT Drive složky pro ${eventsWithFolder.length} akcí? Tato akce je nevratná!`)) return;
+
+    let successCount = 0;
+    for (const eventId of eventsWithFolder) {
+      try {
+        const res = await fetch(`/api/events/${eventId}/drive`, { method: 'DELETE' });
+        if (res.ok) {
+          successCount++;
+          // Update local state
+          setLocalData(prev => prev.map(e =>
+            e.id === eventId ? { ...e, drive_folder_id: null, drive_folder_url: null, calendar_attachment_synced: false } : e
+          ));
+        }
+      } catch (error) {
+        console.error(`Error deleting folder for ${eventId}:`, error);
+      }
+    }
+
+    queryClient.invalidateQueries({ queryKey: eventKeys.list() });
+    alert(`Úspěšně smazáno ${successCount}/${eventsWithFolder.length} složek.`);
+    setSelectedEvents(new Set());
+  };
+
   if (loadingRoles) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -517,21 +648,54 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                 className="gap-1"
               >
                 <FolderPlus className="w-4 h-4" />
-                Vytvořit složky
+                Vytvořit podklady
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={bulkAttachToCalendar}
+                className="gap-1"
+              >
+                <Link2 className="w-4 h-4" />
+                Připojit přílohy
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={bulkDeleteDriveFolders}
+                className="gap-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+              >
+                <Trash2 className="w-4 h-4" />
+                Smazat podklady
               </Button>
             </div>
           )}
         </div>
 
-        <Button
-          size="sm"
-          onClick={saveToDatabase}
-          disabled={saveStatus === 'saving' || pendingOperations.length === 0}
-          className="gap-2"
-        >
-          <Save className="w-4 h-4" />
-          Uložit (Ctrl+S)
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* Validate Drive button */}
+          {isAdmin && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={validateDriveFolders}
+              disabled={isValidatingDrive}
+              title="Ověřit Drive složky"
+            >
+              <RefreshCw className={`w-4 h-4 ${isValidatingDrive ? 'animate-spin' : ''}`} />
+            </Button>
+          )}
+
+          <Button
+            size="sm"
+            onClick={saveToDatabase}
+            disabled={saveStatus === 'saving' || pendingOperations.length === 0}
+            className="gap-2"
+          >
+            <Save className="w-4 h-4" />
+            Uložit (Ctrl+S)
+          </Button>
+        </div>
       </div>
 
       {/* Table with horizontal scroll */}
@@ -595,12 +759,12 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                       >
                         <FolderOpen className="w-4 h-4" />
                       </div>
-                      {/* Calendar attachment status */}
+                      {/* Calendar attachment status - shows only when attachment is synced */}
                       <div
-                        className={`p-1 rounded ${event.google_event_id ? 'text-blue-600 bg-blue-50' : 'text-slate-300'}`}
-                        title={event.google_event_id ? 'Synchronizováno s kalendářem' : 'Není v kalendáři'}
+                        className={`p-1 rounded ${event.calendar_attachment_synced ? 'text-blue-600 bg-blue-50' : 'text-slate-300'}`}
+                        title={event.calendar_attachment_synced ? 'Příloha synchronizována s kalendářem' : 'Příloha není v kalendáři'}
                       >
-                        <Calendar className="w-4 h-4" />
+                        <Link2 className="w-4 h-4" />
                       </div>
                     </div>
                   </TableCell>
@@ -617,8 +781,8 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                               key={assignment.id}
                               className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs border ${getStatusColor(assignment.attendance_status)}`}
                             >
-                              <span className="font-medium max-w-[80px] truncate">
-                                {assignment.technician?.full_name?.split(' ')[0] || '?'}
+                              <span className="font-medium max-w-[120px] truncate" title={assignment.technician?.full_name}>
+                                {assignment.technician?.full_name || '?'}
                               </span>
 
                               {isAdmin && (
