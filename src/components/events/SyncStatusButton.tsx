@@ -8,9 +8,10 @@ import { useRouter } from 'next/navigation';
 interface SyncStatusButtonProps {
   eventId: string;
   onSync?: () => void;
+  iconOnly?: boolean;
 }
 
-export default function SyncStatusButton({ eventId, onSync }: SyncStatusButtonProps) {
+export default function SyncStatusButton({ eventId, onSync, iconOnly = false }: SyncStatusButtonProps) {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
@@ -42,9 +43,9 @@ export default function SyncStatusButton({ eventId, onSync }: SyncStatusButtonPr
   };
 
   return (
-    <Button variant="outline" onClick={handleSync} disabled={loading}>
-      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-      {loading ? 'Synchronizuji...' : 'Obnovit statusy'}
+    <Button variant="outline" size={iconOnly ? 'sm' : 'default'} onClick={handleSync} disabled={loading}>
+      <RefreshCw className={`w-4 h-4 ${iconOnly ? '' : 'mr-2'} ${loading ? 'animate-spin' : ''}`} />
+      {!iconOnly && (loading ? 'Synchronizuji...' : 'Obnovit statusy')}
     </Button>
   );
 }

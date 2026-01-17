@@ -719,23 +719,24 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
           <TableHeader>
             <TableRow>
               {isAdmin && (
-                <TableHead className="w-[40px]">
+                <TableHead className="w-[40px] md:w-[40px]">
                   <Checkbox
                     checked={selectedEvents.size === localData.length && localData.length > 0}
                     onCheckedChange={toggleSelectAll}
                   />
                 </TableHead>
               )}
-              <TableHead className="w-[180px] sticky left-0 bg-white z-10">Akce</TableHead>
-              <TableHead className="w-[90px]">Datum</TableHead>
-              <TableHead className="w-[60px] text-center">Status</TableHead>
-              {/* Dynamic role columns */}
+              <TableHead className="w-[120px] md:w-[180px] sticky left-0 bg-white z-10">Akce</TableHead>
+              <TableHead className="w-[70px] md:w-[90px]">Datum</TableHead>
+              <TableHead className="w-[50px] md:w-[60px] text-center">St.</TableHead>
+              {/* Dynamic role columns - narrower on mobile */}
               {roleTypes.map(role => (
-                <TableHead key={role.id} className="min-w-[150px]">
-                  {role.label}
+                <TableHead key={role.id} className="min-w-[100px] md:min-w-[150px] text-xs md:text-sm">
+                  <span className="md:hidden">{role.label.substring(0, 6)}{role.label.length > 6 ? '.' : ''}</span>
+                  <span className="hidden md:inline">{role.label}</span>
                 </TableHead>
               ))}
-              <TableHead className="w-[70px] text-center">Obsaz.</TableHead>
+              <TableHead className="w-[50px] md:w-[70px] text-center">%</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -756,12 +757,12 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
 
                   {/* Event name */}
                   <TableCell className="font-medium sticky left-0 bg-white">
-                    <div className="line-clamp-2 text-sm">{event.title}</div>
+                    <div className="line-clamp-1 md:line-clamp-2 text-xs md:text-sm max-w-[100px] md:max-w-none">{event.title}</div>
                   </TableCell>
 
                   {/* Date */}
-                  <TableCell className="text-xs text-slate-600">
-                    {format(new Date(event.start_time), 'd.M.yy', { locale: cs })}
+                  <TableCell className="text-[10px] md:text-xs text-slate-600 whitespace-nowrap">
+                    {format(new Date(event.start_time), 'd.M.', { locale: cs })}
                   </TableCell>
 
                   {/* Status icons - Drive & Calendar */}
@@ -794,9 +795,9 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                           {assignments.map(assignment => (
                             <div
                               key={assignment.id}
-                              className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs border ${getStatusColor(assignment.attendance_status)}`}
+                              className={`flex items-center gap-0.5 md:gap-1 px-1 md:px-2 py-0.5 rounded text-[10px] md:text-xs border ${getStatusColor(assignment.attendance_status)}`}
                             >
-                              <span className="font-medium max-w-[120px] truncate" title={assignment.technician?.full_name}>
+                              <span className="font-medium max-w-[60px] md:max-w-[120px] truncate" title={assignment.technician?.full_name}>
                                 {assignment.technician?.full_name || '?'}
                               </span>
 
@@ -818,7 +819,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                                   </Select>
                                   <button
                                     onClick={() => removeAssignment(assignment.id, assignment.positionId, event.id)}
-                                    className="hover:text-red-600"
+                                    className="hover:text-red-600 p-0.5"
                                   >
                                     <X className="w-3 h-3" />
                                   </button>
@@ -831,9 +832,9 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                           {isAdmin && (
                             <Popover>
                               <PopoverTrigger asChild>
-                                <button className="flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-dashed border-slate-300 text-xs text-slate-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors">
+                                <button className="flex items-center justify-center w-5 h-5 md:w-auto md:h-auto md:gap-0.5 md:px-1.5 md:py-0.5 rounded border border-dashed border-slate-300 text-xs text-slate-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors">
                                   <Plus className="w-3 h-3" />
-                                  <span className="hidden sm:inline">Poptat</span>
+                                  <span className="hidden md:inline">Poptat</span>
                                 </button>
                               </PopoverTrigger>
                               <PopoverContent className="w-48 p-1">

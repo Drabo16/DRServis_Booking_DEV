@@ -8,11 +8,15 @@ import { useRouter } from 'next/navigation';
 interface CreateDriveFolderButtonProps {
   eventId: string;
   onSuccess?: () => void;
+  size?: 'sm' | 'default' | 'lg';
+  iconOnly?: boolean;
 }
 
 export default function CreateDriveFolderButton({
   eventId,
   onSuccess,
+  size = 'default',
+  iconOnly = false,
 }: CreateDriveFolderButtonProps) {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -53,11 +57,12 @@ export default function CreateDriveFolderButton({
   return (
     <Button
       variant="outline"
+      size={size}
       onClick={handleCreateFolder}
       disabled={loading}
     >
-      <FolderPlus className="w-4 h-4 mr-2" />
-      {loading ? 'Vytváření...' : 'Vytvořit podklady'}
+      <FolderPlus className={`w-4 h-4 ${iconOnly ? '' : 'mr-2'}`} />
+      {!iconOnly && (loading ? 'Vytváření...' : 'Vytvořit podklady')}
     </Button>
   );
 }

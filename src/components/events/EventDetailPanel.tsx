@@ -163,9 +163,68 @@ export default function EventDetailPanel({ eventId, onClose, isAdmin }: EventDet
   }
 
   return (
-    <div className="space-y-6">
-      {/* Close button */}
-      <div className="flex justify-end">
+    <div className="space-y-4 md:space-y-6">
+      {/* Mobile: Header bar with title and close - sticky on mobile */}
+      <div className="flex items-center justify-between gap-2 pb-2 border-b lg:hidden sticky top-0 bg-white z-10 -mx-4 px-4 pt-2 -mt-2">
+        <h2 className="font-semibold text-lg truncate">{event.title}</h2>
+        <Button variant="ghost" size="sm" onClick={onClose} className="shrink-0">
+          <X className="w-4 h-4" />
+        </Button>
+      </div>
+
+      {/* Mobile: Quick actions bar - visible immediately */}
+      {isAdmin && (
+        <div className="flex flex-wrap gap-2 lg:hidden">
+          {!event.drive_folder_url && (
+            <CreateDriveFolderButton eventId={event.id} onSuccess={handleRefresh} size="sm" />
+          )}
+          {event.drive_folder_url && (
+            <a
+              href={event.drive_folder_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100"
+            >
+              <FolderOpen className="w-4 h-4" />
+              Drive
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          )}
+          {event.drive_folder_url && event.google_event_id && !event.calendar_attachment_synced && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAttachDriveToCalendar}
+              disabled={attachingDrive}
+            >
+              {attachingDrive ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Link className="w-4 h-4" />
+              )}
+            </Button>
+          )}
+          {event.drive_folder_url && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDeleteDriveFolder}
+              disabled={deletingDrive}
+              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+            >
+              {deletingDrive ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Trash2 className="w-4 h-4" />
+              )}
+            </Button>
+          )}
+          <SyncStatusButton eventId={event.id} onSync={handleRefresh} iconOnly />
+        </div>
+      )}
+
+      {/* Desktop: Close button */}
+      <div className="hidden lg:flex justify-end">
         <Button variant="ghost" size="sm" onClick={onClose}>
           <X className="w-4 h-4" />
         </Button>
@@ -173,36 +232,37 @@ export default function EventDetailPanel({ eventId, onClose, isAdmin }: EventDet
 
       {/* Event Header */}
       <Card>
-        <CardHeader>
-          <div className="space-y-2">
-            <CardTitle className="text-2xl">{event.title}</CardTitle>
+        <CardHeader className="pb-2 md:pb-6">
+          <div className="space-y-1 md:space-y-2">
+            <CardTitle className="text-lg md:text-2xl hidden lg:block">{event.title}</CardTitle>
             {event.description && (
-              <CardDescription>{event.description}</CardDescription>
+              <CardDescription className="text-xs md:text-sm">{event.description}</CardDescription>
             )}
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 gap-4">
-            <div className="flex items-center gap-3 text-slate-700">
-              <Calendar className="w-5 h-5 text-slate-400" />
-              <div>
-                <p className="text-sm text-slate-500">Datum</p>
-                <p className="font-medium">{formatDateRange(event.start_time, event.end_time)}</p>
+        <CardContent className="space-y-3 md:space-y-4 pt-0 md:pt-0">
+          <div className="grid grid-cols-1 gap-3 md:gap-4">
+            <div className="flex items-center gap-2 md:gap-3 text-slate-700">
+              <Calendar className="w-4 h-4 md:w-5 md:h-5 text-slate-400 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-xs md:text-sm text-slate-500">Datum</p>
+                <p className="font-medium text-sm md:text-base truncate">{formatDateRange(event.start_time, event.end_time)}</p>
               </div>
             </div>
 
             {event.location && (
-              <div className="flex items-center gap-3 text-slate-700">
-                <MapPin className="w-5 h-5 text-slate-400" />
-                <div>
-                  <p className="text-sm text-slate-500">Místo</p>
-                  <p className="font-medium">{event.location}</p>
+              <div className="flex items-center gap-2 md:gap-3 text-slate-700">
+                <MapPin className="w-4 h-4 md:w-5 md:h-5 text-slate-400 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs md:text-sm text-slate-500">Místo</p>
+                  <p className="font-medium text-sm md:text-base truncate">{event.location}</p>
                 </div>
               </div>
             )}
 
+            {/* Desktop: Drive section */}
             {event.drive_folder_url && (
-              <div className="flex items-start gap-3 text-slate-700">
+              <div className="hidden lg:flex items-start gap-3 text-slate-700">
                 <FolderOpen className="w-5 h-5 text-slate-400 mt-0.5" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-slate-500 mb-2">Google Drive</p>
@@ -225,8 +285,9 @@ export default function EventDetailPanel({ eventId, onClose, isAdmin }: EventDet
             )}
           </div>
 
+          {/* Desktop: Admin actions */}
           {isAdmin && (
-            <div className="flex flex-wrap gap-3 pt-4 border-t">
+            <div className="hidden lg:flex flex-wrap gap-3 pt-4 border-t">
               {!event.drive_folder_url && (
                 <CreateDriveFolderButton eventId={event.id} onSuccess={handleRefresh} />
               )}

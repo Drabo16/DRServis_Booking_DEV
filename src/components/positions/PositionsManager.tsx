@@ -341,216 +341,401 @@ export default function PositionsManager({
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="pb-2 md:pb-6">
         <div className="flex items-center justify-between">
-          <CardTitle>Pozice a přiřazení</CardTitle>
+          <CardTitle className="text-base md:text-xl">Pozice a přiřazení</CardTitle>
           {isAdmin && (
             <Button
               size="sm"
               variant="outline"
               onClick={() => setIsAddingPosition(true)}
+              className="text-xs md:text-sm"
             >
-              <Plus className="w-4 h-4 mr-2" />
-              Přidat pozici
+              <Plus className="w-4 h-4 md:mr-2" />
+              <span className="hidden md:inline">Přidat pozici</span>
             </Button>
           )}
         </div>
       </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[200px]">Typ role</TableHead>
-              <TableHead>Přiřazení technici</TableHead>
-              {isAdmin && <TableHead className="w-[100px]">Akce</TableHead>}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {positions.map((position) => (
-              <TableRow key={position.id}>
-                <TableCell className="font-medium">
-                  <Badge variant="outline">{getRoleTypeLabel(position.role_type)}</Badge>
-                </TableCell>
-                <TableCell>
-                  <div className="space-y-2">
-                    {position.assignments.map((assignment) => (
-                      <div
-                        key={assignment.id}
-                        className="flex items-center justify-between gap-2 p-2 bg-slate-50 rounded-md"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-slate-900">
-                            {assignment.technician.full_name}
-                          </p>
-                          <p className="text-xs text-slate-500 truncate">
-                            {assignment.technician.email}
-                          </p>
+      <CardContent className="p-2 md:p-6">
+        {/* Mobile: Card layout */}
+        <div className="md:hidden space-y-3">
+          {positions.map((position) => (
+            <div key={position.id} className="border rounded-lg p-3 bg-slate-50">
+              <div className="flex items-center justify-between mb-2">
+                <Badge variant="outline" className="text-xs">{getRoleTypeLabel(position.role_type)}</Badge>
+                {isAdmin && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleDeletePosition(position.id)}
+                    className="h-7 w-7 p-0"
+                  >
+                    <Trash2 className="w-4 h-4 text-red-600" />
+                  </Button>
+                )}
+              </div>
+              <div className="space-y-2">
+                {position.assignments.map((assignment) => (
+                  <div
+                    key={assignment.id}
+                    className="flex flex-col gap-2 p-2 bg-white rounded-md border"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-slate-900 truncate">
+                          {assignment.technician.full_name}
+                        </p>
+                      </div>
+                      {isAdmin && (
+                        <div className="flex items-center gap-1 ml-2">
+                          {assignment.attendance_status === 'pending' && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleInvite(assignment.id)}
+                              className="h-7 w-7 p-0"
+                            >
+                              <Mail className="w-4 h-4" />
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleRemoveAssignment(assignment.id)}
+                            className="h-7 w-7 p-0"
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
                         </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          {isAdmin ? (
-                            <>
-                              <Select
-                                value={assignment.attendance_status}
-                                onValueChange={(value) =>
-                                  handleStatusChange(assignment.id, value as AttendanceStatus)
-                                }
-                                disabled={updatingStatus === assignment.id}
-                              >
-                                <SelectTrigger className="w-32 h-8 text-xs">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="pending">Čeká</SelectItem>
-                                  <SelectItem value="accepted">Přijato</SelectItem>
-                                  <SelectItem value="declined">Odmítnuto</SelectItem>
-                                  <SelectItem value="tentative">Předběžně</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              {assignment.attendance_status === 'pending' && (
+                      )}
+                    </div>
+                    {isAdmin ? (
+                      <Select
+                        value={assignment.attendance_status}
+                        onValueChange={(value) =>
+                          handleStatusChange(assignment.id, value as AttendanceStatus)
+                        }
+                        disabled={updatingStatus === assignment.id}
+                      >
+                        <SelectTrigger className="w-full h-8 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pending">Čeká</SelectItem>
+                          <SelectItem value="accepted">Přijato</SelectItem>
+                          <SelectItem value="declined">Odmítnuto</SelectItem>
+                          <SelectItem value="tentative">Předběžně</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Badge className={`${getAttendanceStatusColor(assignment.attendance_status)} text-xs`}>
+                        {getAttendanceStatusLabel(assignment.attendance_status)}
+                      </Badge>
+                    )}
+                  </div>
+                ))}
+                {isAdmin && (
+                  <div className="flex items-center gap-2 pt-1">
+                    <Select
+                      value={selectedTechnician[position.id] || ''}
+                      onValueChange={(value) =>
+                        setSelectedTechnician({ ...selectedTechnician, [position.id]: value })
+                      }
+                    >
+                      <SelectTrigger className="flex-1 h-8 text-xs">
+                        <SelectValue placeholder="Přidat technika..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {allTechnicians
+                          .filter(
+                            (tech) =>
+                              !position.assignments.some((a) => a.technician_id === tech.id)
+                          )
+                          .map((tech) => (
+                            <SelectItem key={tech.id} value={tech.id}>
+                              {tech.full_name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        if (selectedTechnician[position.id]) {
+                          handleAssignTechnician(position.id, selectedTechnician[position.id]);
+                        }
+                      }}
+                      disabled={!selectedTechnician[position.id]}
+                      className="h-8 w-8 p-0"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+          {/* Mobile: Add position form */}
+          {isAddingPosition && (
+            <div className="border rounded-lg p-3 bg-blue-50 space-y-2">
+              <Select
+                value={newPosition.role_type}
+                onValueChange={(value) =>
+                  setNewPosition({ ...newPosition, role_type: value as RoleType })
+                }
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Vyberte typ role..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {roleTypes.map((role) => (
+                    <SelectItem key={role.id} value={role.value}>
+                      {role.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={newPosition.technicianId}
+                onValueChange={(value) =>
+                  setNewPosition({ ...newPosition, technicianId: value })
+                }
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Technik (volitelné)..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {allTechnicians.map((tech) => (
+                    <SelectItem key={tech.id} value={tech.id}>
+                      {tech.full_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={handleAddPosition}
+                  disabled={!newPosition.role_type || loading}
+                  className="flex-1 h-8 text-xs"
+                >
+                  Uložit
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setIsAddingPosition(false);
+                    setNewPosition({ role_type: '', technicianId: '' });
+                  }}
+                  className="h-8 text-xs"
+                >
+                  Zrušit
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Desktop: Table layout */}
+        <div className="hidden md:block">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[200px]">Typ role</TableHead>
+                <TableHead>Přiřazení technici</TableHead>
+                {isAdmin && <TableHead className="w-[100px]">Akce</TableHead>}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {positions.map((position) => (
+                <TableRow key={position.id}>
+                  <TableCell className="font-medium">
+                    <Badge variant="outline">{getRoleTypeLabel(position.role_type)}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="space-y-2">
+                      {position.assignments.map((assignment) => (
+                        <div
+                          key={assignment.id}
+                          className="flex items-center justify-between gap-2 p-2 bg-slate-50 rounded-md"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-slate-900">
+                              {assignment.technician.full_name}
+                            </p>
+                            <p className="text-xs text-slate-500 truncate">
+                              {assignment.technician.email}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {isAdmin ? (
+                              <>
+                                <Select
+                                  value={assignment.attendance_status}
+                                  onValueChange={(value) =>
+                                    handleStatusChange(assignment.id, value as AttendanceStatus)
+                                  }
+                                  disabled={updatingStatus === assignment.id}
+                                >
+                                  <SelectTrigger className="w-32 h-8 text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="pending">Čeká</SelectItem>
+                                    <SelectItem value="accepted">Přijato</SelectItem>
+                                    <SelectItem value="declined">Odmítnuto</SelectItem>
+                                    <SelectItem value="tentative">Předběžně</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                {assignment.attendance_status === 'pending' && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleInvite(assignment.id)}
+                                  >
+                                    <Mail className="w-4 h-4" />
+                                  </Button>
+                                )}
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                  onClick={() => handleInvite(assignment.id)}
+                                  onClick={() => handleRemoveAssignment(assignment.id)}
                                 >
-                                  <Mail className="w-4 h-4" />
+                                  <X className="w-4 h-4" />
                                 </Button>
-                              )}
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleRemoveAssignment(assignment.id)}
-                              >
-                                <X className="w-4 h-4" />
-                              </Button>
-                            </>
-                          ) : (
-                            <Badge className={getAttendanceStatusColor(assignment.attendance_status)}>
-                              {getAttendanceStatusLabel(assignment.attendance_status)}
-                            </Badge>
-                          )}
+                              </>
+                            ) : (
+                              <Badge className={getAttendanceStatusColor(assignment.attendance_status)}>
+                                {getAttendanceStatusLabel(assignment.attendance_status)}
+                              </Badge>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                    {isAdmin && (
-                      <div className="flex items-center gap-2">
-                        <Select
-                          value={selectedTechnician[position.id] || ''}
-                          onValueChange={(value) =>
-                            setSelectedTechnician({ ...selectedTechnician, [position.id]: value })
-                          }
-                        >
-                          <SelectTrigger className="flex-1">
-                            <SelectValue placeholder="Vyberte technika..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {allTechnicians
-                              .filter(
-                                (tech) =>
-                                  !position.assignments.some((a) => a.technician_id === tech.id)
-                              )
-                              .map((tech) => (
-                                <SelectItem key={tech.id} value={tech.id}>
-                                  {tech.full_name} ({tech.email})
-                                </SelectItem>
-                              ))}
-                          </SelectContent>
-                        </Select>
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            if (selectedTechnician[position.id]) {
-                              handleAssignTechnician(position.id, selectedTechnician[position.id]);
+                      ))}
+                      {isAdmin && (
+                        <div className="flex items-center gap-2">
+                          <Select
+                            value={selectedTechnician[position.id] || ''}
+                            onValueChange={(value) =>
+                              setSelectedTechnician({ ...selectedTechnician, [position.id]: value })
                             }
-                          }}
-                          disabled={!selectedTechnician[position.id]}
-                        >
-                          <UserPlus className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </TableCell>
-                {isAdmin && (
-                  <TableCell>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleDeletePosition(position.id)}
-                    >
-                      <Trash2 className="w-4 h-4 text-red-600" />
-                    </Button>
+                          >
+                            <SelectTrigger className="flex-1">
+                              <SelectValue placeholder="Vyberte technika..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {allTechnicians
+                                .filter(
+                                  (tech) =>
+                                    !position.assignments.some((a) => a.technician_id === tech.id)
+                                )
+                                .map((tech) => (
+                                  <SelectItem key={tech.id} value={tech.id}>
+                                    {tech.full_name} ({tech.email})
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              if (selectedTechnician[position.id]) {
+                                handleAssignTechnician(position.id, selectedTechnician[position.id]);
+                              }
+                            }}
+                            disabled={!selectedTechnician[position.id]}
+                          >
+                            <UserPlus className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
                   </TableCell>
-                )}
-              </TableRow>
-            ))}
-            {isAddingPosition && (
-              <TableRow>
-                <TableCell>
-                  <Select
-                    value={newPosition.role_type}
-                    onValueChange={(value) =>
-                      setNewPosition({ ...newPosition, role_type: value as RoleType })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Vyberte typ role..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {roleTypes.map((role) => (
-                        <SelectItem key={role.id} value={role.value}>
-                          {role.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </TableCell>
-                <TableCell>
-                  <Select
-                    value={newPosition.technicianId}
-                    onValueChange={(value) =>
-                      setNewPosition({ ...newPosition, technicianId: value })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Vyberte technika (volitelné)..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {allTechnicians.map((tech) => (
-                        <SelectItem key={tech.id} value={tech.id}>
-                          {tech.full_name} ({tech.email})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </TableCell>
-                <TableCell>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      onClick={handleAddPosition}
-                      disabled={!newPosition.role_type || loading}
+                  {isAdmin && (
+                    <TableCell>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleDeletePosition(position.id)}
+                      >
+                        <Trash2 className="w-4 h-4 text-red-600" />
+                      </Button>
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))}
+              {isAddingPosition && (
+                <TableRow>
+                  <TableCell>
+                    <Select
+                      value={newPosition.role_type}
+                      onValueChange={(value) =>
+                        setNewPosition({ ...newPosition, role_type: value as RoleType })
+                      }
                     >
-                      Uložit
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        setIsAddingPosition(false);
-                        setNewPosition({ role_type: '', technicianId: '' });
-                      }}
+                      <SelectTrigger>
+                        <SelectValue placeholder="Vyberte typ role..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {roleTypes.map((role) => (
+                          <SelectItem key={role.id} value={role.value}>
+                            {role.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                  <TableCell>
+                    <Select
+                      value={newPosition.technicianId}
+                      onValueChange={(value) =>
+                        setNewPosition({ ...newPosition, technicianId: value })
+                      }
                     >
-                      Zrušit
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Vyberte technika (volitelné)..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {allTechnicians.map((tech) => (
+                          <SelectItem key={tech.id} value={tech.id}>
+                            {tech.full_name} ({tech.email})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={handleAddPosition}
+                        disabled={!newPosition.role_type || loading}
+                      >
+                        Uložit
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setIsAddingPosition(false);
+                          setNewPosition({ role_type: '', technicianId: '' });
+                        }}
+                      >
+                        Zrušit
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+
         {positions.length === 0 && !isAddingPosition && (
-          <div className="text-center py-8 text-slate-500">
-            {isAdmin ? 'Zatím nejsou vytvořené žádné pozice. Klikněte na "Přidat pozici".' : 'Pro tuto akci zatím nejsou vytvořené žádné pozice.'}
+          <div className="text-center py-6 md:py-8 text-slate-500 text-sm">
+            {isAdmin ? 'Zatím nejsou vytvořené žádné pozice.' : 'Pro tuto akci zatím nejsou vytvořené žádné pozice.'}
           </div>
         )}
       </CardContent>
