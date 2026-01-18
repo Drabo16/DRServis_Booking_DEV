@@ -608,8 +608,8 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
 
   return (
     <div className="bg-white rounded-lg shadow-sm">
-      {/* Header with save status, bulk actions, and button */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-3 sm:px-4 py-3 border-b bg-slate-50">
+      {/* Header with save status, bulk actions, and button - min-h matches other tab headers */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-3 sm:px-4 py-3 border-b bg-slate-50 min-h-[52px]">
         <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
           {/* Save status */}
           <div className="flex items-center gap-2">

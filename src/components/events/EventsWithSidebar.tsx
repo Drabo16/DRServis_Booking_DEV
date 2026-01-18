@@ -106,8 +106,8 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
     });
   }, [events, showIncompleteOnly]);
 
-  // Excel view a Odpovědi mají full width, ostatní mají split view
-  const isFullWidthView = activeTab === 'excel' || activeTab === 'responses';
+  // Excel view a Odpovědi skrývají pravý panel, ale levý panel má stále stejnou šířku
+  const hideRightPanel = activeTab === 'excel' || activeTab === 'responses';
 
   // Toggle select all (Seznam view)
   const toggleSelectAll = () => {
@@ -249,9 +249,9 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
     setSelectedEvents(new Set());
   };
 
-  // Bulk actions bar component
+  // Bulk actions bar component - min-h matches other tab headers
   const BulkActionsBar = () => (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 p-3 bg-slate-50 rounded-lg border">
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-slate-50 rounded-lg border min-h-[52px] mb-4">
       <div className="flex items-center gap-3 flex-wrap">
         <Checkbox
           checked={selectedEvents.size === filteredEvents.length && filteredEvents.length > 0}
@@ -339,10 +339,11 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
   );
 
   return (
-    <div className={isFullWidthView ? '' : 'flex flex-col lg:flex-row gap-6'}>
-      {/* Levý panel nebo full width panel */}
-      <div className={isFullWidthView ? 'w-full' : 'w-full lg:w-1/2 lg:flex-shrink-0'}>
-        <div className="mb-4 flex items-center justify-between gap-2">
+    <div className="flex flex-col lg:flex-row gap-6">
+      {/* Levý panel - full width pro Excel/Odpovědi, poloviční pro Seznam/Kalendář */}
+      <div className={hideRightPanel ? 'w-full' : 'w-full lg:w-1/2 lg:flex-shrink-0'}>
+        {/* Fixed height header area to prevent layout shift when switching tabs */}
+        <div className="mb-4 flex items-center justify-between gap-2 min-h-[40px]">
           <h1 className="text-xl md:text-2xl font-bold text-slate-900">
             {isAdmin ? 'Akce' : 'Moje akce'}
           </h1>
@@ -369,15 +370,21 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
         </div>
 
         <Tabs defaultValue="list" className="w-full" onValueChange={setActiveTab}>
-          <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-4' : 'grid-cols-3'}`}>
+          {/* Fixed width TabsList to prevent layout shift when switching tabs */}
+          <TabsList className={`grid h-10 max-w-md ${isAdmin ? 'grid-cols-4' : 'grid-cols-3'}`}>
             <TabsTrigger value="list" className="text-xs sm:text-sm">Seznam</TabsTrigger>
             <TabsTrigger value="calendar" className="text-xs sm:text-sm">Kalendář</TabsTrigger>
             <TabsTrigger value="excel" className="text-xs sm:text-sm">Excel</TabsTrigger>
             {isAdmin && <TabsTrigger value="responses" className="text-xs sm:text-sm">Odpovědi</TabsTrigger>}
           </TabsList>
 
-          <TabsContent value="list" className="mt-4 md:mt-6">
-            {isAdmin && filteredEvents.length > 0 && <BulkActionsBar />}
+          <TabsContent value="list" className="mt-4">
+            {/* Actions bar - consistent with other tabs */}
+            {isAdmin && filteredEvents.length > 0 ? (
+              <BulkActionsBar />
+            ) : (
+              <div className="min-h-[52px] mb-4" />
+            )}
 
             {!filteredEvents || filteredEvents.length === 0 ? (
               <div className="text-center py-12">
@@ -404,8 +411,13 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
             )}
           </TabsContent>
 
-          <TabsContent value="calendar" className="mt-4 md:mt-6">
-            {isAdmin && filteredEvents.length > 0 && <BulkActionsBar />}
+          <TabsContent value="calendar" className="mt-4">
+            {/* Actions bar - consistent with other tabs */}
+            {isAdmin && filteredEvents.length > 0 ? (
+              <BulkActionsBar />
+            ) : (
+              <div className="min-h-[52px] mb-4" />
+            )}
 
             <Suspense fallback={
               <div className="flex items-center justify-center min-h-[300px] md:min-h-[400px]">
@@ -416,7 +428,7 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
             </Suspense>
           </TabsContent>
 
-          <TabsContent value="excel" className="mt-4 md:mt-6">
+          <TabsContent value="excel" className="mt-4">
             <Suspense fallback={
               <div className="flex items-center justify-center min-h-[300px] md:min-h-[400px]">
                 <Loader2 className="w-8 h-8 animate-spin text-slate-600" />
@@ -427,7 +439,7 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
           </TabsContent>
 
           {isAdmin && (
-            <TabsContent value="responses" className="mt-4 md:mt-6">
+            <TabsContent value="responses" className="mt-4">
               <Suspense fallback={
                 <div className="flex items-center justify-center min-h-[300px] md:min-h-[400px]">
                   <Loader2 className="w-8 h-8 animate-spin text-slate-600" />
@@ -446,7 +458,7 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
       </div>
 
       {/* Pravý panel - detail akce - DESKTOP only */}
-      {!isFullWidthView && (
+      {!hideRightPanel && (
         <div className="hidden lg:block w-1/2 border-l border-slate-200 pl-6 overflow-y-auto sticky top-0 h-screen">
           {selectedEventId ? (
             <EventDetailPanel
@@ -466,7 +478,7 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
 
       {/* Mobile sheet for event detail - only render on mobile/tablet */}
       {isMobile && (
-        <Sheet open={mobileSheetOpen && !isFullWidthView} onOpenChange={(open) => {
+        <Sheet open={mobileSheetOpen && !hideRightPanel} onOpenChange={(open) => {
           if (!open) handleCloseEvent();
         }}>
           <SheetContent side="bottom" className="h-[90vh] overflow-y-auto">

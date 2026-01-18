@@ -229,8 +229,8 @@ export default function InviteResponsesTab({
 
   return (
     <>
-      {/* Statistiky a filtr */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 p-3 bg-slate-50 rounded-lg border">
+      {/* Statistiky a filtr - min-h matches other tab headers */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 p-3 bg-slate-50 rounded-lg border min-h-[52px]">
         <div className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm flex-wrap">
           <span className="text-slate-600 font-medium">Celkem: {stats.total}</span>
           <span className="text-green-600">✓ {stats.accepted}</span>
