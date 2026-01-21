@@ -3,11 +3,20 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { Calendar, Users, Settings, UserCog, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Calendar, Users, Settings, UserCog, ChevronLeft, ChevronRight, X, Package, FileText, LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSidebar } from '@/contexts/SidebarContext';
+import { useAccessibleModules } from '@/hooks/useModules';
 import type { User } from '@supabase/supabase-js';
 import type { Profile } from '@/types';
+
+// Map icon names from database to Lucide components
+const iconMap: Record<string, LucideIcon> = {
+  Calendar,
+  Users,
+  Package,
+  FileText,
+};
 
 interface SidebarProps {
   user: User;
@@ -17,32 +26,51 @@ interface SidebarProps {
 export default function Sidebar({ user, profile }: SidebarProps) {
   const pathname = usePathname();
   const { isCollapsed, isMobileOpen, toggleCollapse, closeMobile } = useSidebar();
+  const { data: accessibleModules, isLoading } = useAccessibleModules();
 
-  const navItems = [
-    {
-      href: '/',
-      label: 'Akce',
-      icon: Calendar,
-    },
+  // Build navigation items from accessible modules
+  // During loading, show only core booking to prevent flash
+  const moduleNavItems = isLoading
+    ? [{ href: '/', label: 'Booking', icon: Calendar }]
+    : (accessibleModules && accessibleModules.length > 0)
+      ? accessibleModules.map((module) => ({
+          href: module.route,
+          label: module.name,
+          icon: iconMap[module.icon] || Calendar,
+        }))
+      : [{ href: '/', label: 'Booking', icon: Calendar }];
+
+  // Static items that are always shown (technicians - part of core booking)
+  const staticNavItems = [
     {
       href: '/technicians',
       label: 'Technici',
       icon: Users,
     },
-    ...(profile?.role === 'admin'
-      ? [
-          {
-            href: '/users',
-            label: 'Uživatelé',
-            icon: UserCog,
-          },
-          {
-            href: '/settings',
-            label: 'Nastavení',
-            icon: Settings,
-          },
-        ]
-      : []),
+  ];
+
+  // Admin-only items
+  const adminNavItems = profile?.role === 'admin'
+    ? [
+        {
+          href: '/users',
+          label: 'Uživatelé',
+          icon: UserCog,
+        },
+        {
+          href: '/settings',
+          label: 'Nastavení',
+          icon: Settings,
+        },
+      ]
+    : [];
+
+  // Combine: modules first, then static items, then admin items
+  // Filter out duplicates
+  const navItems = [
+    ...moduleNavItems,
+    ...staticNavItems.filter(item => !moduleNavItems.some(m => m.href === item.href)),
+    ...adminNavItems,
   ];
 
   const sidebarContent = (
@@ -98,6 +126,21 @@ export default function Sidebar({ user, profile }: SidebarProps) {
             </Link>
           );
         })}
+
+        {/* Loading skeleton for additional modules */}
+        {isLoading && !isCollapsed && (
+          <>
+            <div className="flex items-center gap-3 px-4 py-3 animate-pulse">
+              <div className="w-5 h-5 bg-slate-200 rounded" />
+              <div className="h-4 w-16 bg-slate-200 rounded" />
+            </div>
+          </>
+        )}
+        {isLoading && isCollapsed && (
+          <div className="flex justify-center p-3 animate-pulse">
+            <div className="w-5 h-5 bg-slate-200 rounded" />
+          </div>
+        )}
       </nav>
 
       {/* User profile section */}

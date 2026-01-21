@@ -28,6 +28,7 @@ export interface Profile {
   specialization: string[] | null;
   avatar_url: string | null;
   is_active: boolean;
+  has_warehouse_access: boolean; // Access to warehouse module
   created_at: string;
   updated_at: string;
 }
@@ -126,3 +127,13 @@ export interface PaginatedResponse<T> extends ApiResponse<T[]> {
     totalPages: number;
   };
 }
+
+// =====================================================
+// MODULE SYSTEM TYPES
+// =====================================================
+export * from './modules';
+
+// =====================================================
+// WAREHOUSE MODULE TYPES
+// =====================================================
+export * from './warehouse';
