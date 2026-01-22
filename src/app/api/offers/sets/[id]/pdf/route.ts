@@ -1,12 +1,13 @@
 // =====================================================
 // OFFERS API - Project PDF Export Route
 // =====================================================
-// Generate combined PDF for all offers in a project (set)
+// Generate PDF that looks like a single offer with sub-sections
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { renderToBuffer } from '@react-pdf/renderer';
 import { ProjectPdfDocument } from '@/components/offers/ProjectPdfDocument';
+import { formatOfferNumber } from '@/types/offers';
 import fs from 'fs';
 import path from 'path';
 
@@ -55,10 +56,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Fetch the offer set
+    // Fetch the offer set with event
     const { data: offerSet, error: setError } = await supabase
       .from('offer_sets')
-      .select('*')
+      .select(`
+        *,
+        event:events(id, title, start_time, location)
+      `)
       .eq('id', id)
       .single();
 
@@ -81,12 +85,22 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       throw offersError;
     }
 
-    if (!offers || offers.length === 0) {
-      return NextResponse.json({ error: 'No offers in this project' }, { status: 400 });
+    // Fetch direct items on the project (offer_set_items table)
+    let directItems: any[] = [];
+    try {
+      const { data: setItems } = await supabase
+        .from('offer_set_items')
+        .select('*')
+        .eq('offer_set_id', id)
+        .order('category')
+        .order('sort_order');
+      directItems = setItems || [];
+    } catch {
+      // Table might not exist yet
     }
 
     // Sort items in each offer by category and sort_order
-    const offersWithSortedItems = offers.map((offer: any) => ({
+    const offersWithSortedItems = (offers || []).map((offer: any) => ({
       ...offer,
       items: (offer.items || []).sort((a: any, b: any) => {
         if (a.category !== b.category) {
@@ -111,13 +125,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       ProjectPdfDocument({
         project: offerSet,
         offers: offersWithSortedItems,
+        directItems,
         logoBase64,
       })
     );
 
-    // Create filename
-    const safeName = offerSet.name.replace(/[^a-zA-Z0-9-_]/g, '-').substring(0, 50);
-    const filename = `projekt-${safeName}.pdf`;
+    // Create filename - use offer number format like single offers
+    const offerNum = offerSet.offer_number || 1;
+    const offerYear = offerSet.year || new Date().getFullYear();
+    const filename = `nabidka-${formatOfferNumber(offerNum, offerYear).replace('/', '-')}.pdf`;
 
     // Convert Buffer to Uint8Array for NextResponse compatibility
     const pdfUint8Array = new Uint8Array(pdfBuffer);

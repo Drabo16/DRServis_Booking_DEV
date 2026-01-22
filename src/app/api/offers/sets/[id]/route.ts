@@ -62,7 +62,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { name, description, event_id, status, valid_until, notes } = body;
+    const { name, description, event_id, status, valid_until, notes, discount_percent } = body;
 
     const updateData: Record<string, any> = {};
     if (name !== undefined) updateData.name = name;
@@ -71,6 +71,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (status !== undefined) updateData.status = status;
     if (valid_until !== undefined) updateData.valid_until = valid_until;
     if (notes !== undefined) updateData.notes = notes;
+    if (discount_percent !== undefined) updateData.discount_percent = discount_percent;
 
     const { data: updated, error } = await supabase
       .from('offer_sets')

@@ -358,6 +358,14 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     markDirty();
   }, [markDirty]);
 
+  // Handle category-wide days change
+  const handleCategoryDaysChange = useCallback((category: string, days: number) => {
+    setLocalItems(prev => prev.map(item =>
+      item.category === category ? { ...item, days } : item
+    ));
+    markDirty();
+  }, [markDirty]);
+
   // Handle status change
   const handleStatusChange = useCallback((status: OfferStatus) => {
     setLocalStatus(status);
@@ -605,6 +613,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
                   total={catTotal}
                   isTransport={isTransport}
                   onItemChange={handleItemChange}
+                  onCategoryDaysChange={handleCategoryDaysChange}
                   onKeyDown={handleKeyDown}
                   registerRef={registerRef}
                 />
@@ -668,6 +677,7 @@ function CategoryBlock({
   total,
   isTransport,
   onItemChange,
+  onCategoryDaysChange,
   onKeyDown,
   registerRef,
 }: {
@@ -676,13 +686,33 @@ function CategoryBlock({
   total: number;
   isTransport: boolean;
   onItemChange: (index: number, field: 'days' | 'qty', value: number) => void;
+  onCategoryDaysChange: (category: string, days: number) => void;
   onKeyDown: (e: React.KeyboardEvent, index: number, field: 'days' | 'qty') => void;
   registerRef: (index: number, field: 'days' | 'qty', el: HTMLInputElement | null) => void;
 }) {
+  // Get the most common days value in this category for the input
+  const itemsWithQty = items.filter(({ item }) => item.qty > 0);
+  const commonDays = itemsWithQty.length > 0
+    ? itemsWithQty[0].item.days
+    : items[0]?.item.days || 1;
+
   return (
     <>
       <tr className="bg-slate-700 text-white text-xs">
-        <td colSpan={4} className="py-1 px-2 font-medium">{category}</td>
+        <td className="py-1 px-2 font-medium">{category}</td>
+        <td className="py-1 px-1 text-center">
+          <input
+            type="number"
+            min={1}
+            value={commonDays}
+            onChange={(e) => onCategoryDaysChange(category, parseInt(e.target.value) || 1)}
+            onClick={(e) => e.stopPropagation()}
+            onFocus={(e) => e.target.select()}
+            className="w-10 h-5 text-center text-xs bg-slate-600 border border-slate-500 rounded text-white focus:bg-slate-500 focus:outline-none"
+            title="Změnit dny pro celou sekci"
+          />
+        </td>
+        <td colSpan={2} className="py-1 px-2"></td>
         <td className="py-1 px-2 text-right font-medium">{formatCurrency(total)}</td>
       </tr>
       {items.map(({ item, index }, idx) => (

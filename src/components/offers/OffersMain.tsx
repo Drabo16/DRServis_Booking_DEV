@@ -11,6 +11,7 @@ import OfferFormDialog from './OfferFormDialog';
 const OfferEditor = lazy(() => import('./OfferEditor'));
 const TemplatesManager = lazy(() => import('./TemplatesManager'));
 const OfferSetsManager = lazy(() => import('./OfferSetsManager'));
+const ProjectEditor = lazy(() => import('./ProjectEditor'));
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-[200px]">
@@ -26,8 +27,9 @@ export default function OffersMain({ isAdmin }: OffersMainProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const offerId = searchParams.get('offer');
+  const projectId = searchParams.get('project');
 
-  const [activeTab, setActiveTab] = useState(offerId ? 'editor' : 'list');
+  const [activeTab, setActiveTab] = useState(projectId ? 'project-editor' : offerId ? 'editor' : 'list');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
 
   const openCreateDialog = useCallback(() => setShowCreateDialog(true), []);
@@ -48,25 +50,44 @@ export default function OffersMain({ isAdmin }: OffersMainProps) {
   const handleBackToList = useCallback(() => {
     const params = new URLSearchParams(searchParams.toString());
     params.delete('offer');
+    params.delete('project');
     router.push(`/offers?${params.toString()}`, { scroll: false });
     setActiveTab('list');
+  }, [searchParams, router]);
+
+  const handleProjectSelect = useCallback((id: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('project', id);
+    params.delete('offer');
+    router.push(`/offers?${params.toString()}`, { scroll: false });
+    setActiveTab('project-editor');
+  }, [searchParams, router]);
+
+  const handleBackToProjects = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('project');
+    params.delete('offer');
+    router.push(`/offers?${params.toString()}`, { scroll: false });
+    setActiveTab('projects');
   }, [searchParams, router]);
 
   // Determine grid columns based on visible tabs
   const tabCount = useMemo(() => {
     let count = 2; // Nabídky + Projekty
     if (offerId) count++; // Editor
+    if (projectId) count++; // Project Editor
     if (isAdmin) count++; // Ceník
-    return count;
-  }, [offerId, isAdmin]);
+    return Math.min(count, 5);
+  }, [offerId, projectId, isAdmin]);
 
   const tabsGridClass = useMemo(() => {
     const colsMap: Record<number, string> = {
       2: 'grid-cols-2',
       3: 'grid-cols-3',
       4: 'grid-cols-4',
+      5: 'grid-cols-5',
     };
-    return `grid h-10 max-w-lg ${colsMap[tabCount] || 'grid-cols-4'}`;
+    return `grid h-10 max-w-xl ${colsMap[tabCount] || 'grid-cols-4'}`;
   }, [tabCount]);
 
   return (
@@ -101,6 +122,12 @@ export default function OffersMain({ isAdmin }: OffersMainProps) {
               Editor
             </TabsTrigger>
           )}
+          {projectId && (
+            <TabsTrigger value="project-editor" className="text-xs sm:text-sm">
+              <FolderKanban className="w-4 h-4 mr-1 hidden sm:block" />
+              Nabídka
+            </TabsTrigger>
+          )}
           {isAdmin && (
             <TabsTrigger value="templates" className="text-xs sm:text-sm">
               <Settings className="w-4 h-4 mr-1 hidden sm:block" />
@@ -120,10 +147,24 @@ export default function OffersMain({ isAdmin }: OffersMainProps) {
           <Suspense fallback={<LoadingFallback />}>
             <OfferSetsManager
               onOfferSelect={handleOfferSelect}
+              onProjectSelect={handleProjectSelect}
               isAdmin={isAdmin}
             />
           </Suspense>
         </TabsContent>
+
+        {projectId && (
+          <TabsContent value="project-editor" className="mt-4">
+            <Suspense fallback={<LoadingFallback />}>
+              <ProjectEditor
+                projectId={projectId}
+                isAdmin={isAdmin}
+                onBack={handleBackToProjects}
+                onOfferSelect={handleOfferSelect}
+              />
+            </Suspense>
+          </TabsContent>
+        )}
 
         {offerId && (
           <TabsContent value="editor" className="mt-4">

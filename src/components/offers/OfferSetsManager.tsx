@@ -22,6 +22,7 @@ import {
   FileText,
   Trash2,
   FileDown,
+  Edit,
 } from 'lucide-react';
 import {
   formatOfferNumber,
@@ -53,10 +54,11 @@ interface OfferSet {
 
 interface OfferSetsManagerProps {
   onOfferSelect: (id: string) => void;
+  onProjectSelect: (id: string) => void;
   isAdmin: boolean;
 }
 
-export default function OfferSetsManager({ onOfferSelect, isAdmin }: OfferSetsManagerProps) {
+export default function OfferSetsManager({ onOfferSelect, onProjectSelect, isAdmin }: OfferSetsManagerProps) {
   const queryClient = useQueryClient();
   const [expandedSets, setExpandedSets] = useState<Set<string>>(new Set());
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -271,22 +273,32 @@ export default function OfferSetsManager({ onOfferSelect, isAdmin }: OfferSetsMa
                     <span className="font-semibold text-sm">
                       {formatCurrency(set.total_amount)}
                     </span>
-                    {(set.offers_count || set.offers?.length || 0) > 0 && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 p-0 text-slate-500 hover:text-slate-700 hover:bg-slate-200"
-                        onClick={(e) => handleDownloadPdf(set.id, set.name, e)}
-                        disabled={downloadingPdfId === set.id}
-                        title="Stáhnout PDF projektu"
-                      >
-                        {downloadingPdfId === set.id ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <FileDown className="w-4 h-4" />
-                        )}
-                      </Button>
-                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-blue-500 hover:text-blue-700 hover:bg-blue-50"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onProjectSelect(set.id);
+                      }}
+                      title="Upravit nabídku"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-slate-500 hover:text-slate-700 hover:bg-slate-200"
+                      onClick={(e) => handleDownloadPdf(set.id, set.name, e)}
+                      disabled={downloadingPdfId === set.id}
+                      title="Stáhnout PDF"
+                    >
+                      {downloadingPdfId === set.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <FileDown className="w-4 h-4" />
+                      )}
+                    </Button>
                     {isAdmin && (
                       <Button
                         variant="ghost"
