@@ -117,7 +117,31 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ success: true, item: data });
     }
 
-    return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+    // Custom item without template (e.g., "Ploty na akci")
+    const { name, category, unit_price, unit, subcategory, sort_order } = body;
+    if (name && category) {
+      const { data, error } = await supabase
+        .from('offer_set_items')
+        .insert({
+          offer_set_id: id,
+          template_item_id: null,
+          name,
+          category,
+          subcategory: subcategory || null,
+          unit: unit || 'ks',
+          unit_price: unit_price || 0,
+          quantity: quantity || 1,
+          days_hours: days_hours || 1,
+          sort_order: sort_order || 999, // Put custom items at the end
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return NextResponse.json({ success: true, item: data });
+    }
+
+    return NextResponse.json({ error: 'Invalid request - name and category required' }, { status: 400 });
   } catch (error) {
     console.error('Create set item error:', error);
     return NextResponse.json(

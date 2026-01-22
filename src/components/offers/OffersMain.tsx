@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, lazy, Suspense, useCallback, useMemo } from 'react';
+import { useState, lazy, Suspense, useCallback, useMemo, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Loader2, Plus, FileText, Settings, FolderKanban } from 'lucide-react';
+import { Loader2, Plus, FileText, Settings, FolderKanban, Edit } from 'lucide-react';
 import OffersList from './OffersList';
 import OfferFormDialog from './OfferFormDialog';
 
@@ -23,11 +23,31 @@ interface OffersMainProps {
   isAdmin: boolean;
 }
 
+// Store last used offer ID for Editor tab persistence
+const LAST_OFFER_KEY = 'offers_last_offer_id';
+
 export default function OffersMain({ isAdmin }: OffersMainProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const offerId = searchParams.get('offer');
   const projectId = searchParams.get('project');
+
+  // Track last used offer for Editor tab
+  const [lastOfferId, setLastOfferId] = useState<string | null>(null);
+
+  // Load last offer from localStorage on mount
+  useEffect(() => {
+    const stored = localStorage.getItem(LAST_OFFER_KEY);
+    if (stored) setLastOfferId(stored);
+  }, []);
+
+  // Save current offer to localStorage when it changes
+  useEffect(() => {
+    if (offerId) {
+      localStorage.setItem(LAST_OFFER_KEY, offerId);
+      setLastOfferId(offerId);
+    }
+  }, [offerId]);
 
   const [activeTab, setActiveTab] = useState(projectId ? 'project-editor' : offerId ? 'editor' : 'list');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -71,14 +91,28 @@ export default function OffersMain({ isAdmin }: OffersMainProps) {
     setActiveTab('projects');
   }, [searchParams, router]);
 
-  // Determine grid columns based on visible tabs
+  // Handle Editor tab click - open last used offer if no current offer
+  const handleEditorTabClick = useCallback(() => {
+    if (!offerId && lastOfferId) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set('offer', lastOfferId);
+      params.delete('project');
+      router.push(`/offers?${params.toString()}`, { scroll: false });
+    }
+    setActiveTab('editor');
+  }, [offerId, lastOfferId, searchParams, router]);
+
+  // Current offer ID to display (either URL param or last used)
+  const currentOfferId = offerId || lastOfferId;
+
+  // Determine grid columns based on visible tabs - Editor always visible if we have a lastOfferId
   const tabCount = useMemo(() => {
     let count = 2; // Nabídky + Projekty
-    if (offerId) count++; // Editor
+    if (currentOfferId) count++; // Editor - show if we have any offer to display
     if (projectId) count++; // Project Editor
     if (isAdmin) count++; // Ceník
     return Math.min(count, 5);
-  }, [offerId, projectId, isAdmin]);
+  }, [currentOfferId, projectId, isAdmin]);
 
   const tabsGridClass = useMemo(() => {
     const colsMap: Record<number, string> = {
@@ -116,9 +150,13 @@ export default function OffersMain({ isAdmin }: OffersMainProps) {
             <FolderKanban className="w-4 h-4 mr-1 hidden sm:block" />
             Projekty
           </TabsTrigger>
-          {offerId && (
-            <TabsTrigger value="editor" className="text-xs sm:text-sm">
-              <FileText className="w-4 h-4 mr-1 hidden sm:block" />
+          {currentOfferId && (
+            <TabsTrigger
+              value="editor"
+              className="text-xs sm:text-sm"
+              onClick={handleEditorTabClick}
+            >
+              <Edit className="w-4 h-4 mr-1 hidden sm:block" />
               Editor
             </TabsTrigger>
           )}
@@ -166,11 +204,11 @@ export default function OffersMain({ isAdmin }: OffersMainProps) {
           </TabsContent>
         )}
 
-        {offerId && (
+        {currentOfferId && (
           <TabsContent value="editor" className="mt-4">
             <Suspense fallback={<LoadingFallback />}>
               <OfferEditor
-                offerId={offerId}
+                offerId={currentOfferId}
                 isAdmin={isAdmin}
                 onBack={handleBackToList}
               />

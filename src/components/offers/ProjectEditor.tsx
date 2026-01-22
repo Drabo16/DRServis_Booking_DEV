@@ -91,6 +91,10 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [expandedOffers, setExpandedOffers] = useState<Set<string>>(new Set());
   const [showAddItem, setShowAddItem] = useState(false);
+  const [showAddCustomItem, setShowAddCustomItem] = useState(false);
+  const [customItemName, setCustomItemName] = useState('');
+  const [customItemCategory, setCustomItemCategory] = useState('Ground support');
+  const [customItemPrice, setCustomItemPrice] = useState(0);
 
   const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
   const AUTOSAVE_DELAY = 2000;
@@ -206,13 +210,14 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
     }
   }, [projectId, queryClient]);
 
-  const handleUpdateItem = useCallback(async (itemId: string, field: 'quantity' | 'days_hours', value: number) => {
+  const handleUpdateItem = useCallback(async (itemId: string, field: 'quantity' | 'days_hours' | 'unit_price', value: number) => {
     // Optimistic update
-    setDirectItems(prev => prev.map(item =>
-      item.id === itemId
-        ? { ...item, [field]: value, total_price: (field === 'quantity' ? value : item.quantity) * (field === 'days_hours' ? value : item.days_hours) * item.unit_price }
-        : item
-    ));
+    setDirectItems(prev => prev.map(item => {
+      if (item.id !== itemId) return item;
+      const newItem = { ...item, [field]: value };
+      newItem.total_price = newItem.quantity * newItem.days_hours * newItem.unit_price;
+      return newItem;
+    }));
 
     try {
       await fetch(`/api/offers/sets/${projectId}/items`, {
@@ -225,6 +230,34 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
       console.error('Update item failed:', e);
     }
   }, [projectId, queryClient]);
+
+  const handleAddCustomItem = useCallback(async () => {
+    if (!customItemName.trim()) return;
+
+    try {
+      const res = await fetch(`/api/offers/sets/${projectId}/items`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: customItemName,
+          category: customItemCategory,
+          unit_price: customItemPrice,
+          quantity: 1,
+          days_hours: 1,
+        }),
+      });
+      if (res.ok) {
+        const { item } = await res.json();
+        setDirectItems(prev => [...prev, item]);
+        setShowAddCustomItem(false);
+        setCustomItemName('');
+        setCustomItemPrice(0);
+        queryClient.invalidateQueries({ queryKey: ['offerSets'] });
+      }
+    } catch (e) {
+      console.error('Add custom item failed:', e);
+    }
+  }, [projectId, customItemName, customItemCategory, customItemPrice, queryClient]);
 
   const handleDeleteItem = useCallback(async (itemId: string) => {
     setDirectItems(prev => prev.filter(item => item.id !== itemId));
@@ -362,16 +395,75 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
       <div className="border rounded">
         <div className="flex items-center justify-between p-3 bg-blue-600 text-white">
           <span className="font-medium text-sm">Společné položky</span>
-          <Button
-            size="sm"
-            variant="secondary"
-            className="h-6 text-xs"
-            onClick={() => setShowAddItem(!showAddItem)}
-          >
-            <Plus className="w-3 h-3 mr-1" />
-            Přidat
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              className="h-6 text-xs"
+              onClick={() => { setShowAddCustomItem(!showAddCustomItem); setShowAddItem(false); }}
+            >
+              <Plus className="w-3 h-3 mr-1" />
+              Vlastní
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="h-6 text-xs"
+              onClick={() => { setShowAddItem(!showAddItem); setShowAddCustomItem(false); }}
+            >
+              <Plus className="w-3 h-3 mr-1" />
+              Z ceníku
+            </Button>
+          </div>
         </div>
+
+        {showAddCustomItem && (
+          <div className="p-3 bg-amber-50 border-b">
+            <div className="text-xs text-slate-600 mb-2 font-medium">Přidat vlastní položku:</div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <input
+                type="text"
+                value={customItemName}
+                onChange={(e) => setCustomItemName(e.target.value)}
+                placeholder="Název položky (např. Ploty na akci)"
+                className="flex-1 min-w-[200px] h-7 text-xs border rounded px-2"
+              />
+              <select
+                value={customItemCategory}
+                onChange={(e) => setCustomItemCategory(e.target.value)}
+                className="h-7 text-xs border rounded px-2"
+              >
+                {OFFER_CATEGORY_ORDER.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+              <input
+                type="number"
+                value={customItemPrice}
+                onChange={(e) => setCustomItemPrice(parseFloat(e.target.value) || 0)}
+                placeholder="Cena"
+                className="w-24 h-7 text-xs border rounded px-2 text-right"
+              />
+              <span className="text-xs text-slate-500">Kč</span>
+              <Button
+                size="sm"
+                className="h-7 text-xs"
+                onClick={handleAddCustomItem}
+                disabled={!customItemName.trim()}
+              >
+                Přidat
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 text-xs"
+                onClick={() => setShowAddCustomItem(false)}
+              >
+                Zrušit
+              </Button>
+            </div>
+          </div>
+        )}
 
         {showAddItem && (
           <div className="p-3 bg-slate-50 border-b max-h-60 overflow-y-auto">
@@ -410,13 +502,14 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
                   </div>
                   {items.map((item, idx) => (
                     <div key={item.id} className={`flex items-center gap-2 px-3 py-1.5 ${idx % 2 ? 'bg-slate-50' : ''}`}>
-                      <span className="flex-1 truncate">{item.name}</span>
+                      <span className="flex-1 truncate" title={item.name}>{item.name}</span>
                       <input
                         type="number"
                         min={1}
                         value={item.days_hours}
                         onChange={(e) => handleUpdateItem(item.id, 'days_hours', parseInt(e.target.value) || 1)}
                         className="w-12 h-6 text-center border rounded"
+                        title="Dny"
                       />
                       <input
                         type="number"
@@ -424,8 +517,16 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
                         value={item.quantity}
                         onChange={(e) => handleUpdateItem(item.id, 'quantity', parseInt(e.target.value) || 1)}
                         className="w-12 h-6 text-center border rounded"
+                        title="Množství"
                       />
-                      <span className="w-16 text-right">{formatCurrency(item.unit_price)}</span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={item.unit_price}
+                        onChange={(e) => handleUpdateItem(item.id, 'unit_price', parseFloat(e.target.value) || 0)}
+                        className="w-16 h-6 text-right border rounded pr-1"
+                        title="Cena za jednotku"
+                      />
                       <span className="w-20 text-right font-medium">{formatCurrency(item.quantity * item.days_hours * item.unit_price)}</span>
                       <button onClick={() => handleDeleteItem(item.id)} className="p-1 text-red-500 hover:bg-red-50 rounded">
                         <Trash2 className="w-3 h-3" />

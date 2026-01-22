@@ -38,9 +38,9 @@ Font.register({
 const styles = StyleSheet.create({
   page: {
     fontFamily: 'Roboto',
-    fontSize: 9,
-    padding: 40,
-    paddingBottom: 60,
+    fontSize: 8,
+    padding: 30,
+    paddingBottom: 50,
     backgroundColor: '#ffffff',
   },
   // Header
@@ -48,146 +48,148 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 25,
-    paddingBottom: 15,
+    marginBottom: 15,
+    paddingBottom: 10,
     borderBottomWidth: 2,
     borderBottomColor: '#0066b3',
   },
   logo: {
-    width: 140,
+    width: 120,
     height: 'auto',
   },
   headerRight: {
     alignItems: 'flex-end',
   },
   offerNumber: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: 'bold',
-    marginBottom: 4,
+    marginBottom: 3,
   },
   offerDate: {
-    fontSize: 8,
+    fontSize: 7,
     color: '#666666',
   },
   // Title
   title: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: 'bold',
-    marginBottom: 15,
+    marginBottom: 10,
     textAlign: 'center',
     color: '#333333',
   },
   // Event info
   eventBox: {
     backgroundColor: '#f0f4f8',
-    padding: 10,
-    marginBottom: 15,
+    padding: 8,
+    marginBottom: 10,
     borderRadius: 3,
   },
   eventTitle: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: 'bold',
     marginBottom: 2,
   },
   eventDetail: {
-    fontSize: 8,
+    fontSize: 7,
     color: '#555555',
   },
   // Sub-offer section header
   subOfferHeader: {
     backgroundColor: '#0066b3',
-    padding: 8,
-    marginTop: 15,
+    padding: 6,
+    marginTop: 10,
     marginBottom: 0,
   },
   subOfferTitle: {
     color: '#ffffff',
     fontWeight: 'bold',
-    fontSize: 11,
+    fontSize: 9,
   },
   subOfferSubtitle: {
     color: 'rgba(255,255,255,0.8)',
-    fontSize: 8,
-    marginTop: 2,
+    fontSize: 7,
+    marginTop: 1,
   },
   // Category
   categoryHeader: {
     backgroundColor: '#1e293b',
-    padding: 6,
+    padding: 4,
     marginTop: 0,
   },
   categoryTitle: {
     color: '#ffffff',
     fontWeight: 'bold',
-    fontSize: 10,
+    fontSize: 8,
   },
   // Table
   tableHeader: {
     flexDirection: 'row',
     backgroundColor: '#e2e8f0',
-    padding: 5,
+    padding: 3,
     borderBottomWidth: 1,
     borderBottomColor: '#cbd5e1',
   },
   tableHeaderText: {
-    fontSize: 7,
+    fontSize: 6,
     fontWeight: 'bold',
     color: '#475569',
   },
   tableRow: {
     flexDirection: 'row',
-    padding: 4,
+    paddingVertical: 2,
+    paddingHorizontal: 3,
     borderBottomWidth: 0.5,
     borderBottomColor: '#e2e8f0',
-    minHeight: 18,
+    minHeight: 14,
+    alignItems: 'center',
   },
   tableRowAlt: {
     backgroundColor: '#f8fafc',
   },
-  // Columns
-  colName: { width: '46%', paddingRight: 4 },
+  // Columns - adjusted widths
+  colName: { width: '44%', paddingRight: 3 },
   colDays: { width: '10%', textAlign: 'center' },
   colQty: { width: '10%', textAlign: 'center' },
-  colPrice: { width: '16%', textAlign: 'right' },
-  colTotal: { width: '18%', textAlign: 'right' },
+  colPrice: { width: '17%', textAlign: 'right' },
+  colTotal: { width: '19%', textAlign: 'right' },
   // Item text
-  itemName: { fontSize: 8 },
-  itemSub: { fontSize: 7, color: '#64748b', marginTop: 1 },
+  itemName: { fontSize: 7 },
+  itemSub: { fontSize: 6, color: '#64748b', marginTop: 1 },
   // Category total
   categoryTotal: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    padding: 5,
+    padding: 4,
     backgroundColor: '#f1f5f9',
   },
   categoryTotalText: {
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: 'bold',
   },
   // Sub-offer subtotal
   subOfferTotal: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    padding: 8,
+    padding: 6,
     backgroundColor: '#e0f2fe',
-    marginBottom: 5,
+    marginBottom: 3,
   },
   subOfferTotalLabel: {
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: 'bold',
     color: '#0369a1',
   },
   subOfferTotalValue: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: 'bold',
     color: '#0369a1',
   },
   // Summary - same style as single offer
   summary: {
-    marginTop: 20,
+    marginTop: 15,
     marginLeft: 'auto',
     width: '55%',
-    padding: 12,
+    padding: 10,
     backgroundColor: '#f8fafc',
     borderWidth: 1,
     borderColor: '#e2e8f0',
@@ -196,68 +198,68 @@ const styles = StyleSheet.create({
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 5,
+    marginBottom: 4,
   },
-  summaryLabel: { fontSize: 9, color: '#475569' },
-  summaryValue: { fontSize: 9, fontWeight: 'bold' },
+  summaryLabel: { fontSize: 8, color: '#475569' },
+  summaryValue: { fontSize: 8, fontWeight: 'bold' },
   discountRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 5,
+    marginBottom: 4,
     color: '#16a34a',
   },
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 8,
-    paddingTop: 8,
+    marginTop: 6,
+    paddingTop: 6,
     borderTopWidth: 2,
     borderTopColor: '#0066b3',
   },
-  totalLabel: { fontSize: 11, fontWeight: 'bold' },
-  totalValue: { fontSize: 12, fontWeight: 'bold', color: '#0066b3' },
+  totalLabel: { fontSize: 10, fontWeight: 'bold' },
+  totalValue: { fontSize: 11, fontWeight: 'bold', color: '#0066b3' },
   // Notes
   notes: {
-    marginTop: 15,
-    padding: 10,
+    marginTop: 10,
+    padding: 8,
     backgroundColor: '#fefce8',
     borderRadius: 3,
   },
-  notesTitle: { fontSize: 8, fontWeight: 'bold', marginBottom: 3 },
-  notesText: { fontSize: 8, color: '#713f12' },
+  notesTitle: { fontSize: 7, fontWeight: 'bold', marginBottom: 2 },
+  notesText: { fontSize: 7, color: '#713f12' },
   // Valid until
   validUntil: {
-    marginTop: 12,
-    padding: 8,
+    marginTop: 8,
+    padding: 6,
     backgroundColor: '#dbeafe',
     borderRadius: 3,
     textAlign: 'center',
   },
-  validUntilText: { fontSize: 8, color: '#1e40af' },
+  validUntilText: { fontSize: 7, color: '#1e40af' },
   // Footer
   footer: {
     position: 'absolute',
-    bottom: 25,
-    left: 40,
-    right: 40,
+    bottom: 20,
+    left: 30,
+    right: 30,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingTop: 8,
+    paddingTop: 6,
     borderTopWidth: 0.5,
     borderTopColor: '#e2e8f0',
   },
-  footerText: { fontSize: 7, color: '#94a3b8' },
-  pageNumber: { fontSize: 7, color: '#94a3b8' },
+  footerText: { fontSize: 6, color: '#94a3b8' },
+  pageNumber: { fontSize: 6, color: '#94a3b8' },
   // Direct items section
   directItemsHeader: {
     backgroundColor: '#0066b3',
-    padding: 8,
-    marginTop: 15,
+    padding: 6,
+    marginTop: 10,
   },
   directItemsTitle: {
     color: '#ffffff',
     fontWeight: 'bold',
-    fontSize: 11,
+    fontSize: 9,
   },
 });
 
@@ -440,15 +442,16 @@ export function ProjectPdfDocument({ project, offers, directItems = [], logoBase
                     <View
                       key={item.id}
                       style={idx % 2 === 1 ? [styles.tableRow, styles.tableRowAlt] : styles.tableRow}
+                      wrap={false}
                     >
                       <View style={styles.colName}>
                         <Text style={styles.itemName}>{item.name}</Text>
                         {item.subcategory && <Text style={styles.itemSub}>{item.subcategory}</Text>}
                       </View>
-                      <Text style={[styles.colDays, { fontSize: 8 }]}>{item.days_hours}</Text>
-                      <Text style={[styles.colQty, { fontSize: 8 }]}>{item.quantity}</Text>
-                      <Text style={[styles.colPrice, { fontSize: 8 }]}>{formatCurrency(item.unit_price)}</Text>
-                      <Text style={[styles.colTotal, { fontSize: 8, fontWeight: 'bold' }]}>
+                      <Text style={[styles.colDays, { fontSize: 7 }]}>{item.days_hours}</Text>
+                      <Text style={[styles.colQty, { fontSize: 7 }]}>{item.quantity}</Text>
+                      <Text style={[styles.colPrice, { fontSize: 7 }]}>{formatCurrency(item.unit_price)}</Text>
+                      <Text style={[styles.colTotal, { fontSize: 7, fontWeight: 'bold' }]}>
                         {formatCurrency(item.total_price)}
                       </Text>
                     </View>
@@ -509,15 +512,16 @@ export function ProjectPdfDocument({ project, offers, directItems = [], logoBase
                       <View
                         key={item.id}
                         style={idx % 2 === 1 ? [styles.tableRow, styles.tableRowAlt] : styles.tableRow}
+                        wrap={false}
                       >
                         <View style={styles.colName}>
                           <Text style={styles.itemName}>{item.name}</Text>
                           {item.subcategory && <Text style={styles.itemSub}>{item.subcategory}</Text>}
                         </View>
-                        <Text style={[styles.colDays, { fontSize: 8 }]}>{item.days_hours}</Text>
-                        <Text style={[styles.colQty, { fontSize: 8 }]}>{item.quantity}</Text>
-                        <Text style={[styles.colPrice, { fontSize: 8 }]}>{formatCurrency(item.unit_price)}</Text>
-                        <Text style={[styles.colTotal, { fontSize: 8, fontWeight: 'bold' }]}>
+                        <Text style={[styles.colDays, { fontSize: 7 }]}>{item.days_hours}</Text>
+                        <Text style={[styles.colQty, { fontSize: 7 }]}>{item.quantity}</Text>
+                        <Text style={[styles.colPrice, { fontSize: 7 }]}>{formatCurrency(item.unit_price)}</Text>
+                        <Text style={[styles.colTotal, { fontSize: 7, fontWeight: 'bold' }]}>
                           {formatCurrency(item.total_price)}
                         </Text>
                       </View>

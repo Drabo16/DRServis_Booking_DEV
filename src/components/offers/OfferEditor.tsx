@@ -195,17 +195,17 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     try {
       // Prepare batch operations
       const toDelete: string[] = [];
-      const toUpdate: Array<{ id: string; days: number; qty: number }> = [];
-      const toCreate: Array<{ templateId: string; days: number; qty: number }> = [];
+      const toUpdate: Array<{ id: string; days: number; qty: number; unitPrice: number }> = [];
+      const toCreate: Array<{ templateId: string; days: number; qty: number; unitPrice: number }> = [];
 
       for (const item of items) {
         if (item.qty === 0 && item.dbItemId) {
           toDelete.push(item.dbItemId);
         } else if (item.qty > 0) {
           if (item.dbItemId) {
-            toUpdate.push({ id: item.dbItemId, days: item.days, qty: item.qty });
+            toUpdate.push({ id: item.dbItemId, days: item.days, qty: item.qty, unitPrice: item.unitPrice });
           } else {
-            toCreate.push({ templateId: item.templateId, days: item.days, qty: item.qty });
+            toCreate.push({ templateId: item.templateId, days: item.days, qty: item.qty, unitPrice: item.unitPrice });
           }
         }
       }
@@ -246,6 +246,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
                 item_id: u.id,
                 days_hours: u.days,
                 quantity: u.qty,
+                unit_price: u.unitPrice,
               }),
             })
           );
@@ -263,6 +264,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
                 template_item_id: c.templateId,
                 quantity: c.qty,
                 days_hours: c.days,
+                unit_price: c.unitPrice,
               })),
             }),
           }).then(async (res) => {
@@ -342,8 +344,8 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     };
   }, []);
 
-  // Handle item change
-  const handleItemChange = useCallback((index: number, field: 'days' | 'qty', value: number) => {
+  // Handle item change (days, qty, or unitPrice)
+  const handleItemChange = useCallback((index: number, field: 'days' | 'qty' | 'unitPrice', value: number) => {
     setLocalItems(prev => {
       const newItems = [...prev];
       newItems[index] = { ...newItems[index], [field]: value };
@@ -385,8 +387,10 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
   }, [markDirty]);
 
   // Keyboard navigation
-  const handleKeyDown = useCallback((e: React.KeyboardEvent, index: number, field: 'days' | 'qty') => {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent, index: number, field: 'days' | 'qty' | 'price') => {
     const totalItems = localItems.length;
+    const fieldOrder = ['days', 'qty', 'price'];
+    const currentFieldIdx = fieldOrder.indexOf(field);
 
     if (e.key === 'ArrowDown' || e.key === 'Enter') {
       e.preventDefault();
@@ -404,21 +408,23 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
         inputRefs.current.get(key)?.focus();
         inputRefs.current.get(key)?.select();
       }
-    } else if (e.key === 'ArrowRight' && field === 'days') {
+    } else if (e.key === 'ArrowRight' && currentFieldIdx < fieldOrder.length - 1) {
       e.preventDefault();
-      const key = `${index}-qty`;
+      const nextField = fieldOrder[currentFieldIdx + 1];
+      const key = `${index}-${nextField}`;
       inputRefs.current.get(key)?.focus();
       inputRefs.current.get(key)?.select();
-    } else if (e.key === 'ArrowLeft' && field === 'qty') {
+    } else if (e.key === 'ArrowLeft' && currentFieldIdx > 0) {
       e.preventDefault();
-      const key = `${index}-days`;
+      const prevField = fieldOrder[currentFieldIdx - 1];
+      const key = `${index}-${prevField}`;
       inputRefs.current.get(key)?.focus();
       inputRefs.current.get(key)?.select();
     }
   }, [localItems.length]);
 
   // Register input ref
-  const registerRef = useCallback((index: number, field: 'days' | 'qty', el: HTMLInputElement | null) => {
+  const registerRef = useCallback((index: number, field: 'days' | 'qty' | 'price', el: HTMLInputElement | null) => {
     const key = `${index}-${field}`;
     if (el) {
       inputRefs.current.set(key, el);
@@ -685,10 +691,10 @@ function CategoryBlock({
   items: { item: LocalItem; index: number }[];
   total: number;
   isTransport: boolean;
-  onItemChange: (index: number, field: 'days' | 'qty', value: number) => void;
+  onItemChange: (index: number, field: 'days' | 'qty' | 'unitPrice', value: number) => void;
   onCategoryDaysChange: (category: string, days: number) => void;
-  onKeyDown: (e: React.KeyboardEvent, index: number, field: 'days' | 'qty') => void;
-  registerRef: (index: number, field: 'days' | 'qty', el: HTMLInputElement | null) => void;
+  onKeyDown: (e: React.KeyboardEvent, index: number, field: 'days' | 'qty' | 'price') => void;
+  registerRef: (index: number, field: 'days' | 'qty' | 'price', el: HTMLInputElement | null) => void;
 }) {
   // Get the most common days value in this category for the input
   const itemsWithQty = items.filter(({ item }) => item.qty > 0);
@@ -745,9 +751,9 @@ function ItemRow({
   index: number;
   odd: boolean;
   isTransport: boolean;
-  onItemChange: (index: number, field: 'days' | 'qty', value: number) => void;
-  onKeyDown: (e: React.KeyboardEvent, index: number, field: 'days' | 'qty') => void;
-  registerRef: (index: number, field: 'days' | 'qty', el: HTMLInputElement | null) => void;
+  onItemChange: (index: number, field: 'days' | 'qty' | 'unitPrice', value: number) => void;
+  onKeyDown: (e: React.KeyboardEvent, index: number, field: 'days' | 'qty' | 'price') => void;
+  registerRef: (index: number, field: 'days' | 'qty' | 'price', el: HTMLInputElement | null) => void;
 }) {
   const total = item.days * item.qty * item.unitPrice;
   const hasValue = item.qty > 0;
@@ -789,8 +795,17 @@ function ItemRow({
           }`}
         />
       </td>
-      <td className="py-0.5 px-2 text-right">
-        {formatCurrency(item.unitPrice)}
+      <td className="py-0.5 px-0.5 text-right">
+        <input
+          ref={(el) => registerRef(index, 'price', el)}
+          type="number"
+          min={0}
+          value={item.unitPrice}
+          onChange={(e) => onItemChange(index, 'unitPrice', parseFloat(e.target.value) || 0)}
+          onKeyDown={(e) => onKeyDown(e, index, 'price')}
+          onFocus={(e) => e.target.select()}
+          className="w-16 h-6 text-right text-xs border rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 pr-1"
+        />
       </td>
       <td className="py-0.5 px-2 text-right font-medium">
         {hasValue ? formatCurrency(total) : '-'}

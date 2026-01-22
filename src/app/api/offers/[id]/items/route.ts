@@ -78,7 +78,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           const categoryName = (template.category as any)?.name || 'Ostatní';
           const days_hours = item.days_hours ?? 1;
           const quantity = item.quantity ?? 1;
-          const unit_price = template.default_price;
+          // Use custom unit_price if provided, otherwise use template default
+          const unit_price = item.unit_price ?? template.default_price;
           const total_price = calculateItemTotal({ days_hours, quantity, unit_price });
 
           return {
