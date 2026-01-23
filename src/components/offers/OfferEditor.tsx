@@ -56,9 +56,14 @@ interface OfferData {
   items: Array<{
     id: string;
     template_item_id: string | null;
+    name: string;
+    category: string;
+    subcategory: string | null;
+    unit: string;
     days_hours: number;
     quantity: number;
     unit_price: number;
+    sort_order: number;
   }>;
 }
 
@@ -122,15 +127,20 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
   useEffect(() => {
     async function loadData() {
       try {
-        const [offerRes, templatesRes, setsRes] = await Promise.all([
+        const [offerRes, templatesRes, setsRes, itemsRes] = await Promise.all([
           fetch(`/api/offers/${offerId}`),
           fetch('/api/offers/templates/items'),
           fetch('/api/offers/sets'),
+          fetch(`/api/offers/${offerId}/items`),
         ]);
 
         const offerData = await offerRes.json();
         const templatesData = await templatesRes.json();
         const setsData = await setsRes.json();
+        const itemsData = await itemsRes.json();
+
+        // Enhance offer data with full items
+        offerData.items = itemsData;
 
         setOffer(offerData);
         setTemplates(templatesData);
@@ -155,6 +165,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
   const buildLocalItems = (templates: TemplateItem[], offer: OfferData) => {
     const items: LocalItem[] = [];
 
+    // Add template-based items
     for (const t of templates) {
       const catName = t.category?.name || 'Ostatní';
       const offerItem = offer.items?.find(i => i.template_item_id === t.id);
@@ -170,6 +181,23 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
         days: offerItem?.days_hours ?? 1,
         qty: offerItem?.quantity ?? 0,
         dbItemId: offerItem?.id ?? null,
+      });
+    }
+
+    // Add custom items (items without template_item_id)
+    const customOfferItems = offer.items?.filter(i => !i.template_item_id) || [];
+    for (const offerItem of customOfferItems) {
+      items.push({
+        templateId: '', // No template for custom items
+        name: offerItem.name,
+        subcategory: offerItem.subcategory,
+        category: offerItem.category,
+        unitPrice: offerItem.unit_price,
+        unit: offerItem.unit || 'ks',
+        sortOrder: offerItem.sort_order || 999,
+        days: offerItem.days_hours,
+        qty: offerItem.quantity,
+        dbItemId: offerItem.id,
       });
     }
 
@@ -210,7 +238,8 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
         } else if (item.qty > 0) {
           if (item.dbItemId) {
             toUpdate.push({ id: item.dbItemId, days: item.days, qty: item.qty, unitPrice: item.unitPrice });
-          } else {
+          } else if (item.templateId) {
+            // Only create items that have a template (skip custom items without template)
             toCreate.push({ templateId: item.templateId, days: item.days, qty: item.qty, unitPrice: item.unitPrice });
           }
         }
@@ -410,9 +439,16 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
       });
 
       if (res.ok) {
-        // Reload the offer to get the new item
-        const offerRes = await fetch(`/api/offers/${offerId}`);
+        // Reload items to get the new item
+        const [offerRes, itemsRes] = await Promise.all([
+          fetch(`/api/offers/${offerId}`),
+          fetch(`/api/offers/${offerId}/items`),
+        ]);
+
         const offerData = await offerRes.json();
+        const itemsData = await itemsRes.json();
+        offerData.items = itemsData;
+
         buildLocalItems(templates, offerData);
 
         setShowAddCustomItem(false);
