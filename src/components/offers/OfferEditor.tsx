@@ -88,6 +88,12 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
+  // Custom item dialog
+  const [showAddCustomItem, setShowAddCustomItem] = useState(false);
+  const [customItemName, setCustomItemName] = useState('');
+  const [customItemCategory, setCustomItemCategory] = useState('Ground support');
+  const [customItemPrice, setCustomItemPrice] = useState(0);
+
   // Refs for auto-save (to avoid stale closures)
   const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
   const localItemsRef = useRef<LocalItem[]>([]);
@@ -386,6 +392,41 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     markDirty();
   }, [markDirty]);
 
+  // Handle add custom item
+  const handleAddCustomItem = useCallback(async () => {
+    if (!customItemName.trim()) return;
+
+    try {
+      const res = await fetch(`/api/offers/${offerId}/items`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: customItemName,
+          category: customItemCategory,
+          unit_price: customItemPrice,
+          quantity: 1,
+          days_hours: 1,
+        }),
+      });
+
+      if (res.ok) {
+        // Reload the offer to get the new item
+        const offerRes = await fetch(`/api/offers/${offerId}`);
+        const offerData = await offerRes.json();
+        buildLocalItems(templates, offerData);
+
+        setShowAddCustomItem(false);
+        setCustomItemName('');
+        setCustomItemPrice(0);
+
+        queryClient.invalidateQueries({ queryKey: offerKeys.lists() });
+        queryClient.invalidateQueries({ queryKey: offerKeys.detail(offerId) });
+      }
+    } catch (e) {
+      console.error('Add custom item failed:', e);
+    }
+  }, [offerId, customItemName, customItemCategory, customItemPrice, templates, queryClient]);
+
   // Keyboard navigation
   const handleKeyDown = useCallback((e: React.KeyboardEvent, index: number, field: 'days' | 'qty' | 'price') => {
     const totalItems = localItems.length;
@@ -586,6 +627,62 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
           </div>
         )}
       </div>
+
+      {/* Add custom item button */}
+      <div className="flex justify-end">
+        <button
+          onClick={() => setShowAddCustomItem(!showAddCustomItem)}
+          className="h-7 px-3 text-xs bg-amber-500 hover:bg-amber-600 text-white rounded flex items-center gap-1"
+        >
+          <span>+ Vlastní položka</span>
+        </button>
+      </div>
+
+      {/* Custom item form */}
+      {showAddCustomItem && (
+        <div className="p-3 bg-amber-50 border rounded">
+          <div className="text-xs text-slate-600 mb-2 font-medium">Přidat vlastní položku:</div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <input
+              type="text"
+              value={customItemName}
+              onChange={(e) => setCustomItemName(e.target.value)}
+              placeholder="Název položky (např. Ploty na akci)"
+              className="flex-1 min-w-[200px] h-7 text-xs border rounded px-2"
+            />
+            <select
+              value={customItemCategory}
+              onChange={(e) => setCustomItemCategory(e.target.value)}
+              className="h-7 text-xs border rounded px-2"
+            >
+              {OFFER_CATEGORY_ORDER.map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+            <input
+              type="number"
+              value={customItemPrice}
+              onChange={(e) => setCustomItemPrice(parseFloat(e.target.value) || 0)}
+              placeholder="Cena"
+              className="w-24 h-7 text-xs border rounded px-2 text-right"
+            />
+            <span className="text-xs text-slate-500">Kč</span>
+            <button
+              onClick={handleAddCustomItem}
+              disabled={!customItemName.trim()}
+              className="h-7 px-3 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-50"
+            >
+              Přidat
+            </button>
+            <button
+              onClick={() => setShowAddCustomItem(false)}
+              className="h-7 px-3 text-xs bg-slate-200 hover:bg-slate-300 rounded"
+            >
+              Zrušit
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Table */}
       <div className="border rounded overflow-hidden text-xs">

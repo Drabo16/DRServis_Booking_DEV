@@ -632,6 +632,24 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
             </div>
           </div>
         </div>
+
+        {/* Stage breakdown */}
+        {project.offers && project.offers.length > 0 && (
+          <div className="border-t mt-3 pt-3">
+            <div className="text-slate-600 font-medium mb-2">Rozpis stages:</div>
+            <div className="space-y-1">
+              {project.offers.map(offer => (
+                <div key={offer.id} className="flex justify-between items-center text-xs">
+                  <span className="text-slate-700">
+                    {offer.set_label || formatOfferNumber(offer.offer_number, offer.year)}
+                  </span>
+                  <span className="font-medium">{formatCurrency(offer.total_amount)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="border-t mt-3 pt-3 flex justify-between items-center">
           <span className="font-bold">CELKEM BEZ DPH</span>
           <span className="font-bold text-lg">{formatCurrency(grandTotal)}</span>

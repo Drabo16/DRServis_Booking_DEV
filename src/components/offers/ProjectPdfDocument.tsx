@@ -38,7 +38,7 @@ Font.register({
 const styles = StyleSheet.create({
   page: {
     fontFamily: 'Roboto',
-    fontSize: 8,
+    fontSize: 9,
     padding: 30,
     paddingBottom: 50,
     backgroundColor: '#ffffff',
@@ -153,8 +153,8 @@ const styles = StyleSheet.create({
   colPrice: { width: '17%', textAlign: 'right' },
   colTotal: { width: '19%', textAlign: 'right' },
   // Item text
-  itemName: { fontSize: 7 },
-  itemSub: { fontSize: 6, color: '#64748b', marginTop: 1 },
+  itemName: { fontSize: 8 },
+  itemSub: { fontSize: 7, color: '#64748b', marginTop: 1 },
   // Category total
   categoryTotal: {
     flexDirection: 'row',
@@ -448,10 +448,10 @@ export function ProjectPdfDocument({ project, offers, directItems = [], logoBase
                         <Text style={styles.itemName}>{item.name}</Text>
                         {item.subcategory && <Text style={styles.itemSub}>{item.subcategory}</Text>}
                       </View>
-                      <Text style={[styles.colDays, { fontSize: 7 }]}>{item.days_hours}</Text>
-                      <Text style={[styles.colQty, { fontSize: 7 }]}>{item.quantity}</Text>
-                      <Text style={[styles.colPrice, { fontSize: 7 }]}>{formatCurrency(item.unit_price)}</Text>
-                      <Text style={[styles.colTotal, { fontSize: 7, fontWeight: 'bold' }]}>
+                      <Text style={[styles.colDays, { fontSize: 8 }]}>{item.days_hours}</Text>
+                      <Text style={[styles.colQty, { fontSize: 8 }]}>{item.quantity}</Text>
+                      <Text style={[styles.colPrice, { fontSize: 8 }]}>{formatCurrency(item.unit_price)}</Text>
+                      <Text style={[styles.colTotal, { fontSize: 8, fontWeight: 'bold' }]}>
                         {formatCurrency(item.total_price)}
                       </Text>
                     </View>
@@ -571,6 +571,24 @@ export function ProjectPdfDocument({ project, offers, directItems = [], logoBase
               <Text style={[styles.summaryValue, { color: '#16a34a' }]}>
                 -{formatCurrency(totalDiscount)}
               </Text>
+            </View>
+          )}
+
+          {/* Stage breakdown */}
+          {offers.length > 0 && (
+            <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#cbd5e1' }}>
+              <Text style={{ fontSize: 8, fontWeight: 'bold', marginBottom: 4, color: '#475569' }}>
+                Rozpis stages:
+              </Text>
+              {offers.map((offer) => {
+                const label = (offer as any).set_label || formatOfferNumber(offer.offer_number, offer.year);
+                return (
+                  <View key={offer.id} style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 }}>
+                    <Text style={{ fontSize: 8, color: '#334155' }}>{label}</Text>
+                    <Text style={{ fontSize: 8, fontWeight: 'bold' }}>{formatCurrency(offer.total_amount)}</Text>
+                  </View>
+                );
+              })}
             </View>
           )}
 
