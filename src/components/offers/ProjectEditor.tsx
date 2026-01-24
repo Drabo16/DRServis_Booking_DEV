@@ -345,14 +345,6 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
   const totalDiscount = useMemo(() => offersTotals.discount + projectDiscountAmount, [offersTotals.discount, projectDiscountAmount]);
   const grandTotal = useMemo(() => totalEquipment + totalPersonnel + totalTransport - totalDiscount, [totalEquipment, totalPersonnel, totalTransport, totalDiscount]);
 
-  if (loading || !project) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="w-8 h-8 animate-spin text-slate-600" />
-      </div>
-    );
-  }
-
   // Group direct items by category - OPTIMIZED: memoized to avoid recalculation
   const itemsByCategory = useMemo(() => {
     const grouped: Record<string, ProjectItem[]> = {};
@@ -362,6 +354,14 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
     });
     return grouped;
   }, [directItems]);
+
+  if (loading || !project) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-slate-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
