@@ -272,12 +272,6 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
         }
       }
 
-      console.log('💾 Save operations:', {
-        toDelete: toDelete.length,
-        toUpdate: toUpdate.length,
-        toCreate: toCreate.length,
-        totalItems: items.length
-      });
 
       // Execute all operations in parallel
       const promises: Promise<any>[] = [];
@@ -463,18 +457,11 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     setLocalSetId(setId);
 
     // CRITICAL FIX: Save immediately when changing project assignment
-    // This ensures the offer appears in ProjectEditor right away
     setIsSaving(true);
     startSaving('Přiřazuji k projektu...');
 
-    console.log('🔵 Assigning offer to project:', {
-      offerId,
-      oldSetId: previousSetId,
-      newSetId: setId
-    });
-
     try {
-      const response = await fetch(`/api/offers/${offerId}`, {
+      await fetch(`/api/offers/${offerId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -483,26 +470,19 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
         }),
       });
 
-      const result = await response.json();
-      console.log('✅ Assignment response:', result);
-
-      // Invalidate caches immediately for instant sync
+      // Invalidate caches immediately
       queryClient.invalidateQueries({ queryKey: ['offerSets'] });
       queryClient.invalidateQueries({ queryKey: offerKeys.lists() });
 
       // Notify both old and new project editors
       if (previousSetId) {
-        console.log('📢 Notifying old project:', previousSetId);
         window.dispatchEvent(new CustomEvent('offerSetUpdated', { detail: { setId: previousSetId } }));
       }
       if (setId) {
-        console.log('📢 Notifying new project:', setId);
         window.dispatchEvent(new CustomEvent('offerSetUpdated', { detail: { setId } }));
       }
-
-      console.log('✅ Project assignment complete');
     } catch (e) {
-      console.error('❌ Failed to update offer set:', e);
+      console.error('Failed to update offer set:', e);
     } finally {
       setIsSaving(false);
       stopSaving();
