@@ -113,13 +113,20 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     // If recalculate is true, recalculate all totals from items
     if (recalculate) {
+      // First get current offer to preserve discount if not provided
+      const { data: currentOffer } = await supabase
+        .from('offers')
+        .select('discount_percent')
+        .eq('id', id)
+        .single();
+
       const { data: items } = await supabase
         .from('offer_items')
         .select('*')
         .eq('offer_id', id);
 
       const totals = calculateOfferTotals(items || []);
-      const currentDiscount = discount_percent ?? 0;
+      const currentDiscount = discount_percent !== undefined ? discount_percent : (currentOffer?.discount_percent ?? 0);
       const discount_amount = calculateDiscountAmount(totals.subtotal_equipment, currentDiscount);
       const total_amount = calculateFinalTotal(
         totals.subtotal_equipment,
@@ -158,7 +165,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
       if (error) {
         console.error('❌ Update failed:', error);
-        throw error;
+        return NextResponse.json(
+          { error: `Database update failed: ${error.message}` },
+          { status: 500 }
+        );
       }
 
       console.log('✅ Offer updated successfully:', {

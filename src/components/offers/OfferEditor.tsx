@@ -461,7 +461,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     startSaving('Přiřazuji k projektu...');
 
     try {
-      await fetch(`/api/offers/${offerId}`, {
+      const response = await fetch(`/api/offers/${offerId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -469,6 +469,15 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
           recalculate: true,
         }),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('❌ PATCH failed:', response.status, errorData);
+        throw new Error(errorData.error || 'Failed to update project assignment');
+      }
+
+      const result = await response.json();
+      console.log('✅ Project assignment saved:', result);
 
       // Invalidate caches immediately
       queryClient.invalidateQueries({ queryKey: ['offerSets'] });
@@ -483,6 +492,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
       }
     } catch (e) {
       console.error('Failed to update offer set:', e);
+      alert('Chyba při přiřazení k projektu: ' + (e instanceof Error ? e.message : 'Neznámá chyba'));
     } finally {
       setIsSaving(false);
       stopSaving();
