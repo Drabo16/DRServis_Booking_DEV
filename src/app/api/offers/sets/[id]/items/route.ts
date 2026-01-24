@@ -24,6 +24,22 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // SECURITY: Check offers module access
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, role')
+      .eq('auth_user_id', user.id)
+      .single();
+
+    if (!profile) {
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+    }
+
+    const hasAccess = profile.role === 'admin' || await checkOffersAccess(supabase, profile.id);
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const { data: items, error } = await supabase
       .from('offer_set_items')
       .select('*')
@@ -55,6 +71,22 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // SECURITY: Check offers module access
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, role')
+      .eq('auth_user_id', user.id)
+      .single();
+
+    if (!profile) {
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+    }
+
+    const hasAccess = profile.role === 'admin' || await checkOffersAccess(supabase, profile.id);
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const body = await request.json();
@@ -142,10 +174,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     return NextResponse.json({ error: 'Invalid request - name and category required' }, { status: 400 });
-  } catch (error) {
-    console.error('Create set item error:', error);
+  } catch (error: any) {
+    console.error('❌ Create set item error:', error);
+    // Return detailed error for debugging
     return NextResponse.json(
-      { error: 'Failed to create item' },
+      {
+        error: 'Failed to create item',
+        details: error.message || String(error),
+        hint: error.hint || null,
+        code: error.code || null,
+      },
       { status: 500 }
     );
   }
@@ -163,6 +201,22 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // SECURITY: Check offers module access
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, role')
+      .eq('auth_user_id', user.id)
+      .single();
+
+    if (!profile) {
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+    }
+
+    const hasAccess = profile.role === 'admin' || await checkOffersAccess(supabase, profile.id);
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const body = await request.json();
@@ -188,10 +242,15 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (error) throw error;
 
     return NextResponse.json({ success: true, item: data });
-  } catch (error) {
-    console.error('Update set item error:', error);
+  } catch (error: any) {
+    console.error('❌ Update set item error:', error);
     return NextResponse.json(
-      { error: 'Failed to update item' },
+      {
+        error: 'Failed to update item',
+        details: error.message || String(error),
+        hint: error.hint || null,
+        code: error.code || null,
+      },
       { status: 500 }
     );
   }
@@ -211,6 +270,22 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // SECURITY: Check offers module access
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, role')
+      .eq('auth_user_id', user.id)
+      .single();
+
+    if (!profile) {
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+    }
+
+    const hasAccess = profile.role === 'admin' || await checkOffersAccess(supabase, profile.id);
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const itemId = searchParams.get('item_id');
 
@@ -227,11 +302,27 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     if (error) throw error;
 
     return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('Delete set item error:', error);
+  } catch (error: any) {
+    console.error('❌ Delete set item error:', error);
     return NextResponse.json(
-      { error: 'Failed to delete item' },
+      {
+        error: 'Failed to delete item',
+        details: error.message || String(error),
+        hint: error.hint || null,
+        code: error.code || null,
+      },
       { status: 500 }
     );
   }
+}
+
+// Helper function to check offers module access
+async function checkOffersAccess(supabase: any, profileId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('user_module_access')
+    .select('id')
+    .eq('user_id', profileId)
+    .eq('module_code', 'offers')
+    .single();
+  return !!data;
 }

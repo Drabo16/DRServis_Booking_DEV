@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
+// Helper function to check offers module access
+async function checkOffersAccess(supabase: any, profileId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('user_module_access')
+    .select('id')
+    .eq('user_id', profileId)
+    .eq('module_code', 'offers')
+    .single();
+  return !!data;
+}
+
 // GET /api/offers/sets - List all offer sets with their offers
 export async function GET(request: NextRequest) {
   try {
@@ -9,6 +20,22 @@ export async function GET(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // SECURITY: Check offers module access
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, role')
+      .eq('auth_user_id', user.id)
+      .single();
+
+    if (!profile) {
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+    }
+
+    const hasAccess = profile.role === 'admin' || await checkOffersAccess(supabase, profile.id);
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     // Fetch offer sets with their offers
@@ -48,8 +75,11 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(setsWithCount);
   } catch (error: any) {
-    console.error('Error fetching offer sets:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('❌ Error fetching offer sets:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch offer sets' },
+      { status: 500 }
+    );
   }
 }
 
@@ -64,10 +94,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get profile
+    // SECURITY: Check offers module access
     const { data: profile } = await supabase
       .from('profiles')
-      .select('id')
+      .select('id, role')
       .eq('auth_user_id', user.id)
       .single();
 
@@ -75,9 +105,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
-    const { name, description, event_id, valid_until, notes } = body;
+    const hasAccess = profile.role === 'admin' || await checkOffersAccess(supabase, profile.id);
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
-    if (!name || !name.trim()) {
+    const { name, description, event_id, status, valid_until, notes } = body;
+
+    // Input validation
+    if (!name || name.trim().length === 0) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
     }
 
@@ -85,10 +121,11 @@ export async function POST(request: NextRequest) {
       .from('offer_sets')
       .insert({
         name: name.trim(),
-        description: description?.trim() || null,
-        event_id: event_id || null,
-        valid_until: valid_until || null,
-        notes: notes || null,
+        description,
+        event_id,
+        status: status || 'draft',
+        valid_until,
+        notes,
         created_by: profile.id,
       })
       .select()
@@ -96,9 +133,12 @@ export async function POST(request: NextRequest) {
 
     if (error) throw error;
 
-    return NextResponse.json(newSet);
+    return NextResponse.json(newSet, { status: 201 });
   } catch (error: any) {
-    console.error('Error creating offer set:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('❌ Error creating offer set:', error);
+    return NextResponse.json(
+      { error: 'Failed to create offer set' },
+      { status: 500 }
+    );
   }
 }

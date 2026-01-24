@@ -5,6 +5,17 @@ interface RouteContext {
   params: Promise<{ id: string }>;
 }
 
+// Helper function to check offers module access
+async function checkOffersAccess(supabase: any, profileId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('user_module_access')
+    .select('id')
+    .eq('user_id', profileId)
+    .eq('module_code', 'offers')
+    .single();
+  return !!data;
+}
+
 // GET /api/offers/sets/[id] - Get a single offer set with its offers
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
@@ -14,6 +25,22 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // SECURITY: Check offers module access
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, role')
+      .eq('auth_user_id', user.id)
+      .single();
+
+    if (!profile) {
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+    }
+
+    const hasAccess = profile.role === 'admin' || await checkOffersAccess(supabase, profile.id);
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     // CRITICAL FIX: Explicitly query offers with offer_set_id filter
@@ -53,16 +80,13 @@ export async function GET(request: NextRequest, context: RouteContext) {
       console.error('❌ Error fetching offers for set:', offersError);
     }
 
-    console.log(`📊 Fetched project ${id}:`, {
-      setName: set.name,
-      offersCount: offers?.length || 0,
-      offerIds: offers?.map(o => `${o.offer_number}/${o.year}`) || []
-    });
-
     return NextResponse.json({ ...set, offers: offers || [] });
   } catch (error: any) {
-    console.error('Error fetching offer set:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('❌ Error fetching offer set:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch offer set' },
+      { status: 500 }
+    );
   }
 }
 
@@ -76,6 +100,35 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // SECURITY: Check offers module access
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, role')
+      .eq('auth_user_id', user.id)
+      .single();
+
+    if (!profile) {
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+    }
+
+    const hasAccess = profile.role === 'admin' || await checkOffersAccess(supabase, profile.id);
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // SECURITY: Check ownership if not admin
+    if (profile.role !== 'admin') {
+      const { data: set } = await supabase
+        .from('offer_sets')
+        .select('created_by')
+        .eq('id', id)
+        .single();
+
+      if (!set || set.created_by !== profile.id) {
+        return NextResponse.json({ error: 'Forbidden - not owner' }, { status: 403 });
+      }
     }
 
     const { name, description, event_id, status, valid_until, notes, discount_percent } = body;
@@ -100,8 +153,11 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json(updated);
   } catch (error: any) {
-    console.error('Error updating offer set:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('❌ Error updating offer set:', error);
+    return NextResponse.json(
+      { error: 'Failed to update offer set' },
+      { status: 500 }
+    );
   }
 }
 
@@ -114,6 +170,27 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // SECURITY: Check offers module access
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, role')
+      .eq('auth_user_id', user.id)
+      .single();
+
+    if (!profile) {
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+    }
+
+    const hasAccess = profile.role === 'admin' || await checkOffersAccess(supabase, profile.id);
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // SECURITY: Only admin can delete
+    if (profile.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden - admin only' }, { status: 403 });
     }
 
     // First, unlink any offers from this set
@@ -132,7 +209,10 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error('Error deleting offer set:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('❌ Error deleting offer set:', error);
+    return NextResponse.json(
+      { error: 'Failed to delete offer set' },
+      { status: 500 }
+    );
   }
 }
