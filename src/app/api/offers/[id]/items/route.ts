@@ -188,7 +188,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     // BATCH UPDATE - OPTIMIZED: parallel updates instead of sequential
     if (Array.isArray(body.items)) {
       // First, get all current items in one query
-      const itemIds = body.items.map(item => item.id);
+      const itemIds = body.items.map((item: any) => item.id);
       const { data: currentItems } = await supabase
         .from('offer_items')
         .select('*')
