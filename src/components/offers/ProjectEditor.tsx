@@ -225,20 +225,35 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
   }, [projectId, project, isDirty, saveChanges]);
 
   const handleAddItem = useCallback(async (templateId: string) => {
+    console.log('📦 Adding item from template:', templateId);
     try {
       const res = await fetch(`/api/offers/sets/${projectId}/items`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ template_item_id: templateId, quantity: 1, days_hours: 1 }),
       });
-      if (res.ok) {
-        const { item } = await res.json();
-        setDirectItems(prev => [...prev, item]);
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('❌ Add item failed:', res.status, errorData);
+        alert(`Chyba při přidání položky: ${errorData.error || 'Neznámá chyba'}`);
+        return;
+      }
+
+      const data = await res.json();
+      console.log('✅ Item added:', data);
+
+      if (data.item) {
+        setDirectItems(prev => [...prev, data.item]);
         setShowAddItem(false);
         queryClient.invalidateQueries({ queryKey: ['offerSets'] });
+      } else {
+        console.error('❌ No item in response:', data);
+        alert('Chyba: položka nebyla vrácena ze serveru');
       }
     } catch (e) {
-      console.error('Add item failed:', e);
+      console.error('❌ Add item exception:', e);
+      alert('Chyba při přidání položky: ' + (e instanceof Error ? e.message : 'Neznámá chyba'));
     }
   }, [projectId, queryClient]);
 
@@ -266,6 +281,7 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
   const handleAddCustomItem = useCallback(async () => {
     if (!customItemName.trim()) return;
 
+    console.log('🎨 Adding custom item:', customItemName);
     try {
       const res = await fetch(`/api/offers/sets/${projectId}/items`, {
         method: 'POST',
@@ -278,26 +294,44 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
           days_hours: 1,
         }),
       });
-      if (res.ok) {
-        const { item } = await res.json();
-        setDirectItems(prev => [...prev, item]);
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('❌ Add custom item failed:', res.status, errorData);
+        alert(`Chyba při přidání položky: ${errorData.error || 'Neznámá chyba'}`);
+        return;
+      }
+
+      const data = await res.json();
+      console.log('✅ Custom item added:', data);
+
+      if (data.item) {
+        setDirectItems(prev => [...prev, data.item]);
         setShowAddCustomItem(false);
         setCustomItemName('');
         setCustomItemPrice(0);
         queryClient.invalidateQueries({ queryKey: ['offerSets'] });
       }
     } catch (e) {
-      console.error('Add custom item failed:', e);
+      console.error('❌ Add custom item exception:', e);
+      alert('Chyba při přidání položky: ' + (e instanceof Error ? e.message : 'Neznámá chyba'));
     }
   }, [projectId, customItemName, customItemCategory, customItemPrice, queryClient]);
 
   const handleDeleteItem = useCallback(async (itemId: string) => {
+    console.log('🗑️ Deleting item:', itemId);
     setDirectItems(prev => prev.filter(item => item.id !== itemId));
     try {
-      await fetch(`/api/offers/sets/${projectId}/items?item_id=${itemId}`, { method: 'DELETE' });
+      const res = await fetch(`/api/offers/sets/${projectId}/items?item_id=${itemId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('❌ Delete item failed:', res.status, errorData);
+      } else {
+        console.log('✅ Item deleted');
+      }
       queryClient.invalidateQueries({ queryKey: ['offerSets'] });
     } catch (e) {
-      console.error('Delete item failed:', e);
+      console.error('❌ Delete item exception:', e);
     }
   }, [projectId, queryClient]);
 
