@@ -84,16 +84,30 @@ export async function GET(request: NextRequest) {
 
     if (error) throw error;
 
-    // Add items count
-    const offersWithCount = await Promise.all(
-      (data || []).map(async (offer) => {
-        const { count } = await supabase
-          .from('offer_items')
-          .select('id', { count: 'exact', head: true })
-          .eq('offer_id', offer.id);
-        return { ...offer, items_count: count || 0 };
-      })
-    );
+    // OPTIMIZED: Batch fetch items count to avoid N+1 query problem
+    if (!data || data.length === 0) {
+      return NextResponse.json([]);
+    }
+
+    const offerIds = data.map(o => o.id);
+
+    // Single query to get all counts at once
+    const { data: itemsCounts } = await supabase
+      .from('offer_items')
+      .select('offer_id')
+      .in('offer_id', offerIds);
+
+    // Count items per offer
+    const countsMap = new Map<string, number>();
+    (itemsCounts || []).forEach((item: any) => {
+      countsMap.set(item.offer_id, (countsMap.get(item.offer_id) || 0) + 1);
+    });
+
+    // Add counts to offers
+    const offersWithCount = data.map(offer => ({
+      ...offer,
+      items_count: countsMap.get(offer.id) || 0,
+    }));
 
     return NextResponse.json(offersWithCount);
   } catch (error) {

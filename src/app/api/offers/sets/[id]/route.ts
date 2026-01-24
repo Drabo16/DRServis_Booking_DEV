@@ -16,25 +16,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // CRITICAL FIX: Explicitly query offers with offer_set_id filter
+    // Supabase relation syntax may not work correctly, so we do it manually
     const { data: set, error } = await supabase
       .from('offer_sets')
-      .select(`
-        *,
-        offers (
-          id,
-          offer_number,
-          year,
-          title,
-          set_label,
-          total_amount,
-          status,
-          subtotal_equipment,
-          subtotal_personnel,
-          subtotal_transport,
-          discount_percent,
-          discount_amount
-        )
-      `)
+      .select('*')
       .eq('id', id)
       .single();
 
@@ -43,7 +29,37 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Offer set not found' }, { status: 404 });
     }
 
-    return NextResponse.json(set);
+    // Manually fetch offers for this set
+    const { data: offers, error: offersError } = await supabase
+      .from('offers')
+      .select(`
+        id,
+        offer_number,
+        year,
+        title,
+        set_label,
+        total_amount,
+        status,
+        subtotal_equipment,
+        subtotal_personnel,
+        subtotal_transport,
+        discount_percent,
+        discount_amount
+      `)
+      .eq('offer_set_id', id)
+      .order('created_at', { ascending: false });
+
+    if (offersError) {
+      console.error('❌ Error fetching offers for set:', offersError);
+    }
+
+    console.log(`📊 Fetched project ${id}:`, {
+      setName: set.name,
+      offersCount: offers?.length || 0,
+      offerIds: offers?.map(o => `${o.offer_number}/${o.year}`) || []
+    });
+
+    return NextResponse.json({ ...set, offers: offers || [] });
   } catch (error: any) {
     console.error('Error fetching offer set:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });

@@ -143,6 +143,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       if (offer_set_id !== undefined) updateData.offer_set_id = offer_set_id;
       if (set_label !== undefined) updateData.set_label = set_label;
 
+      console.log(`💾 Updating offer ${id}:`, {
+        offer_set_id: updateData.offer_set_id,
+        set_label: updateData.set_label,
+        hasSetId: offer_set_id !== undefined
+      });
+
       const { data, error } = await supabase
         .from('offers')
         .update(updateData)
@@ -150,7 +156,17 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Update failed:', error);
+        throw error;
+      }
+
+      console.log('✅ Offer updated successfully:', {
+        id: data.id,
+        offer_set_id: data.offer_set_id,
+        offer_number: data.offer_number
+      });
+
       return NextResponse.json({ success: true, offer: data });
     }
 

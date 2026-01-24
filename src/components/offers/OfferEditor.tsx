@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, ArrowLeft, FileDown, Save, FolderKanban } from 'lucide-react';
 import { offerKeys } from '@/hooks/useOffers';
+import { useSaveStatus } from '@/contexts/SaveStatusContext';
 import {
   formatOfferNumber,
   formatCurrency,
@@ -74,6 +75,7 @@ interface OfferSet {
 
 export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorProps) {
   const queryClient = useQueryClient();
+  const { startSaving, stopSaving } = useSaveStatus();
 
   // Data states
   const [offer, setOffer] = useState<OfferData | null>(null);
@@ -109,19 +111,24 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
   const isDirtyRef = useRef(false);
   const isSavingRef = useRef(false);
 
+  // OPTIMIZATION: Track original server state to detect changes
+  const originalItemsRef = useRef<Map<string, LocalItem>>(new Map());
+
   // Input refs for navigation
   const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
 
-  const AUTOSAVE_DELAY = 2000; // 2 seconds
+  const AUTOSAVE_DELAY = 4000; // 4 seconds - longer delay to batch more changes
 
-  // Keep refs in sync
-  useEffect(() => { localItemsRef.current = localItems; }, [localItems]);
-  useEffect(() => { localDiscountRef.current = localDiscount; }, [localDiscount]);
-  useEffect(() => { localStatusRef.current = localStatus; }, [localStatus]);
-  useEffect(() => { localSetIdRef.current = localSetId; }, [localSetId]);
-  useEffect(() => { localSetLabelRef.current = localSetLabel; }, [localSetLabel]);
-  useEffect(() => { isDirtyRef.current = isDirty; }, [isDirty]);
-  useEffect(() => { isSavingRef.current = isSaving; }, [isSaving]);
+  // Keep refs in sync - OPTIMIZED: consolidated into single useEffect
+  useEffect(() => {
+    localItemsRef.current = localItems;
+    localDiscountRef.current = localDiscount;
+    localStatusRef.current = localStatus;
+    localSetIdRef.current = localSetId;
+    localSetLabelRef.current = localSetLabel;
+    isDirtyRef.current = isDirty;
+    isSavingRef.current = isSaving;
+  }, [localItems, localDiscount, localStatus, localSetId, localSetLabel, isDirty, isSaving]);
 
   // Load data once on mount
   useEffect(() => {
@@ -209,6 +216,14 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
       return a.sortOrder - b.sortOrder;
     });
 
+    // OPTIMIZATION: Store original server state for change detection
+    originalItemsRef.current = new Map();
+    items.forEach(item => {
+      if (item.dbItemId) {
+        originalItemsRef.current.set(item.dbItemId, { ...item });
+      }
+    });
+
     setLocalItems(items);
   };
 
@@ -217,6 +232,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     if (!isDirtyRef.current || isSavingRef.current) return;
 
     setIsSaving(true);
+    startSaving('Ukládám nabídku...');
     isSavingRef.current = true;
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
 
@@ -227,23 +243,41 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     const setLabel = localSetLabelRef.current;
 
     try {
-      // Prepare batch operations
+      // OPTIMIZATION: Prepare batch operations - only save CHANGED items
       const toDelete: string[] = [];
       const toUpdate: Array<{ id: string; days: number; qty: number; unitPrice: number }> = [];
       const toCreate: Array<{ templateId: string; days: number; qty: number; unitPrice: number }> = [];
 
       for (const item of items) {
         if (item.qty === 0 && item.dbItemId) {
+          // Item has qty=0 and exists in DB -> delete it
           toDelete.push(item.dbItemId);
         } else if (item.qty > 0) {
           if (item.dbItemId) {
-            toUpdate.push({ id: item.dbItemId, days: item.days, qty: item.qty, unitPrice: item.unitPrice });
+            // Item exists in DB - check if it changed
+            const original = originalItemsRef.current.get(item.dbItemId);
+            const hasChanged = !original ||
+              original.days !== item.days ||
+              original.qty !== item.qty ||
+              original.unitPrice !== item.unitPrice;
+
+            // ONLY update if changed
+            if (hasChanged) {
+              toUpdate.push({ id: item.dbItemId, days: item.days, qty: item.qty, unitPrice: item.unitPrice });
+            }
           } else if (item.templateId) {
-            // Only create items that have a template (skip custom items without template)
+            // New item - create it (only if it has a template)
             toCreate.push({ templateId: item.templateId, days: item.days, qty: item.qty, unitPrice: item.unitPrice });
           }
         }
       }
+
+      console.log('💾 Save operations:', {
+        toDelete: toDelete.length,
+        toUpdate: toUpdate.length,
+        toCreate: toCreate.length,
+        totalItems: items.length
+      });
 
       // Execute all operations in parallel
       const promises: Promise<any>[] = [];
@@ -270,22 +304,22 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
         );
       }
 
-      // 3. Update items (batch - all at once)
+      // 3. Update items (BATCH - single API call for all updates!)
       if (toUpdate.length > 0) {
-        for (const u of toUpdate) {
-          promises.push(
-            fetch(`/api/offers/${offerId}/items`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                item_id: u.id,
+        promises.push(
+          fetch(`/api/offers/${offerId}/items`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              items: toUpdate.map(u => ({
+                id: u.id,
                 days_hours: u.days,
                 quantity: u.qty,
                 unit_price: u.unitPrice,
-              }),
-            })
-          );
-        }
+              })),
+            }),
+          })
+        );
       }
 
       // 4. Create items (batch)
@@ -328,10 +362,23 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
         toDelete.includes(item.dbItemId || '') ? { ...item, dbItemId: null } : item
       ));
 
+      // OPTIMIZATION: Update original items ref with current state after successful save
+      originalItemsRef.current = new Map();
+      localItemsRef.current.forEach(item => {
+        if (item.dbItemId) {
+          originalItemsRef.current.set(item.dbItemId, { ...item });
+        }
+      });
+
       // Invalidate React Query cache to sync lists
       queryClient.invalidateQueries({ queryKey: offerKeys.lists() });
       queryClient.invalidateQueries({ queryKey: offerKeys.detail(offerId) });
       queryClient.invalidateQueries({ queryKey: ['offerSets'] });
+
+      // Notify project editor if this offer belongs to a set (always, because totals may have changed)
+      if (setId) {
+        window.dispatchEvent(new CustomEvent('offerSetUpdated', { detail: { setId } }));
+      }
 
       setIsDirty(false);
       isDirtyRef.current = false;
@@ -339,9 +386,10 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
       console.error('Save failed:', e);
     } finally {
       setIsSaving(false);
+      stopSaving();
       isSavingRef.current = false;
     }
-  }, [offerId, queryClient]);
+  }, [offerId, queryClient, startSaving, stopSaving]);
 
   // Schedule auto-save (uses refs to avoid stale closures)
   const scheduleAutoSave = useCallback(() => {
@@ -409,19 +457,65 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     markDirty();
   }, [markDirty]);
 
-  // Handle set change
-  const handleSetChange = useCallback((setId: string | null) => {
+  // Handle set change - CRITICAL: immediate save for project assignment
+  const handleSetChange = useCallback(async (setId: string | null) => {
+    const previousSetId = localSetIdRef.current;
     setLocalSetId(setId);
-    markDirty();
-  }, [markDirty]);
 
-  // Handle set label change
+    // CRITICAL FIX: Save immediately when changing project assignment
+    // This ensures the offer appears in ProjectEditor right away
+    setIsSaving(true);
+    startSaving('Přiřazuji k projektu...');
+
+    console.log('🔵 Assigning offer to project:', {
+      offerId,
+      oldSetId: previousSetId,
+      newSetId: setId
+    });
+
+    try {
+      const response = await fetch(`/api/offers/${offerId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          offer_set_id: setId,
+          recalculate: true,
+        }),
+      });
+
+      const result = await response.json();
+      console.log('✅ Assignment response:', result);
+
+      // Invalidate caches immediately for instant sync
+      queryClient.invalidateQueries({ queryKey: ['offerSets'] });
+      queryClient.invalidateQueries({ queryKey: offerKeys.lists() });
+
+      // Notify both old and new project editors
+      if (previousSetId) {
+        console.log('📢 Notifying old project:', previousSetId);
+        window.dispatchEvent(new CustomEvent('offerSetUpdated', { detail: { setId: previousSetId } }));
+      }
+      if (setId) {
+        console.log('📢 Notifying new project:', setId);
+        window.dispatchEvent(new CustomEvent('offerSetUpdated', { detail: { setId } }));
+      }
+
+      console.log('✅ Project assignment complete');
+    } catch (e) {
+      console.error('❌ Failed to update offer set:', e);
+    } finally {
+      setIsSaving(false);
+      stopSaving();
+    }
+  }, [offerId, queryClient, startSaving, stopSaving]);
+
+  // Handle set label change - debounced save after typing
   const handleSetLabelChange = useCallback((label: string) => {
     setLocalSetLabel(label);
-    markDirty();
+    markDirty(); // This will trigger auto-save after 4s
   }, [markDirty]);
 
-  // Handle add custom item
+  // Handle add custom item - OPTIMIZED: optimistic update instead of full reload
   const handleAddCustomItem = useCallback(async () => {
     if (!customItemName.trim()) return;
 
@@ -439,17 +533,34 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
       });
 
       if (res.ok) {
-        // Reload items to get the new item
-        const [offerRes, itemsRes] = await Promise.all([
-          fetch(`/api/offers/${offerId}`),
-          fetch(`/api/offers/${offerId}/items`),
-        ]);
+        const data = await res.json();
+        const newItem = data.item;
 
-        const offerData = await offerRes.json();
-        const itemsData = await itemsRes.json();
-        offerData.items = itemsData;
+        // OPTIMIZED: Optimistic update - add new item to local state instead of full reload
+        const newLocalItem: LocalItem = {
+          templateId: '', // No template for custom items
+          name: newItem.name,
+          subcategory: newItem.subcategory,
+          category: newItem.category,
+          unitPrice: newItem.unit_price,
+          unit: newItem.unit || 'ks',
+          sortOrder: newItem.sort_order || 999,
+          days: newItem.days_hours,
+          qty: newItem.quantity,
+          dbItemId: newItem.id,
+        };
 
-        buildLocalItems(templates, offerData);
+        setLocalItems(prev => {
+          const newItems = [...prev, newLocalItem];
+          // Sort by category order then sort_order
+          newItems.sort((a, b) => {
+            const catA = OFFER_CATEGORY_ORDER.indexOf(a.category as any);
+            const catB = OFFER_CATEGORY_ORDER.indexOf(b.category as any);
+            if (catA !== catB) return catA - catB;
+            return a.sortOrder - b.sortOrder;
+          });
+          return newItems;
+        });
 
         setShowAddCustomItem(false);
         setCustomItemName('');
@@ -461,7 +572,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     } catch (e) {
       console.error('Add custom item failed:', e);
     }
-  }, [offerId, customItemName, customItemCategory, customItemPrice, templates, queryClient]);
+  }, [offerId, customItemName, customItemCategory, customItemPrice, queryClient]);
 
   // Keyboard navigation
   const handleKeyDown = useCallback((e: React.KeyboardEvent, index: number, field: 'days' | 'qty' | 'price') => {
@@ -535,22 +646,24 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     }
   }, [offerId, offer, saveChanges]);
 
-  // Calculate totals
-  const totals = localItems.reduce(
-    (acc, item) => {
-      if (item.qty === 0) return acc;
-      const total = item.days * item.qty * item.unitPrice;
-      const group = getCategoryGroup(item.category);
-      if (group === 'equipment') acc.equipment += total;
-      else if (group === 'personnel') acc.personnel += total;
-      else acc.transport += total;
-      return acc;
-    },
-    { equipment: 0, personnel: 0, transport: 0 }
-  );
+  // Calculate totals - OPTIMIZED: memoized to avoid recalculation on every render
+  const totals = useMemo(() => {
+    return localItems.reduce(
+      (acc, item) => {
+        if (item.qty === 0) return acc;
+        const total = item.days * item.qty * item.unitPrice;
+        const group = getCategoryGroup(item.category);
+        if (group === 'equipment') acc.equipment += total;
+        else if (group === 'personnel') acc.personnel += total;
+        else acc.transport += total;
+        return acc;
+      },
+      { equipment: 0, personnel: 0, transport: 0 }
+    );
+  }, [localItems]);
 
-  const discountAmount = Math.round(totals.equipment * (localDiscount / 100));
-  const totalAmount = totals.equipment + totals.personnel + totals.transport - discountAmount;
+  const discountAmount = useMemo(() => Math.round(totals.equipment * (localDiscount / 100)), [totals.equipment, localDiscount]);
+  const totalAmount = useMemo(() => totals.equipment + totals.personnel + totals.transport - discountAmount, [totals, discountAmount]);
 
   // Loading
   if (loading || !offer) {
@@ -561,12 +674,15 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     );
   }
 
-  // Group items by category for display
-  const itemsByCategory: Record<string, { item: LocalItem; index: number }[]> = {};
-  localItems.forEach((item, index) => {
-    if (!itemsByCategory[item.category]) itemsByCategory[item.category] = [];
-    itemsByCategory[item.category].push({ item, index });
-  });
+  // Group items by category for display - OPTIMIZED: memoized to avoid recalculation
+  const itemsByCategory = useMemo(() => {
+    const grouped: Record<string, { item: LocalItem; index: number }[]> = {};
+    localItems.forEach((item, index) => {
+      if (!grouped[item.category]) grouped[item.category] = [];
+      grouped[item.category].push({ item, index });
+    });
+    return grouped;
+  }, [localItems]);
 
   return (
     <div className="space-y-3">
@@ -642,7 +758,8 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
           <select
             value={localSetId || ''}
             onChange={(e) => handleSetChange(e.target.value || null)}
-            className="h-6 text-xs border rounded px-2 min-w-[140px]"
+            disabled={isSaving}
+            className="h-6 text-xs border rounded px-2 min-w-[140px] disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <option value="">-- bez projektu --</option>
             {offerSets.map((set) => (
@@ -809,8 +926,8 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
   );
 }
 
-// Category block component
-function CategoryBlock({
+// Category block component - OPTIMIZED: memoized to prevent unnecessary re-renders
+const CategoryBlock = memo(function CategoryBlock({
   category,
   items,
   total,
@@ -868,10 +985,10 @@ function CategoryBlock({
       ))}
     </>
   );
-}
+});
 
-// Item row component
-function ItemRow({
+// Item row component - OPTIMIZED: memoized to prevent unnecessary re-renders
+const ItemRow = memo(function ItemRow({
   item,
   index,
   odd,
@@ -945,4 +1062,4 @@ function ItemRow({
       </td>
     </tr>
   );
-}
+});

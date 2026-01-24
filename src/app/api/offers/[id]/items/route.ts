@@ -63,39 +63,46 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Support both single item and bulk add
     if (Array.isArray(body.items)) {
-      // Bulk add from template items
-      const items = await Promise.all(
-        body.items.map(async (item: any) => {
-          // Get template item details
-          const { data: template } = await supabase
-            .from('offer_template_items')
-            .select('*, category:offer_template_categories(name)')
-            .eq('id', item.template_item_id)
-            .single();
+      // OPTIMIZED: Batch fetch templates to avoid N+1 query problem
+      const templateIds = body.items.map((item: any) => item.template_item_id).filter(Boolean);
 
-          if (!template) return null;
+      // Single query to get all templates at once
+      const { data: templates } = await supabase
+        .from('offer_template_items')
+        .select('*, category:offer_template_categories(name)')
+        .in('id', templateIds);
 
-          const categoryName = (template.category as any)?.name || 'Ostatní';
-          const days_hours = item.days_hours ?? 1;
-          const quantity = item.quantity ?? 1;
-          // Use custom unit_price if provided, otherwise use template default
-          const unit_price = item.unit_price ?? template.default_price;
-          const total_price = calculateItemTotal({ days_hours, quantity, unit_price });
+      // Create a map for quick lookup
+      const templatesMap = new Map();
+      (templates || []).forEach((t: any) => {
+        templatesMap.set(t.id, t);
+      });
 
-          return {
-            offer_id,
-            category: categoryName,
-            subcategory: template.subcategory,
-            name: template.name,
-            days_hours,
-            quantity,
-            unit_price,
-            total_price,
-            template_item_id: template.id,
-            sort_order: template.sort_order,
-          };
-        })
-      );
+      // Build items array with template data
+      const items = body.items.map((item: any) => {
+        const template = templatesMap.get(item.template_item_id);
+        if (!template) return null;
+
+        const categoryName = (template.category as any)?.name || 'Ostatní';
+        const days_hours = item.days_hours ?? 1;
+        const quantity = item.quantity ?? 1;
+        // Use custom unit_price if provided, otherwise use template default
+        const unit_price = item.unit_price ?? template.default_price;
+        const total_price = calculateItemTotal({ days_hours, quantity, unit_price });
+
+        return {
+          offer_id,
+          category: categoryName,
+          subcategory: template.subcategory,
+          name: template.name,
+          days_hours,
+          quantity,
+          unit_price,
+          total_price,
+          template_item_id: template.id,
+          sort_order: template.sort_order,
+        };
+      });
 
       const validItems = items.filter(Boolean);
 
@@ -162,7 +169,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
 /**
  * PATCH /api/offers/[id]/items
- * Update item in offer (by item_id in body)
+ * Update item(s) in offer - supports both single and batch update
+ * Single: { item_id, days_hours, quantity, unit_price }
+ * Batch: { items: [{ id, days_hours, quantity, unit_price }, ...] }
  */
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
@@ -175,6 +184,63 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     const body = await request.json();
+
+    // BATCH UPDATE - OPTIMIZED: parallel updates instead of sequential
+    if (Array.isArray(body.items)) {
+      // First, get all current items in one query
+      const itemIds = body.items.map(item => item.id);
+      const { data: currentItems } = await supabase
+        .from('offer_items')
+        .select('*')
+        .in('id', itemIds)
+        .eq('offer_id', offer_id);
+
+      const currentItemsMap = new Map();
+      (currentItems || []).forEach((item: any) => {
+        currentItemsMap.set(item.id, item);
+      });
+
+      // Prepare all updates in parallel
+      const updatePromises = body.items.map(async (item: any) => {
+        const { id: item_id, days_hours, quantity, unit_price } = item;
+        const currentItem = currentItemsMap.get(item_id);
+
+        if (!currentItem) return null;
+
+        // Calculate new total
+        const newDaysHours = days_hours ?? currentItem.days_hours;
+        const newQuantity = quantity ?? currentItem.quantity;
+        const newUnitPrice = unit_price ?? currentItem.unit_price;
+        const total_price = calculateItemTotal({
+          days_hours: newDaysHours,
+          quantity: newQuantity,
+          unit_price: newUnitPrice,
+        });
+
+        const updateData: Record<string, any> = { total_price };
+        if (days_hours !== undefined) updateData.days_hours = days_hours;
+        if (quantity !== undefined) updateData.quantity = quantity;
+        if (unit_price !== undefined) updateData.unit_price = unit_price;
+
+        const { data, error } = await supabase
+          .from('offer_items')
+          .update(updateData)
+          .eq('id', item_id)
+          .select()
+          .single();
+
+        return error ? null : data;
+      });
+
+      const results = (await Promise.all(updatePromises)).filter(Boolean);
+
+      // Trigger offer recalculation once
+      await recalculateOfferTotals(supabase, offer_id);
+
+      return NextResponse.json({ success: true, items: results });
+    }
+
+    // SINGLE UPDATE (original logic)
     const { item_id, days_hours, quantity, unit_price, sort_order } = body;
 
     if (!item_id) {

@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Loader2, ArrowLeft, FileDown, Save, Plus, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
+import { useSaveStatus } from '@/contexts/SaveStatusContext';
 import {
   formatOfferNumber,
   formatCurrency,
@@ -77,6 +78,7 @@ interface ProjectData {
 
 export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelect }: ProjectEditorProps) {
   const queryClient = useQueryClient();
+  const { startSaving, stopSaving } = useSaveStatus();
 
   const [project, setProject] = useState<ProjectData | null>(null);
   const [directItems, setDirectItems] = useState<ProjectItem[]>([]);
@@ -97,35 +99,63 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
   const [customItemPrice, setCustomItemPrice] = useState(0);
 
   const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
-  const AUTOSAVE_DELAY = 2000;
+  const AUTOSAVE_DELAY = 4000; // 4 seconds - longer delay to batch more changes
 
   // Load data
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const [projectRes, itemsRes, templatesRes] = await Promise.all([
-          fetch(`/api/offers/sets/${projectId}`),
-          fetch(`/api/offers/sets/${projectId}/items`),
-          fetch('/api/offers/templates/items'),
-        ]);
+  const loadData = useCallback(async () => {
+    console.log('🔄 Loading project data:', projectId);
+    try {
+      const [projectRes, itemsRes, templatesRes] = await Promise.all([
+        fetch(`/api/offers/sets/${projectId}`, { cache: 'no-store' }),
+        fetch(`/api/offers/sets/${projectId}/items`, { cache: 'no-store' }),
+        fetch('/api/offers/templates/items', { cache: 'no-store' }),
+      ]);
 
-        const projectData = await projectRes.json();
-        const itemsData = await itemsRes.json();
-        const templatesData = await templatesRes.json();
+      const projectData = await projectRes.json();
+      const itemsData = await itemsRes.json();
+      const templatesData = await templatesRes.json();
 
-        setProject(projectData);
-        setDirectItems(itemsData || []);
-        setTemplates(templatesData || []);
-        setLocalStatus(projectData.status || 'draft');
-        setLocalDiscount(projectData.discount_percent || 0);
-        setLoading(false);
-      } catch (e) {
-        console.error('Load failed:', e);
-        setLoading(false);
-      }
+      console.log('✅ Project loaded:', {
+        name: projectData.name,
+        offersCount: projectData.offers?.length || 0,
+        offers: projectData.offers?.map((o: any) => `${o.offer_number}/${o.year}`) || []
+      });
+
+      setProject(projectData);
+      setDirectItems(itemsData || []);
+      setTemplates(templatesData || []);
+      setLocalStatus(projectData.status || 'draft');
+      setLocalDiscount(projectData.discount_percent || 0);
+      setLoading(false);
+    } catch (e) {
+      console.error('❌ Load failed:', e);
+      setLoading(false);
     }
-    loadData();
   }, [projectId]);
+
+  useEffect(() => {
+    loadData();
+
+    // Listen for offer set updates from other components
+    const handleOfferSetUpdate = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      console.log('📨 ProjectEditor received event:', {
+        eventSetId: customEvent.detail?.setId,
+        myProjectId: projectId,
+        willReload: customEvent.detail?.setId === projectId
+      });
+
+      if (customEvent.detail?.setId === projectId) {
+        console.log('🔄 Reloading project data...');
+        loadData();
+      }
+    };
+
+    window.addEventListener('offerSetUpdated', handleOfferSetUpdate);
+    return () => {
+      window.removeEventListener('offerSetUpdated', handleOfferSetUpdate);
+    };
+  }, [loadData, projectId]);
 
   const markDirty = useCallback(() => {
     setIsDirty(true);
@@ -138,6 +168,7 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
   const saveChanges = useCallback(async () => {
     if (isSaving) return;
     setIsSaving(true);
+    startSaving('Ukládám projekt...');
 
     try {
       await fetch(`/api/offers/sets/${projectId}`, {
@@ -155,8 +186,9 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
       console.error('Save failed:', e);
     } finally {
       setIsSaving(false);
+      stopSaving();
     }
-  }, [projectId, localStatus, localDiscount, isSaving, queryClient]);
+  }, [projectId, localStatus, localDiscount, isSaving, queryClient, startSaving, stopSaving]);
 
   // CTRL+S handler
   useEffect(() => {
@@ -278,35 +310,40 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
     });
   }, []);
 
-  // Calculate totals
-  const directItemsTotals = directItems.reduce(
-    (acc, item) => {
-      const group = getCategoryGroup(item.category);
-      const total = item.quantity * item.days_hours * item.unit_price;
-      if (group === 'equipment') acc.equipment += total;
-      else if (group === 'personnel') acc.personnel += total;
-      else acc.transport += total;
-      return acc;
-    },
-    { equipment: 0, personnel: 0, transport: 0 }
-  );
+  // Calculate totals - OPTIMIZED: memoized to avoid recalculation on every render
+  const directItemsTotals = useMemo(() => {
+    return directItems.reduce(
+      (acc, item) => {
+        const group = getCategoryGroup(item.category);
+        // Use the database-calculated total_price (generated column)
+        const total = item.total_price;
+        if (group === 'equipment') acc.equipment += total;
+        else if (group === 'personnel') acc.personnel += total;
+        else acc.transport += total;
+        return acc;
+      },
+      { equipment: 0, personnel: 0, transport: 0 }
+    );
+  }, [directItems]);
 
-  const offersTotals = (project?.offers || []).reduce(
-    (acc, offer) => ({
-      equipment: acc.equipment + (offer.subtotal_equipment || 0),
-      personnel: acc.personnel + (offer.subtotal_personnel || 0),
-      transport: acc.transport + (offer.subtotal_transport || 0),
-      discount: acc.discount + (offer.discount_amount || 0),
-    }),
-    { equipment: 0, personnel: 0, transport: 0, discount: 0 }
-  );
+  const offersTotals = useMemo(() => {
+    return (project?.offers || []).reduce(
+      (acc, offer) => ({
+        equipment: acc.equipment + (offer.subtotal_equipment || 0),
+        personnel: acc.personnel + (offer.subtotal_personnel || 0),
+        transport: acc.transport + (offer.subtotal_transport || 0),
+        discount: acc.discount + (offer.discount_amount || 0),
+      }),
+      { equipment: 0, personnel: 0, transport: 0, discount: 0 }
+    );
+  }, [project?.offers]);
 
-  const totalEquipment = offersTotals.equipment + directItemsTotals.equipment;
-  const totalPersonnel = offersTotals.personnel + directItemsTotals.personnel;
-  const totalTransport = offersTotals.transport + directItemsTotals.transport;
-  const projectDiscountAmount = Math.round(totalEquipment * (localDiscount / 100));
-  const totalDiscount = offersTotals.discount + projectDiscountAmount;
-  const grandTotal = totalEquipment + totalPersonnel + totalTransport - totalDiscount;
+  const totalEquipment = useMemo(() => offersTotals.equipment + directItemsTotals.equipment, [offersTotals.equipment, directItemsTotals.equipment]);
+  const totalPersonnel = useMemo(() => offersTotals.personnel + directItemsTotals.personnel, [offersTotals.personnel, directItemsTotals.personnel]);
+  const totalTransport = useMemo(() => offersTotals.transport + directItemsTotals.transport, [offersTotals.transport, directItemsTotals.transport]);
+  const projectDiscountAmount = useMemo(() => Math.round(totalEquipment * (localDiscount / 100)), [totalEquipment, localDiscount]);
+  const totalDiscount = useMemo(() => offersTotals.discount + projectDiscountAmount, [offersTotals.discount, projectDiscountAmount]);
+  const grandTotal = useMemo(() => totalEquipment + totalPersonnel + totalTransport - totalDiscount, [totalEquipment, totalPersonnel, totalTransport, totalDiscount]);
 
   if (loading || !project) {
     return (
@@ -316,12 +353,15 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
     );
   }
 
-  // Group direct items by category
-  const itemsByCategory: Record<string, ProjectItem[]> = {};
-  directItems.forEach(item => {
-    if (!itemsByCategory[item.category]) itemsByCategory[item.category] = [];
-    itemsByCategory[item.category].push(item);
-  });
+  // Group direct items by category - OPTIMIZED: memoized to avoid recalculation
+  const itemsByCategory = useMemo(() => {
+    const grouped: Record<string, ProjectItem[]> = {};
+    directItems.forEach(item => {
+      if (!grouped[item.category]) grouped[item.category] = [];
+      grouped[item.category].push(item);
+    });
+    return grouped;
+  }, [directItems]);
 
   return (
     <div className="space-y-4">
@@ -658,7 +698,7 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
 
       {/* Instructions */}
       <div className="text-[10px] text-slate-400 text-center">
-        Ctrl+S uložit | Auto-save 2s
+        Ctrl+S uložit | Auto-save 4s
       </div>
     </div>
   );

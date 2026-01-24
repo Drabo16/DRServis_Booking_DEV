@@ -1,11 +1,12 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { LogOut, RefreshCw, Menu } from 'lucide-react';
+import { LogOut, RefreshCw, Menu, Save } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useSidebar } from '@/contexts/SidebarContext';
+import { useSaveStatus } from '@/contexts/SaveStatusContext';
 import type { User } from '@supabase/supabase-js';
 import type { Profile } from '@/types';
 
@@ -19,6 +20,7 @@ export default function Header({ user, profile }: HeaderProps) {
   const supabase = createClient();
   const [syncing, setSyncing] = useState(false);
   const { toggleMobile } = useSidebar();
+  const { isSaving, savingMessage } = useSaveStatus();
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -70,6 +72,14 @@ export default function Header({ user, profile }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-2 md:gap-3">
+        {/* Save status indicator */}
+        {isSaving && (
+          <div className="flex items-center gap-2 text-blue-600 text-sm">
+            <Save className="w-4 h-4 animate-pulse" />
+            <span className="hidden md:inline">{savingMessage}</span>
+          </div>
+        )}
+
         {profile?.role === 'admin' && (
           <Button
             variant="outline"
