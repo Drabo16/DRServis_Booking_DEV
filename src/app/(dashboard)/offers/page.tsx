@@ -13,10 +13,16 @@ export default async function OffersPage() {
     redirect('/login');
   }
 
-  // Check offers access - admins or users with module access
+  // OPTIMIZED: Single query with join to check both profile and access
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, id')
+    .select(`
+      role,
+      id,
+      module_access:user_module_access!user_module_access_user_id_fkey(
+        module_code
+      )
+    `)
     .eq('auth_user_id', user.id)
     .single();
 
@@ -24,22 +30,9 @@ export default async function OffersPage() {
     redirect('/');
   }
 
-  // Check if user has offers module access
-  let hasAccess = profile.role === 'admin';
-
-  if (!hasAccess) {
-    const { data: moduleAccess } = await supabase
-      .from('user_module_access')
-      .select(`
-        id,
-        module:app_modules!inner(code)
-      `)
-      .eq('user_id', profile.id)
-      .eq('module.code', 'offers')
-      .maybeSingle();
-
-    hasAccess = !!moduleAccess;
-  }
+  // Check access: admin OR has 'offers' module access
+  const hasAccess = profile.role === 'admin' ||
+    (profile.module_access as any[])?.some((ma: any) => ma.module_code === 'offers');
 
   if (!hasAccess) {
     redirect('/');

@@ -139,6 +139,8 @@ export function useOffers(filters: OffersFilter = {}) {
       if (!response.ok) throw new Error('Failed to fetch offers');
       return response.json() as Promise<OfferWithDetails[]>;
     },
+    staleTime: 1000 * 60 * 2, // Data stays fresh for 2 minutes
+    gcTime: 1000 * 60 * 5, // Cache for 5 minutes
   });
 }
 
@@ -152,6 +154,8 @@ export function useOffer(id: string | null) {
       return response.json() as Promise<OfferWithItems>;
     },
     enabled: !!id,
+    staleTime: 1000 * 60 * 2, // Data stays fresh for 2 minutes
+    gcTime: 1000 * 60 * 5, // Cache for 5 minutes
   });
 }
 

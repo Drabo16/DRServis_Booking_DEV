@@ -62,7 +62,8 @@ export async function GET(request: NextRequest) {
         event:events(id, title, start_time, location),
         created_by_profile:profiles!offers_created_by_fkey(id, full_name)
       `)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(100); // OPTIMIZED: Limit to 100 most recent offers
 
     if (status) {
       query = query.eq('status', status);
