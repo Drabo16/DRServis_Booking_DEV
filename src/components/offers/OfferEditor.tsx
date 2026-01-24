@@ -645,15 +645,6 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
   const discountAmount = useMemo(() => Math.round(totals.equipment * (localDiscount / 100)), [totals.equipment, localDiscount]);
   const totalAmount = useMemo(() => totals.equipment + totals.personnel + totals.transport - discountAmount, [totals, discountAmount]);
 
-  // Loading
-  if (loading || !offer) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="w-8 h-8 animate-spin text-slate-600" />
-      </div>
-    );
-  }
-
   // Group items by category for display - OPTIMIZED: memoized to avoid recalculation
   const itemsByCategory = useMemo(() => {
     const grouped: Record<string, { item: LocalItem; index: number }[]> = {};
@@ -663,6 +654,15 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     });
     return grouped;
   }, [localItems]);
+
+  // Loading
+  if (loading || !offer) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-slate-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">
