@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, ReactNode, useRef, useEffect } from 'react';
 
 interface SaveStatusContextType {
   isSaving: boolean;
@@ -14,19 +14,35 @@ const SaveStatusContext = createContext<SaveStatusContextType | undefined>(undef
 export function SaveStatusProvider({ children }: { children: ReactNode }) {
   const [isSaving, setIsSaving] = useState(false);
   const [savingMessage, setSavingMessage] = useState('Ukládání...');
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
 
   const startSaving = useCallback((message = 'Ukládání...') => {
-    console.log('💾 Start saving:', message);
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
     setIsSaving(true);
     setSavingMessage(message);
   }, []);
 
   const stopSaving = useCallback(() => {
-    console.log('✅ Stop saving');
-    // Keep visible for at least 500ms so user can see it
-    setTimeout(() => {
+    // Keep visible for at least 300ms so user can see it
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    timeoutRef.current = setTimeout(() => {
       setIsSaving(false);
-    }, 500);
+      timeoutRef.current = null;
+    }, 300);
   }, []);
 
   return (
