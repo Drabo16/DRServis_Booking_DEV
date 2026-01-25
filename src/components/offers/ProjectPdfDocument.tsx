@@ -548,8 +548,36 @@ export function ProjectPdfDocument({ project, offers, directItems = [], logoBase
           );
         })}
 
-        {/* Grand Summary - same style as single offer */}
+        {/* Grand Summary - stages + shared items breakdown */}
         <View style={styles.summary} wrap={false}>
+          {/* Stages breakdown */}
+          {offers.length > 0 && (
+            <View style={{ marginBottom: 8, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: '#cbd5e1' }}>
+              <Text style={{ fontSize: 8, fontWeight: 'bold', marginBottom: 4, color: '#475569' }}>
+                Rozpis:
+              </Text>
+              {offers.map((offer) => {
+                const label = (offer as any).set_label || formatOfferNumber(offer.offer_number, offer.year);
+                return (
+                  <View key={offer.id} style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
+                    <Text style={{ fontSize: 8, color: '#334155' }}>{label}</Text>
+                    <Text style={{ fontSize: 8, fontWeight: 'bold' }}>{formatCurrency(offer.total_amount)}</Text>
+                  </View>
+                );
+              })}
+              {/* Shared items row */}
+              {directItems.length > 0 && (
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3, marginTop: 2 }}>
+                  <Text style={{ fontSize: 8, color: '#0066b3', fontWeight: 'bold' }}>Společné položky</Text>
+                  <Text style={{ fontSize: 8, fontWeight: 'bold', color: '#0066b3' }}>
+                    {formatCurrency(directItemsTotals.equipment + directItemsTotals.personnel + directItemsTotals.transport)}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Totals by category */}
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Technika celkem:</Text>
             <Text style={styles.summaryValue}>{formatCurrency(totalEquipment)}</Text>
@@ -571,24 +599,6 @@ export function ProjectPdfDocument({ project, offers, directItems = [], logoBase
               <Text style={[styles.summaryValue, { color: '#16a34a' }]}>
                 -{formatCurrency(totalDiscount)}
               </Text>
-            </View>
-          )}
-
-          {/* Stage breakdown */}
-          {offers.length > 0 && (
-            <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#cbd5e1' }}>
-              <Text style={{ fontSize: 8, fontWeight: 'bold', marginBottom: 4, color: '#475569' }}>
-                Rozpis stages:
-              </Text>
-              {offers.map((offer) => {
-                const label = (offer as any).set_label || formatOfferNumber(offer.offer_number, offer.year);
-                return (
-                  <View key={offer.id} style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 }}>
-                    <Text style={{ fontSize: 8, color: '#334155' }}>{label}</Text>
-                    <Text style={{ fontSize: 8, fontWeight: 'bold' }}>{formatCurrency(offer.total_amount)}</Text>
-                  </View>
-                );
-              })}
             </View>
           )}
 

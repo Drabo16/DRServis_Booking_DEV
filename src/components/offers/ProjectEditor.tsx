@@ -492,6 +492,15 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
           </div>
         </div>
         <div className="flex items-center gap-1.5">
+          <label className="flex items-center gap-1.5 cursor-pointer mr-2">
+            <input
+              type="checkbox"
+              checked={localIsVatPayer}
+              onChange={(e) => { setLocalIsVatPayer(e.target.checked); markDirty(); }}
+              className="w-4 h-4"
+            />
+            <span className="text-xs text-slate-600">Plátce DPH</span>
+          </label>
           <select
             value={localStatus}
             onChange={(e) => { setLocalStatus(e.target.value as OfferStatus); markDirty(); }}
@@ -886,27 +895,13 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
               <td colSpan={4} className="py-2 px-2">CELKEM BEZ DPH</td>
               <td className="py-2 px-2 text-right text-lg">{formatCurrency(grandTotal)}</td>
             </tr>
-            <tr className="bg-slate-100">
-              <td colSpan={3} className="py-2 px-2">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={localIsVatPayer}
-                    onChange={(e) => { setLocalIsVatPayer(e.target.checked); markDirty(); }}
-                    className="w-4 h-4"
-                  />
-                  <span className="text-slate-600">Plátce DPH (zobrazit cenu s DPH)</span>
-                </label>
-              </td>
-              {localIsVatPayer ? (
-                <>
-                  <td className="py-2 px-2 text-right text-slate-500">DPH 21%: {formatCurrency(Math.round(grandTotal * 0.21))}</td>
-                  <td className="py-2 px-2 text-right font-bold text-lg">{formatCurrency(Math.round(grandTotal * 1.21))}</td>
-                </>
-              ) : (
-                <td colSpan={2}></td>
-              )}
-            </tr>
+            {localIsVatPayer && (
+              <tr className="bg-slate-100">
+                <td colSpan={3} className="py-2 px-2 text-slate-600">CELKEM S DPH (21%)</td>
+                <td className="py-2 px-2 text-right text-slate-500">DPH: {formatCurrency(Math.round(grandTotal * 0.21))}</td>
+                <td className="py-2 px-2 text-right font-bold text-lg">{formatCurrency(Math.round(grandTotal * 1.21))}</td>
+              </tr>
+            )}
           </tfoot>
         </table>
       </div>

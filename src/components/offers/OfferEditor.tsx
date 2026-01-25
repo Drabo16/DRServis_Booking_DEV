@@ -752,35 +752,46 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
         </div>
       </div>
 
-      {/* Project assignment */}
-      <div className="flex items-center gap-3 p-2 bg-slate-50 border rounded text-xs">
-        <FolderKanban className="w-4 h-4 text-slate-400" />
-        <div className="flex items-center gap-2">
-          <span className="text-slate-600">Projekt:</span>
-          <select
-            value={localSetId || ''}
-            onChange={(e) => handleSetChange(e.target.value || null)}
-            disabled={isSaving}
-            className="h-6 text-xs border rounded px-2 min-w-[140px] disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <option value="">-- bez projektu --</option>
-            {offerSets.map((set) => (
-              <option key={set.id} value={set.id}>{set.name}</option>
-            ))}
-          </select>
-        </div>
-        {localSetId && (
+      {/* Project assignment + VAT payer */}
+      <div className="flex items-center justify-between p-2 bg-slate-50 border rounded text-xs">
+        <div className="flex items-center gap-3">
+          <FolderKanban className="w-4 h-4 text-slate-400" />
           <div className="flex items-center gap-2">
-            <span className="text-slate-600">Štítek:</span>
-            <input
-              type="text"
-              value={localSetLabel}
-              onChange={(e) => handleSetLabelChange(e.target.value)}
-              placeholder="např. Stage A"
-              className="h-6 text-xs border rounded px-2 w-24"
-            />
+            <span className="text-slate-600">Projekt:</span>
+            <select
+              value={localSetId || ''}
+              onChange={(e) => handleSetChange(e.target.value || null)}
+              disabled={isSaving}
+              className="h-6 text-xs border rounded px-2 min-w-[140px] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <option value="">-- bez projektu --</option>
+              {offerSets.map((set) => (
+                <option key={set.id} value={set.id}>{set.name}</option>
+              ))}
+            </select>
           </div>
-        )}
+          {localSetId && (
+            <div className="flex items-center gap-2">
+              <span className="text-slate-600">Štítek:</span>
+              <input
+                type="text"
+                value={localSetLabel}
+                onChange={(e) => handleSetLabelChange(e.target.value)}
+                placeholder="např. Stage A"
+                className="h-6 text-xs border rounded px-2 w-24"
+              />
+            </div>
+          )}
+        </div>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={localIsVatPayer}
+            onChange={(e) => handleVatPayerChange(e.target.checked)}
+            className="w-4 h-4"
+          />
+          <span className="text-slate-600">Plátce DPH</span>
+        </label>
       </div>
 
       {/* Add custom item button */}
@@ -914,29 +925,19 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
             </div>
           </div>
         </div>
-        <div className="border-t mt-3 pt-3 space-y-2">
-          <div className="flex justify-between items-center">
-            <span className="font-bold">CELKEM BEZ DPH</span>
-            <span className="font-bold text-lg">{formatCurrency(totalAmount)}</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={localIsVatPayer}
-                onChange={(e) => handleVatPayerChange(e.target.checked)}
-                className="w-4 h-4"
-              />
-              <span className="text-slate-600">Plátce DPH (zobrazit cenu s DPH)</span>
-            </label>
-            {localIsVatPayer && (
-              <div className="text-right">
-                <div className="text-slate-500 text-xs">DPH 21%: {formatCurrency(Math.round(totalAmount * 0.21))}</div>
-                <div className="font-bold text-lg">{formatCurrency(Math.round(totalAmount * 1.21))}</div>
-              </div>
-            )}
-          </div>
+        <div className="border-t mt-3 pt-3 flex justify-between items-center">
+          <span className="font-bold">CELKEM BEZ DPH</span>
+          <span className="font-bold text-lg">{formatCurrency(totalAmount)}</span>
         </div>
+        {localIsVatPayer && (
+          <div className="border-t mt-2 pt-2 flex justify-between items-center">
+            <span className="text-slate-600">CELKEM S DPH (21%)</span>
+            <div className="text-right">
+              <span className="text-slate-500 text-xs mr-2">DPH: {formatCurrency(Math.round(totalAmount * 0.21))}</span>
+              <span className="font-bold text-lg">{formatCurrency(Math.round(totalAmount * 1.21))}</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Instructions */}
