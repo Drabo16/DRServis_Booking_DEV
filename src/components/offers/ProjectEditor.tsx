@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -87,6 +87,7 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
 
   const [localDiscount, setLocalDiscount] = useState(0);
   const [localStatus, setLocalStatus] = useState<OfferStatus>('draft');
+  const [localIsVatPayer, setLocalIsVatPayer] = useState(true);
 
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -97,6 +98,7 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
   const [customItemName, setCustomItemName] = useState('');
   const [customItemCategory, setCustomItemCategory] = useState('Ground support');
   const [customItemPrice, setCustomItemPrice] = useState(0);
+  const [selectedTemplateIds, setSelectedTemplateIds] = useState<Set<string>>(new Set());
 
   const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
   const AUTOSAVE_DELAY = 4000; // 4 seconds - longer delay to batch more changes
@@ -126,6 +128,7 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
       setTemplates(templatesData || []);
       setLocalStatus(projectData.status || 'draft');
       setLocalDiscount(projectData.discount_percent || 0);
+      setLocalIsVatPayer(projectData.is_vat_payer ?? true);
       setLoading(false);
     } catch (e) {
       console.error('❌ Load failed:', e);
@@ -177,6 +180,7 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
         body: JSON.stringify({
           status: localStatus,
           discount_percent: localDiscount,
+          is_vat_payer: localIsVatPayer,
         }),
       });
 
@@ -256,6 +260,58 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
       alert('Chyba při přidání položky: ' + (e instanceof Error ? e.message : 'Neznámá chyba'));
     }
   }, [projectId, queryClient]);
+
+  const handleAddMultipleItems = useCallback(async () => {
+    if (selectedTemplateIds.size === 0) return;
+
+    console.log('📦 Adding multiple items:', Array.from(selectedTemplateIds));
+    try {
+      // Prepare items array for batch insert
+      const itemsToAdd = Array.from(selectedTemplateIds).map(templateId => {
+        const template = templates.find(t => t.id === templateId);
+        return {
+          template_item_id: templateId,
+          name: template?.name || '',
+          category: template?.category?.name || 'Ostatní',
+          subcategory: template?.subcategory || null,
+          unit: template?.unit || 'ks',
+          unit_price: template?.default_price || 0,
+          quantity: 1,
+          days_hours: 1,
+          sort_order: template?.sort_order || 0,
+        };
+      });
+
+      const res = await fetch(`/api/offers/sets/${projectId}/items`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: itemsToAdd }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('❌ Add multiple items failed:', res.status, errorData);
+        alert(`Chyba při přidání položek: ${errorData.error || 'Neznámá chyba'}`);
+        return;
+      }
+
+      const data = await res.json();
+      console.log('✅ Items added:', data);
+
+      if (data.items && Array.isArray(data.items)) {
+        setDirectItems(prev => [...prev, ...data.items]);
+        setShowAddItem(false);
+        setSelectedTemplateIds(new Set());
+        queryClient.invalidateQueries({ queryKey: ['offerSets'] });
+      } else {
+        console.error('❌ No items in response:', data);
+        alert('Chyba: položky nebyly vráceny ze serveru');
+      }
+    } catch (e) {
+      console.error('❌ Add multiple items exception:', e);
+      alert('Chyba při přidání položek: ' + (e instanceof Error ? e.message : 'Neznámá chyba'));
+    }
+  }, [projectId, selectedTemplateIds, templates, queryClient]);
 
   const handleUpdateItem = useCallback(async (itemId: string, field: 'quantity' | 'days_hours' | 'unit_price', value: number) => {
     // Optimistic update
@@ -483,7 +539,11 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
               size="sm"
               variant="secondary"
               className="h-6 text-xs"
-              onClick={() => { setShowAddItem(!showAddItem); setShowAddCustomItem(false); }}
+              onClick={() => {
+                setShowAddItem(!showAddItem);
+                setShowAddCustomItem(false);
+                setSelectedTemplateIds(new Set()); // Clear selection when opening
+              }}
             >
               <Plus className="w-3 h-3 mr-1" />
               Z ceníku
@@ -540,18 +600,43 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
         )}
 
         {showAddItem && (
-          <div className="p-3 bg-slate-50 border-b max-h-60 overflow-y-auto">
-            <div className="text-xs text-slate-600 mb-2">Vyberte položku z ceníku:</div>
-            <div className="space-y-1">
-              {templates.map(t => (
-                <button
-                  key={t.id}
-                  onClick={() => handleAddItem(t.id)}
-                  className="w-full text-left p-2 hover:bg-slate-100 rounded text-xs flex justify-between"
+          <div className="p-3 bg-slate-50 border-b">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-xs text-slate-600">Vyberte položky z ceníku:</div>
+              {selectedTemplateIds.size > 0 && (
+                <Button
+                  size="sm"
+                  className="h-6 text-xs"
+                  onClick={handleAddMultipleItems}
                 >
-                  <span>{t.name}</span>
+                  <Plus className="w-3 h-3 mr-1" />
+                  Přidat vybrané ({selectedTemplateIds.size})
+                </Button>
+              )}
+            </div>
+            <div className="space-y-1 max-h-60 overflow-y-auto">
+              {templates.map(t => (
+                <label
+                  key={t.id}
+                  className="w-full flex items-center gap-2 p-2 hover:bg-slate-100 rounded text-xs cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedTemplateIds.has(t.id)}
+                    onChange={(e) => {
+                      const newSet = new Set(selectedTemplateIds);
+                      if (e.target.checked) {
+                        newSet.add(t.id);
+                      } else {
+                        newSet.delete(t.id);
+                      }
+                      setSelectedTemplateIds(newSet);
+                    }}
+                    className="w-3.5 h-3.5"
+                  />
+                  <span className="flex-1">{t.name}</span>
                   <span className="text-slate-500">{formatCurrency(t.default_price)}</span>
-                </button>
+                </label>
               ))}
             </div>
           </div>
@@ -596,6 +681,7 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
                       <input
                         type="number"
                         min={0}
+                        step={100}
                         value={item.unit_price}
                         onChange={(e) => handleUpdateItem(item.id, 'unit_price', parseFloat(e.target.value) || 0)}
                         className="w-16 h-6 text-right border rounded pr-1"
@@ -673,61 +759,156 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
         )}
       </div>
 
-      {/* Summary */}
-      <div className="bg-slate-50 border rounded p-3 text-xs">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div>
-            <div className="text-slate-500 mb-0.5">Technika</div>
-            <div className="font-semibold">{formatCurrency(totalEquipment)}</div>
-          </div>
-          <div>
-            <div className="text-slate-500 mb-0.5">Personál</div>
-            <div className="font-semibold">{formatCurrency(totalPersonnel)}</div>
-          </div>
-          <div>
-            <div className="text-slate-500 mb-0.5">Doprava</div>
-            <div className="font-semibold">{formatCurrency(totalTransport)}</div>
-          </div>
-          <div>
-            <div className="text-slate-500 mb-0.5 flex items-center gap-1">
-              Sleva na projekt
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={localDiscount}
-                onChange={(e) => { setLocalDiscount(parseFloat(e.target.value) || 0); markDirty(); }}
-                className="w-10 h-5 text-center text-xs border rounded px-1"
-              />
-              %
-            </div>
-            <div className="font-semibold text-green-600">
-              {totalDiscount > 0 ? `-${formatCurrency(totalDiscount)}` : '-'}
-            </div>
-          </div>
-        </div>
-
-        {/* Stage breakdown */}
-        {project.offers && project.offers.length > 0 && (
-          <div className="border-t mt-3 pt-3">
-            <div className="text-slate-600 font-medium mb-2">Rozpis stages:</div>
-            <div className="space-y-1">
-              {project.offers.map(offer => (
-                <div key={offer.id} className="flex justify-between items-center text-xs">
-                  <span className="text-slate-700">
+      {/* Summary - Like offer format */}
+      <div className="border rounded overflow-hidden text-xs">
+        <table className="w-full">
+          <thead>
+            <tr className="bg-slate-100 text-slate-600">
+              <th className="text-left py-1.5 px-2 font-medium">Položka</th>
+              <th className="text-right py-1.5 px-2 font-medium w-24">Technika</th>
+              <th className="text-right py-1.5 px-2 font-medium w-24">Personál</th>
+              <th className="text-right py-1.5 px-2 font-medium w-24">Doprava</th>
+              <th className="text-right py-1.5 px-2 font-medium w-24">Celkem</th>
+            </tr>
+          </thead>
+          <tbody>
+            {/* Stages (sub-offers) */}
+            {project.offers && project.offers.map((offer) => (
+              <Fragment key={offer.id}>
+                <tr className="bg-slate-700 text-white">
+                  <td colSpan={4} className="py-1.5 px-2 font-medium">
                     {offer.set_label || formatOfferNumber(offer.offer_number, offer.year)}
-                  </span>
-                  <span className="font-medium">{formatCurrency(offer.total_amount)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+                    {offer.title && <span className="text-slate-300 ml-2">- {offer.title}</span>}
+                  </td>
+                  <td className="py-1.5 px-2 text-right font-medium">{formatCurrency(offer.total_amount)}</td>
+                </tr>
+                <tr className="bg-white">
+                  <td className="py-1 px-4 text-slate-600">Technika</td>
+                  <td className="py-1 px-2 text-right">{formatCurrency(offer.subtotal_equipment)}</td>
+                  <td className="py-1 px-2 text-right">-</td>
+                  <td className="py-1 px-2 text-right">-</td>
+                  <td className="py-1 px-2 text-right">{formatCurrency(offer.subtotal_equipment)}</td>
+                </tr>
+                <tr className="bg-slate-50">
+                  <td className="py-1 px-4 text-slate-600">Personál</td>
+                  <td className="py-1 px-2 text-right">-</td>
+                  <td className="py-1 px-2 text-right">{formatCurrency(offer.subtotal_personnel)}</td>
+                  <td className="py-1 px-2 text-right">-</td>
+                  <td className="py-1 px-2 text-right">{formatCurrency(offer.subtotal_personnel)}</td>
+                </tr>
+                <tr className="bg-white">
+                  <td className="py-1 px-4 text-slate-600">Doprava</td>
+                  <td className="py-1 px-2 text-right">-</td>
+                  <td className="py-1 px-2 text-right">-</td>
+                  <td className="py-1 px-2 text-right">{formatCurrency(offer.subtotal_transport)}</td>
+                  <td className="py-1 px-2 text-right">{formatCurrency(offer.subtotal_transport)}</td>
+                </tr>
+                {offer.discount_amount > 0 && (
+                  <tr className="bg-green-50">
+                    <td className="py-1 px-4 text-green-700">Sleva ({offer.discount_percent}%)</td>
+                    <td colSpan={3}></td>
+                    <td className="py-1 px-2 text-right text-green-700">-{formatCurrency(offer.discount_amount)}</td>
+                  </tr>
+                )}
+              </Fragment>
+            ))}
 
-        <div className="border-t mt-3 pt-3 flex justify-between items-center">
-          <span className="font-bold">CELKEM BEZ DPH</span>
-          <span className="font-bold text-lg">{formatCurrency(grandTotal)}</span>
-        </div>
+            {/* Direct items (Společné položky) */}
+            {directItems.length > 0 && (
+              <>
+                <tr className="bg-blue-600 text-white">
+                  <td colSpan={4} className="py-1.5 px-2 font-medium">Společné položky</td>
+                  <td className="py-1.5 px-2 text-right font-medium">
+                    {formatCurrency(directItemsTotals.equipment + directItemsTotals.personnel + directItemsTotals.transport)}
+                  </td>
+                </tr>
+                {directItemsTotals.equipment > 0 && (
+                  <tr className="bg-blue-50">
+                    <td className="py-1 px-4 text-slate-600">Technika</td>
+                    <td className="py-1 px-2 text-right">{formatCurrency(directItemsTotals.equipment)}</td>
+                    <td className="py-1 px-2 text-right">-</td>
+                    <td className="py-1 px-2 text-right">-</td>
+                    <td className="py-1 px-2 text-right">{formatCurrency(directItemsTotals.equipment)}</td>
+                  </tr>
+                )}
+                {directItemsTotals.personnel > 0 && (
+                  <tr className="bg-white">
+                    <td className="py-1 px-4 text-slate-600">Personál</td>
+                    <td className="py-1 px-2 text-right">-</td>
+                    <td className="py-1 px-2 text-right">{formatCurrency(directItemsTotals.personnel)}</td>
+                    <td className="py-1 px-2 text-right">-</td>
+                    <td className="py-1 px-2 text-right">{formatCurrency(directItemsTotals.personnel)}</td>
+                  </tr>
+                )}
+                {directItemsTotals.transport > 0 && (
+                  <tr className="bg-blue-50">
+                    <td className="py-1 px-4 text-slate-600">Doprava</td>
+                    <td className="py-1 px-2 text-right">-</td>
+                    <td className="py-1 px-2 text-right">-</td>
+                    <td className="py-1 px-2 text-right">{formatCurrency(directItemsTotals.transport)}</td>
+                    <td className="py-1 px-2 text-right">{formatCurrency(directItemsTotals.transport)}</td>
+                  </tr>
+                )}
+              </>
+            )}
+
+            {/* Subtotals */}
+            <tr className="bg-slate-200 font-medium border-t-2 border-slate-400">
+              <td className="py-1.5 px-2">Mezisoučet</td>
+              <td className="py-1.5 px-2 text-right">{formatCurrency(totalEquipment)}</td>
+              <td className="py-1.5 px-2 text-right">{formatCurrency(totalPersonnel)}</td>
+              <td className="py-1.5 px-2 text-right">{formatCurrency(totalTransport)}</td>
+              <td className="py-1.5 px-2 text-right">{formatCurrency(totalEquipment + totalPersonnel + totalTransport)}</td>
+            </tr>
+
+            {/* Discount */}
+            <tr className="bg-white">
+              <td className="py-1.5 px-2 flex items-center gap-1">
+                Sleva na projekt
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={localDiscount}
+                  onChange={(e) => { setLocalDiscount(parseFloat(e.target.value) || 0); markDirty(); }}
+                  className="w-10 h-5 text-center text-xs border rounded px-1"
+                />
+                %
+              </td>
+              <td colSpan={3}></td>
+              <td className="py-1.5 px-2 text-right font-medium text-green-600">
+                {totalDiscount > 0 ? `-${formatCurrency(totalDiscount)}` : '-'}
+              </td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr className="bg-slate-700 text-white font-bold">
+              <td colSpan={4} className="py-2 px-2">CELKEM BEZ DPH</td>
+              <td className="py-2 px-2 text-right text-lg">{formatCurrency(grandTotal)}</td>
+            </tr>
+            <tr className="bg-slate-100">
+              <td colSpan={3} className="py-2 px-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={localIsVatPayer}
+                    onChange={(e) => { setLocalIsVatPayer(e.target.checked); markDirty(); }}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-slate-600">Plátce DPH (zobrazit cenu s DPH)</span>
+                </label>
+              </td>
+              {localIsVatPayer ? (
+                <>
+                  <td className="py-2 px-2 text-right text-slate-500">DPH 21%: {formatCurrency(Math.round(grandTotal * 0.21))}</td>
+                  <td className="py-2 px-2 text-right font-bold text-lg">{formatCurrency(Math.round(grandTotal * 1.21))}</td>
+                </>
+              ) : (
+                <td colSpan={2}></td>
+              )}
+            </tr>
+          </tfoot>
+        </table>
       </div>
 
       {/* Instructions */}

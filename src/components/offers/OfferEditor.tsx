@@ -89,6 +89,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
   const [localStatus, setLocalStatus] = useState<OfferStatus>('draft');
   const [localSetId, setLocalSetId] = useState<string | null>(null);
   const [localSetLabel, setLocalSetLabel] = useState('');
+  const [localIsVatPayer, setLocalIsVatPayer] = useState(true);
 
   // Dirty tracking
   const [isDirty, setIsDirty] = useState(false);
@@ -106,6 +107,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
   const localItemsRef = useRef<LocalItem[]>([]);
   const localDiscountRef = useRef(0);
   const localStatusRef = useRef<OfferStatus>('draft');
+  const localIsVatPayerRef = useRef(true);
   const localSetIdRef = useRef<string | null>(null);
   const localSetLabelRef = useRef('');
   const isDirtyRef = useRef(false);
@@ -124,11 +126,12 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     localItemsRef.current = localItems;
     localDiscountRef.current = localDiscount;
     localStatusRef.current = localStatus;
+    localIsVatPayerRef.current = localIsVatPayer;
     localSetIdRef.current = localSetId;
     localSetLabelRef.current = localSetLabel;
     isDirtyRef.current = isDirty;
     isSavingRef.current = isSaving;
-  }, [localItems, localDiscount, localStatus, localSetId, localSetLabel, isDirty, isSaving]);
+  }, [localItems, localDiscount, localStatus, localIsVatPayer, localSetId, localSetLabel, isDirty, isSaving]);
 
   // Load data once on mount
   useEffect(() => {
@@ -154,6 +157,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
         setOfferSets(setsData || []);
         setLocalStatus(offerData.status);
         setLocalDiscount(offerData.discount_percent);
+        setLocalIsVatPayer(offerData.is_vat_payer ?? true);
         setLocalSetId(offerData.offer_set_id || null);
         setLocalSetLabel(offerData.set_label || '');
 
@@ -239,6 +243,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     const items = localItemsRef.current;
     const discount = localDiscountRef.current;
     const status = localStatusRef.current;
+    const isVatPayer = localIsVatPayerRef.current;
     const setId = localSetIdRef.current;
     const setLabel = localSetLabelRef.current;
 
@@ -284,6 +289,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
           body: JSON.stringify({
             status,
             discount_percent: discount,
+            is_vat_payer: isVatPayer,
             offer_set_id: setId,
             set_label: setLabel || null,
             recalculate: true,
@@ -434,6 +440,12 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
   // Handle discount change
   const handleDiscountChange = useCallback((value: number) => {
     setLocalDiscount(Math.max(0, Math.min(100, value)));
+    markDirty();
+  }, [markDirty]);
+
+  // Handle VAT payer change
+  const handleVatPayerChange = useCallback((value: boolean) => {
+    setLocalIsVatPayer(value);
     markDirty();
   }, [markDirty]);
 
@@ -902,9 +914,28 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
             </div>
           </div>
         </div>
-        <div className="border-t mt-3 pt-3 flex justify-between items-center">
-          <span className="font-bold">CELKEM BEZ DPH</span>
-          <span className="font-bold text-lg">{formatCurrency(totalAmount)}</span>
+        <div className="border-t mt-3 pt-3 space-y-2">
+          <div className="flex justify-between items-center">
+            <span className="font-bold">CELKEM BEZ DPH</span>
+            <span className="font-bold text-lg">{formatCurrency(totalAmount)}</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={localIsVatPayer}
+                onChange={(e) => handleVatPayerChange(e.target.checked)}
+                className="w-4 h-4"
+              />
+              <span className="text-slate-600">Plátce DPH (zobrazit cenu s DPH)</span>
+            </label>
+            {localIsVatPayer && (
+              <div className="text-right">
+                <div className="text-slate-500 text-xs">DPH 21%: {formatCurrency(Math.round(totalAmount * 0.21))}</div>
+                <div className="font-bold text-lg">{formatCurrency(Math.round(totalAmount * 1.21))}</div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1040,6 +1071,7 @@ const ItemRow = memo(function ItemRow({
           ref={(el) => registerRef(index, 'price', el)}
           type="number"
           min={0}
+          step={100}
           value={item.unitPrice}
           onChange={(e) => onItemChange(index, 'unitPrice', parseFloat(e.target.value) || 0)}
           onKeyDown={(e) => onKeyDown(e, index, 'price')}

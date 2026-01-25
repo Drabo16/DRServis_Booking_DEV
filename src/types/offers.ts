@@ -54,6 +54,7 @@ export interface Offer {
   discount_percent: number;
   discount_amount: number;
   total_amount: number;
+  is_vat_payer: boolean;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -115,6 +116,7 @@ export interface OfferSet {
   total_transport: number;
   total_discount: number;
   total_amount: number;
+  is_vat_payer: boolean;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -177,6 +179,7 @@ export interface UpdateOfferSetInput {
   status?: OfferStatus;
   valid_until?: string | null;
   notes?: string | null;
+  is_vat_payer?: boolean;
 }
 
 export interface UpdateOfferInput {
@@ -186,6 +189,7 @@ export interface UpdateOfferInput {
   valid_until?: string | null;
   notes?: string | null;
   discount_percent?: number;
+  is_vat_payer?: boolean;
 }
 
 export interface CreateOfferItemInput {

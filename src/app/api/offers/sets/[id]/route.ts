@@ -131,7 +131,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       }
     }
 
-    const { name, description, event_id, status, valid_until, notes, discount_percent } = body;
+    const { name, description, event_id, status, valid_until, notes, discount_percent, is_vat_payer } = body;
 
     const updateData: Record<string, any> = {};
     if (name !== undefined) updateData.name = name;
@@ -141,6 +141,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (valid_until !== undefined) updateData.valid_until = valid_until;
     if (notes !== undefined) updateData.notes = notes;
     if (discount_percent !== undefined) updateData.discount_percent = discount_percent;
+    if (is_vat_payer !== undefined) updateData.is_vat_payer = is_vat_payer;
 
     const { data: updated, error } = await supabase
       .from('offer_sets')

@@ -109,7 +109,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     const body = await request.json();
-    const { title, event_id, status, valid_until, notes, discount_percent, offer_set_id, set_label, recalculate } = body;
+    const { title, event_id, status, valid_until, notes, discount_percent, is_vat_payer, offer_set_id, set_label, recalculate } = body;
 
     // If recalculate is true, recalculate all totals from items
     if (recalculate) {
@@ -147,6 +147,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
       // Also update status and set fields if provided
       if (status !== undefined) updateData.status = status;
+      if (is_vat_payer !== undefined) updateData.is_vat_payer = is_vat_payer;
       if (offer_set_id !== undefined) updateData.offer_set_id = offer_set_id;
       if (set_label !== undefined) updateData.set_label = set_label;
 
@@ -187,6 +188,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (status !== undefined) updateData.status = status;
     if (valid_until !== undefined) updateData.valid_until = valid_until;
     if (notes !== undefined) updateData.notes = notes;
+    if (is_vat_payer !== undefined) updateData.is_vat_payer = is_vat_payer;
     if (offer_set_id !== undefined) updateData.offer_set_id = offer_set_id;
     if (set_label !== undefined) updateData.set_label = set_label;
 
