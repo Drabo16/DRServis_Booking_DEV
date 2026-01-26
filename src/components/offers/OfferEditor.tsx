@@ -783,19 +783,19 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
             </div>
           )}
         </div>
-        <label className="flex items-center gap-2 cursor-pointer">
+      </div>
+
+      {/* Add custom item button + VAT payer checkbox */}
+      <div className="flex items-center justify-between">
+        <label className="flex items-center gap-2 cursor-pointer bg-slate-100 px-3 py-1.5 rounded border">
           <input
             type="checkbox"
             checked={localIsVatPayer}
             onChange={(e) => handleVatPayerChange(e.target.checked)}
             className="w-4 h-4"
           />
-          <span className="text-slate-600">Plátce DPH</span>
+          <span className="text-xs font-medium text-slate-700">Plátce DPH</span>
         </label>
-      </div>
-
-      {/* Add custom item button */}
-      <div className="flex justify-end">
         <button
           onClick={() => setShowAddCustomItem(!showAddCustomItem)}
           className="h-7 px-3 text-xs bg-amber-500 hover:bg-amber-600 text-white rounded flex items-center gap-1"
