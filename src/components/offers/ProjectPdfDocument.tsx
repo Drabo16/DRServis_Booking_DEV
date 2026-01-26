@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
   },
   // Sub-offer section header
   subOfferHeader: {
-    backgroundColor: '#374151',
+    backgroundColor: '#0268B6',
     padding: 6,
     marginTop: 10,
     marginBottom: 0,
@@ -254,7 +254,7 @@ const styles = StyleSheet.create({
   pageNumber: { fontSize: 6, color: '#94a3b8' },
   // Direct items section
   directItemsHeader: {
-    backgroundColor: '#374151',
+    backgroundColor: '#0268B6',
     padding: 6,
     marginTop: 10,
   },
@@ -551,7 +551,7 @@ export function ProjectPdfDocument({ project, offers, directItems = [], logoBase
         })}
 
         {/* Summary Section Header - starts on new page */}
-        <View style={{ backgroundColor: '#0268B6', padding: 8 }} break>
+        <View style={{ backgroundColor: '#0c4a6e', padding: 8 }} break>
           <Text style={{ color: '#ffffff', fontWeight: 'bold', fontSize: 11 }}>SOUHRN NABÍDKY</Text>
         </View>
 
