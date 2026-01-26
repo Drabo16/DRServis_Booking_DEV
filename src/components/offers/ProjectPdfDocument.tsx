@@ -548,76 +548,131 @@ export function ProjectPdfDocument({ project, offers, directItems = [], logoBase
           );
         })}
 
-        {/* Grand Summary - detailed breakdown */}
-        <View style={styles.summary} wrap={false}>
-          {/* Detailed stages breakdown */}
-          {(offers.length > 0 || directItems.length > 0) && (
-            <View style={{ marginBottom: 8, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: '#cbd5e1' }}>
-              <Text style={{ fontSize: 9, fontWeight: 'bold', marginBottom: 6, color: '#1e293b' }}>
-                Rozpis nabídky:
-              </Text>
+        {/* Summary Section Header */}
+        <View style={{ backgroundColor: '#0066b3', padding: 6, marginTop: 15 }}>
+          <Text style={{ color: '#ffffff', fontWeight: 'bold', fontSize: 10 }}>SOUHRN NABÍDKY</Text>
+        </View>
 
-              {/* Each stage with category breakdown */}
-              {offers.map((offer) => {
-                const label = (offer as any).set_label || formatOfferNumber(offer.offer_number, offer.year);
-                const offerItemsByCategory = groupItemsByCategory(offer.items || []);
+        {/* Summary Table Header */}
+        <View style={styles.tableHeader}>
+          <Text style={[styles.tableHeaderText, styles.colName]}>Položka</Text>
+          <Text style={[styles.tableHeaderText, styles.colDays]}>Dny</Text>
+          <Text style={[styles.tableHeaderText, styles.colQty]}>Ks</Text>
+          <Text style={[styles.tableHeaderText, styles.colPrice]}>Kč/ks</Text>
+          <Text style={[styles.tableHeaderText, styles.colTotal]}>Celkem</Text>
+        </View>
+
+        {/* Stages breakdown in table format */}
+        {offers.map((offer) => {
+          const label = (offer as any).set_label || formatOfferNumber(offer.offer_number, offer.year);
+          const offerItemsByCategory = groupItemsByCategory(offer.items || []);
+
+          return (
+            <View key={`summary-${offer.id}`}>
+              {/* Stage header */}
+              <View style={styles.subOfferHeader}>
+                <Text style={styles.subOfferTitle}>{label}</Text>
+              </View>
+
+              {/* Categories and items for this stage */}
+              {OFFER_CATEGORY_ORDER.map((categoryName) => {
+                const items = offerItemsByCategory[categoryName];
+                if (!items || items.length === 0) return null;
+                const catTotal = items.reduce((sum, item) => sum + item.total_price, 0);
 
                 return (
-                  <View key={offer.id} style={{ marginBottom: 6 }}>
-                    <Text style={{ fontSize: 8, fontWeight: 'bold', color: '#0066b3', marginBottom: 2 }}>
-                      {label}
-                    </Text>
-                    {OFFER_CATEGORY_ORDER.map((cat) => {
-                      const catItems = offerItemsByCategory[cat];
-                      if (!catItems || catItems.length === 0) return null;
-                      const catTotal = catItems.reduce((sum, item) => sum + item.total_price, 0);
-                      return (
-                        <View key={cat} style={{ flexDirection: 'row', justifyContent: 'space-between', marginLeft: 8, marginBottom: 1 }}>
-                          <Text style={{ fontSize: 7, color: '#64748b' }}>{cat}:</Text>
-                          <Text style={{ fontSize: 7, color: '#334155' }}>{formatCurrency(catTotal)}</Text>
+                  <View key={`summary-${offer.id}-${categoryName}`}>
+                    <View style={styles.categoryHeader}>
+                      <Text style={styles.categoryTitle}>{categoryName}</Text>
+                    </View>
+                    {items.map((item, idx) => (
+                      <View
+                        key={`summary-item-${item.id}`}
+                        style={idx % 2 === 1 ? [styles.tableRow, styles.tableRowAlt] : styles.tableRow}
+                      >
+                        <View style={styles.colName}>
+                          <Text style={styles.itemName}>{item.name}</Text>
+                          {item.subcategory && <Text style={styles.itemSub}>{item.subcategory}</Text>}
                         </View>
-                      );
-                    })}
-                    {offer.discount_amount > 0 && (
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginLeft: 8, marginBottom: 1 }}>
-                        <Text style={{ fontSize: 7, color: '#16a34a' }}>Sleva ({offer.discount_percent}%):</Text>
-                        <Text style={{ fontSize: 7, color: '#16a34a' }}>-{formatCurrency(offer.discount_amount)}</Text>
+                        <Text style={[styles.colDays, { fontSize: 7 }]}>{item.days_hours}</Text>
+                        <Text style={[styles.colQty, { fontSize: 7 }]}>{item.quantity}</Text>
+                        <Text style={[styles.colPrice, { fontSize: 7 }]}>{formatCurrency(item.unit_price)}</Text>
+                        <Text style={[styles.colTotal, { fontSize: 7, fontWeight: 'bold' }]}>
+                          {formatCurrency(item.total_price)}
+                        </Text>
                       </View>
-                    )}
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginLeft: 8, marginTop: 2, paddingTop: 2, borderTopWidth: 0.5, borderTopColor: '#e2e8f0' }}>
-                      <Text style={{ fontSize: 7, fontWeight: 'bold', color: '#334155' }}>Mezisoučet:</Text>
-                      <Text style={{ fontSize: 7, fontWeight: 'bold', color: '#334155' }}>{formatCurrency(offer.total_amount)}</Text>
+                    ))}
+                    <View style={styles.categoryTotal}>
+                      <Text style={styles.categoryTotalText}>
+                        {categoryName}: {formatCurrency(catTotal)}
+                      </Text>
                     </View>
                   </View>
                 );
               })}
 
-              {/* Shared items detailed list */}
-              {directItems.length > 0 && (
-                <View style={{ marginTop: 4, paddingTop: 4, borderTopWidth: 0.5, borderTopColor: '#cbd5e1' }}>
-                  <Text style={{ fontSize: 8, fontWeight: 'bold', color: '#0066b3', marginBottom: 2 }}>
-                    Společné položky:
-                  </Text>
-                  {directItems.map((item) => (
-                    <View key={item.id} style={{ flexDirection: 'row', justifyContent: 'space-between', marginLeft: 8, marginBottom: 1 }}>
-                      <Text style={{ fontSize: 7, color: '#64748b' }}>
-                        {item.name} ({item.quantity}×{item.days_hours}d)
+              {/* Stage subtotal */}
+              <View style={styles.subOfferTotal}>
+                <Text style={styles.subOfferTotalLabel}>Mezisoučet {label}:</Text>
+                <Text style={styles.subOfferTotalValue}>{formatCurrency(offer.total_amount)}</Text>
+              </View>
+            </View>
+          );
+        })}
+
+        {/* Shared items in table format */}
+        {directItems.length > 0 && (
+          <View>
+            <View style={styles.directItemsHeader}>
+              <Text style={styles.directItemsTitle}>Společné položky</Text>
+            </View>
+            {OFFER_CATEGORY_ORDER.map((categoryName) => {
+              const items = directItemsByCategory[categoryName];
+              if (!items || items.length === 0) return null;
+              const catTotal = items.reduce((sum, item) => sum + item.total_price, 0);
+
+              return (
+                <View key={`summary-direct-${categoryName}`}>
+                  <View style={styles.categoryHeader}>
+                    <Text style={styles.categoryTitle}>{categoryName}</Text>
+                  </View>
+                  {items.map((item, idx) => (
+                    <View
+                      key={`summary-direct-item-${item.id}`}
+                      style={idx % 2 === 1 ? [styles.tableRow, styles.tableRowAlt] : styles.tableRow}
+                    >
+                      <View style={styles.colName}>
+                        <Text style={styles.itemName}>{item.name}</Text>
+                        {item.subcategory && <Text style={styles.itemSub}>{item.subcategory}</Text>}
+                      </View>
+                      <Text style={[styles.colDays, { fontSize: 7 }]}>{item.days_hours}</Text>
+                      <Text style={[styles.colQty, { fontSize: 7 }]}>{item.quantity}</Text>
+                      <Text style={[styles.colPrice, { fontSize: 7 }]}>{formatCurrency(item.unit_price)}</Text>
+                      <Text style={[styles.colTotal, { fontSize: 7, fontWeight: 'bold' }]}>
+                        {formatCurrency(item.total_price)}
                       </Text>
-                      <Text style={{ fontSize: 7, color: '#334155' }}>{formatCurrency(item.total_price)}</Text>
                     </View>
                   ))}
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginLeft: 8, marginTop: 2, paddingTop: 2, borderTopWidth: 0.5, borderTopColor: '#e2e8f0' }}>
-                    <Text style={{ fontSize: 7, fontWeight: 'bold', color: '#0066b3' }}>Mezisoučet:</Text>
-                    <Text style={{ fontSize: 7, fontWeight: 'bold', color: '#0066b3' }}>
-                      {formatCurrency(directItemsTotals.equipment + directItemsTotals.personnel + directItemsTotals.transport)}
+                  <View style={styles.categoryTotal}>
+                    <Text style={styles.categoryTotalText}>
+                      {categoryName}: {formatCurrency(catTotal)}
                     </Text>
                   </View>
                 </View>
-              )}
+              );
+            })}
+            {/* Shared items subtotal */}
+            <View style={[styles.subOfferTotal, { backgroundColor: '#dbeafe' }]}>
+              <Text style={[styles.subOfferTotalLabel, { color: '#1d4ed8' }]}>Mezisoučet Společné položky:</Text>
+              <Text style={[styles.subOfferTotalValue, { color: '#1d4ed8' }]}>
+                {formatCurrency(directItemsTotals.equipment + directItemsTotals.personnel + directItemsTotals.transport)}
+              </Text>
             </View>
-          )}
+          </View>
+        )}
 
-          {/* Totals by category */}
+        {/* Grand Total Summary */}
+        <View style={styles.summary} wrap={false}>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Technika celkem:</Text>
             <Text style={styles.summaryValue}>{formatCurrency(totalEquipment)}</Text>
