@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
   },
   // Sub-offer section header
   subOfferHeader: {
-    backgroundColor: '#0268B6',
+    backgroundColor: '#374151',
     padding: 6,
     marginTop: 10,
     marginBottom: 0,
@@ -171,18 +171,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     padding: 6,
-    backgroundColor: '#ACDAFE',
+    backgroundColor: '#f3f4f6',
     marginBottom: 3,
+    borderLeftWidth: 3,
+    borderLeftColor: '#374151',
   },
   subOfferTotalLabel: {
     fontSize: 8,
     fontWeight: 'bold',
-    color: '#0369a1',
+    color: '#374151',
   },
   subOfferTotalValue: {
     fontSize: 9,
     fontWeight: 'bold',
-    color: '#1e293b',
+    color: '#111827',
   },
   // Summary - same style as single offer
   summary: {
@@ -252,7 +254,7 @@ const styles = StyleSheet.create({
   pageNumber: { fontSize: 6, color: '#94a3b8' },
   // Direct items section
   directItemsHeader: {
-    backgroundColor: '#0268B6',
+    backgroundColor: '#374151',
     padding: 6,
     marginTop: 10,
   },
