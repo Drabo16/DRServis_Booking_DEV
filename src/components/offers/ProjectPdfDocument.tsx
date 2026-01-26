@@ -170,21 +170,24 @@ const styles = StyleSheet.create({
   subOfferTotal: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    padding: 6,
-    backgroundColor: '#f1f5f9',
+    padding: 8,
+    paddingHorizontal: 10,
+    backgroundColor: '#ffffff',
     marginBottom: 3,
-    borderLeftWidth: 3,
-    borderLeftColor: '#0268B6',
+    borderBottomWidth: 2,
+    borderBottomColor: '#1e293b',
   },
   subOfferTotalLabel: {
     fontSize: 8,
     fontWeight: 'bold',
-    color: '#1e293b',
+    color: '#374151',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   subOfferTotalValue: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: 'bold',
-    color: '#0268B6',
+    color: '#111827',
   },
   // Summary - same style as single offer
   summary: {
