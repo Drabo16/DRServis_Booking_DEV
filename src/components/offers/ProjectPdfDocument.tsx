@@ -548,30 +548,70 @@ export function ProjectPdfDocument({ project, offers, directItems = [], logoBase
           );
         })}
 
-        {/* Grand Summary - stages + shared items breakdown */}
+        {/* Grand Summary - detailed breakdown */}
         <View style={styles.summary} wrap={false}>
-          {/* Stages breakdown */}
-          {offers.length > 0 && (
+          {/* Detailed stages breakdown */}
+          {(offers.length > 0 || directItems.length > 0) && (
             <View style={{ marginBottom: 8, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: '#cbd5e1' }}>
-              <Text style={{ fontSize: 8, fontWeight: 'bold', marginBottom: 4, color: '#475569' }}>
-                Rozpis:
+              <Text style={{ fontSize: 9, fontWeight: 'bold', marginBottom: 6, color: '#1e293b' }}>
+                Rozpis nabídky:
               </Text>
+
+              {/* Each stage with category breakdown */}
               {offers.map((offer) => {
                 const label = (offer as any).set_label || formatOfferNumber(offer.offer_number, offer.year);
+                const offerItemsByCategory = groupItemsByCategory(offer.items || []);
+
                 return (
-                  <View key={offer.id} style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
-                    <Text style={{ fontSize: 8, color: '#334155' }}>{label}</Text>
-                    <Text style={{ fontSize: 8, fontWeight: 'bold' }}>{formatCurrency(offer.total_amount)}</Text>
+                  <View key={offer.id} style={{ marginBottom: 6 }}>
+                    <Text style={{ fontSize: 8, fontWeight: 'bold', color: '#0066b3', marginBottom: 2 }}>
+                      {label}
+                    </Text>
+                    {OFFER_CATEGORY_ORDER.map((cat) => {
+                      const catItems = offerItemsByCategory[cat];
+                      if (!catItems || catItems.length === 0) return null;
+                      const catTotal = catItems.reduce((sum, item) => sum + item.total_price, 0);
+                      return (
+                        <View key={cat} style={{ flexDirection: 'row', justifyContent: 'space-between', marginLeft: 8, marginBottom: 1 }}>
+                          <Text style={{ fontSize: 7, color: '#64748b' }}>{cat}:</Text>
+                          <Text style={{ fontSize: 7, color: '#334155' }}>{formatCurrency(catTotal)}</Text>
+                        </View>
+                      );
+                    })}
+                    {offer.discount_amount > 0 && (
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginLeft: 8, marginBottom: 1 }}>
+                        <Text style={{ fontSize: 7, color: '#16a34a' }}>Sleva ({offer.discount_percent}%):</Text>
+                        <Text style={{ fontSize: 7, color: '#16a34a' }}>-{formatCurrency(offer.discount_amount)}</Text>
+                      </View>
+                    )}
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginLeft: 8, marginTop: 2, paddingTop: 2, borderTopWidth: 0.5, borderTopColor: '#e2e8f0' }}>
+                      <Text style={{ fontSize: 7, fontWeight: 'bold', color: '#334155' }}>Mezisoučet:</Text>
+                      <Text style={{ fontSize: 7, fontWeight: 'bold', color: '#334155' }}>{formatCurrency(offer.total_amount)}</Text>
+                    </View>
                   </View>
                 );
               })}
-              {/* Shared items row */}
+
+              {/* Shared items detailed list */}
               {directItems.length > 0 && (
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3, marginTop: 2 }}>
-                  <Text style={{ fontSize: 8, color: '#0066b3', fontWeight: 'bold' }}>Společné položky</Text>
-                  <Text style={{ fontSize: 8, fontWeight: 'bold', color: '#0066b3' }}>
-                    {formatCurrency(directItemsTotals.equipment + directItemsTotals.personnel + directItemsTotals.transport)}
+                <View style={{ marginTop: 4, paddingTop: 4, borderTopWidth: 0.5, borderTopColor: '#cbd5e1' }}>
+                  <Text style={{ fontSize: 8, fontWeight: 'bold', color: '#0066b3', marginBottom: 2 }}>
+                    Společné položky:
                   </Text>
+                  {directItems.map((item) => (
+                    <View key={item.id} style={{ flexDirection: 'row', justifyContent: 'space-between', marginLeft: 8, marginBottom: 1 }}>
+                      <Text style={{ fontSize: 7, color: '#64748b' }}>
+                        {item.name} ({item.quantity}×{item.days_hours}d)
+                      </Text>
+                      <Text style={{ fontSize: 7, color: '#334155' }}>{formatCurrency(item.total_price)}</Text>
+                    </View>
+                  ))}
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginLeft: 8, marginTop: 2, paddingTop: 2, borderTopWidth: 0.5, borderTopColor: '#e2e8f0' }}>
+                    <Text style={{ fontSize: 7, fontWeight: 'bold', color: '#0066b3' }}>Mezisoučet:</Text>
+                    <Text style={{ fontSize: 7, fontWeight: 'bold', color: '#0066b3' }}>
+                      {formatCurrency(directItemsTotals.equipment + directItemsTotals.personnel + directItemsTotals.transport)}
+                    </Text>
+                  </View>
                 </View>
               )}
             </View>

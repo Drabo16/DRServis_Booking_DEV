@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from 'rea
 import { useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, FileDown, Save, Plus, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
+import { Loader2, ArrowLeft, FileDown, Save, Plus, Trash2, ChevronDown, ChevronRight, Share2, Layers } from 'lucide-react';
 import { useSaveStatus } from '@/contexts/SaveStatusContext';
 import {
   formatOfferNumber,
@@ -531,9 +531,13 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
       </div>
 
       {/* Direct Items Section */}
-      <div className="border rounded">
-        <div className="flex items-center justify-between p-3 bg-blue-600 text-white">
-          <span className="font-medium text-sm">Společné položky</span>
+      <div className="border-2 border-blue-300 rounded-lg shadow-sm">
+        <div className="flex items-center justify-between p-3 bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-t-md">
+          <div className="flex items-center gap-2">
+            <Share2 className="w-4 h-4" />
+            <span className="font-semibold text-sm">Společné položky</span>
+            <span className="text-blue-200 text-xs">(sdílené pro všechny stages)</span>
+          </div>
           <div className="flex items-center gap-2">
             <Button
               size="sm"
@@ -709,29 +713,35 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
         )}
       </div>
 
-      {/* Sub-offers */}
-      <div className="border rounded">
-        <div className="p-3 bg-slate-100 font-medium text-sm">Podnabídky</div>
+      {/* Sub-offers / Stages */}
+      <div className="border-2 border-amber-300 rounded-lg shadow-sm">
+        <div className="flex items-center justify-between p-3 bg-gradient-to-r from-amber-500 to-amber-400 text-white rounded-t-md">
+          <div className="flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            <span className="font-semibold text-sm">Stages / Podnabídky</span>
+            <span className="text-amber-100 text-xs">({project.offers?.length || 0} stages)</span>
+          </div>
+        </div>
         {(!project.offers || project.offers.length === 0) ? (
           <div className="p-4 text-center text-sm text-slate-400">
             Žádné podnabídky - přiřaďte nabídky z editoru nabídky
           </div>
         ) : (
-          <div className="divide-y">
+          <div className="divide-y divide-amber-100">
             {project.offers.map(offer => (
-              <div key={offer.id}>
+              <div key={offer.id} className="bg-amber-50/30">
                 <div
-                  className="flex items-center justify-between p-3 hover:bg-slate-50 cursor-pointer"
+                  className="flex items-center justify-between p-3 hover:bg-amber-50 cursor-pointer"
                   onClick={() => toggleOffer(offer.id)}
                 >
                   <div className="flex items-center gap-2">
                     {expandedOffers.has(offer.id) ? (
-                      <ChevronDown className="w-4 h-4 text-slate-400" />
+                      <ChevronDown className="w-4 h-4 text-amber-500" />
                     ) : (
-                      <ChevronRight className="w-4 h-4 text-slate-400" />
+                      <ChevronRight className="w-4 h-4 text-amber-500" />
                     )}
                     <div>
-                      <div className="text-sm font-medium">
+                      <div className="text-sm font-medium text-amber-900">
                         {offer.set_label || formatOfferNumber(offer.offer_number, offer.year)}
                       </div>
                       <div className="text-xs text-slate-500">{offer.title}</div>
@@ -741,11 +751,11 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
                     <Badge className={`text-xs ${OFFER_STATUS_COLORS[offer.status]}`}>
                       {OFFER_STATUS_LABELS[offer.status]}
                     </Badge>
-                    <span className="font-semibold text-sm">{formatCurrency(offer.total_amount)}</span>
+                    <span className="font-semibold text-sm text-amber-800">{formatCurrency(offer.total_amount)}</span>
                     <Button
                       size="sm"
-                      variant="ghost"
-                      className="h-6 text-xs"
+                      variant="outline"
+                      className="h-6 text-xs border-amber-300 hover:bg-amber-100"
                       onClick={(e) => { e.stopPropagation(); onOfferSelect(offer.id); }}
                     >
                       Upravit
@@ -753,7 +763,7 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
                   </div>
                 </div>
                 {expandedOffers.has(offer.id) && (
-                  <div className="px-8 pb-3 text-xs text-slate-600 grid grid-cols-4 gap-2">
+                  <div className="px-8 pb-3 text-xs text-slate-600 grid grid-cols-4 gap-2 bg-amber-50/50">
                     <div>Technika: {formatCurrency(offer.subtotal_equipment)}</div>
                     <div>Personál: {formatCurrency(offer.subtotal_personnel)}</div>
                     <div>Doprava: {formatCurrency(offer.subtotal_transport)}</div>
