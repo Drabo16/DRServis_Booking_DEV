@@ -611,47 +611,38 @@ export function ProjectPdfDocument({ project, offers, directItems = [], logoBase
           );
         })}
 
-        {/* Shared items in table format */}
+        {/* Shared items in table format - no categories, just a flat list */}
         {directItems.length > 0 && (
           <View>
             <View style={styles.directItemsHeader}>
               <Text style={styles.directItemsTitle}>Společné položky</Text>
             </View>
-            {OFFER_CATEGORY_ORDER.map((categoryName) => {
-              const items = directItemsByCategory[categoryName];
-              if (!items || items.length === 0) return null;
-              const catTotal = items.reduce((sum, item) => sum + item.total_price, 0);
-
-              return (
-                <View key={`summary-direct-${categoryName}`}>
-                  <View style={styles.categoryHeader}>
-                    <Text style={styles.categoryTitle}>{categoryName}</Text>
-                  </View>
-                  {items.map((item, idx) => (
-                    <View
-                      key={`summary-direct-item-${item.id}`}
-                      style={idx % 2 === 1 ? [styles.tableRow, styles.tableRowAlt] : styles.tableRow}
-                    >
-                      <View style={styles.colName}>
-                        <Text style={styles.itemName}>{item.name}</Text>
-                        {item.subcategory && <Text style={styles.itemSub}>{item.subcategory}</Text>}
-                      </View>
-                      <Text style={[styles.colDays, { fontSize: 7 }]}>{item.days_hours}</Text>
-                      <Text style={[styles.colQty, { fontSize: 7 }]}>{item.quantity}</Text>
-                      <Text style={[styles.colPrice, { fontSize: 7 }]}>{formatCurrency(item.unit_price)}</Text>
-                      <Text style={[styles.colTotal, { fontSize: 7, fontWeight: 'bold' }]}>
-                        {formatCurrency(item.total_price)}
-                      </Text>
-                    </View>
-                  ))}
-                  <View style={styles.categoryTotal}>
-                    <Text style={styles.categoryTotalText}>
-                      {categoryName}: {formatCurrency(catTotal)}
-                    </Text>
-                  </View>
+            {/* Table header for shared items */}
+            <View style={styles.tableHeader}>
+              <Text style={[styles.tableHeaderText, styles.colName]}>Položka</Text>
+              <Text style={[styles.tableHeaderText, styles.colDays]}>Dny</Text>
+              <Text style={[styles.tableHeaderText, styles.colQty]}>Ks</Text>
+              <Text style={[styles.tableHeaderText, styles.colPrice]}>Kč/ks</Text>
+              <Text style={[styles.tableHeaderText, styles.colTotal]}>Celkem</Text>
+            </View>
+            {/* All items in a flat list */}
+            {directItems.map((item, idx) => (
+              <View
+                key={`summary-direct-item-${item.id}`}
+                style={idx % 2 === 1 ? [styles.tableRow, styles.tableRowAlt] : styles.tableRow}
+              >
+                <View style={styles.colName}>
+                  <Text style={styles.itemName}>{item.name}</Text>
+                  {item.subcategory && <Text style={styles.itemSub}>{item.subcategory}</Text>}
                 </View>
-              );
-            })}
+                <Text style={[styles.colDays, { fontSize: 7 }]}>{item.days_hours}</Text>
+                <Text style={[styles.colQty, { fontSize: 7 }]}>{item.quantity}</Text>
+                <Text style={[styles.colPrice, { fontSize: 7 }]}>{formatCurrency(item.unit_price)}</Text>
+                <Text style={[styles.colTotal, { fontSize: 7, fontWeight: 'bold' }]}>
+                  {formatCurrency(item.total_price)}
+                </Text>
+              </View>
+            ))}
             {/* Shared items subtotal */}
             <View style={[styles.subOfferTotal, { backgroundColor: '#dbeafe' }]}>
               <Text style={[styles.subOfferTotalLabel, { color: '#1d4ed8' }]}>Mezisoučet Společné položky:</Text>
