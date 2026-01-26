@@ -171,7 +171,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     padding: 6,
-    backgroundColor: '#e0f2fe',
+    backgroundColor: '#ACDAFE',
     marginBottom: 3,
   },
   subOfferTotalLabel: {
@@ -644,9 +644,9 @@ export function ProjectPdfDocument({ project, offers, directItems = [], logoBase
               </View>
             ))}
             {/* Shared items subtotal */}
-            <View style={[styles.subOfferTotal, { backgroundColor: '#dbeafe' }]}>
-              <Text style={[styles.subOfferTotalLabel, { color: '#1d4ed8' }]}>Mezisoučet Společné položky:</Text>
-              <Text style={[styles.subOfferTotalValue, { color: '#1d4ed8' }]}>
+            <View style={styles.subOfferTotal}>
+              <Text style={styles.subOfferTotalLabel}>Mezisoučet Společné položky:</Text>
+              <Text style={styles.subOfferTotalValue}>
                 {formatCurrency(directItemsTotals.equipment + directItemsTotals.personnel + directItemsTotals.transport)}
               </Text>
             </View>
