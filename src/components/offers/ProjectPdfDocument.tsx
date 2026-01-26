@@ -548,21 +548,18 @@ export function ProjectPdfDocument({ project, offers, directItems = [], logoBase
           );
         })}
 
-        {/* Summary Section Header */}
-        <View style={{ backgroundColor: '#0066b3', padding: 6, marginTop: 15 }}>
+        {/* Summary Section Header - starts on new page */}
+        <View style={{ backgroundColor: '#0066b3', padding: 6 }} break>
           <Text style={{ color: '#ffffff', fontWeight: 'bold', fontSize: 10 }}>SOUHRN NABÍDKY</Text>
         </View>
 
         {/* Summary Table Header */}
         <View style={styles.tableHeader}>
-          <Text style={[styles.tableHeaderText, styles.colName]}>Položka</Text>
-          <Text style={[styles.tableHeaderText, styles.colDays]}>Dny</Text>
-          <Text style={[styles.tableHeaderText, styles.colQty]}>Ks</Text>
-          <Text style={[styles.tableHeaderText, styles.colPrice]}>Kč/ks</Text>
-          <Text style={[styles.tableHeaderText, styles.colTotal]}>Celkem</Text>
+          <Text style={[styles.tableHeaderText, { width: '60%' }]}>Položka</Text>
+          <Text style={[styles.tableHeaderText, { width: '40%', textAlign: 'right' }]}>Celkem</Text>
         </View>
 
-        {/* Stages breakdown in table format */}
+        {/* Stages breakdown - only category totals */}
         {offers.map((offer) => {
           const label = (offer as any).set_label || formatOfferNumber(offer.offer_number, offer.year);
           const offerItemsByCategory = groupItemsByCategory(offer.items || []);
@@ -574,42 +571,36 @@ export function ProjectPdfDocument({ project, offers, directItems = [], logoBase
                 <Text style={styles.subOfferTitle}>{label}</Text>
               </View>
 
-              {/* Categories and items for this stage */}
-              {OFFER_CATEGORY_ORDER.map((categoryName) => {
+              {/* Category totals only (no individual items) */}
+              {OFFER_CATEGORY_ORDER.map((categoryName, idx) => {
                 const items = offerItemsByCategory[categoryName];
                 if (!items || items.length === 0) return null;
                 const catTotal = items.reduce((sum, item) => sum + item.total_price, 0);
 
                 return (
-                  <View key={`summary-${offer.id}-${categoryName}`}>
-                    <View style={styles.categoryHeader}>
-                      <Text style={styles.categoryTitle}>{categoryName}</Text>
-                    </View>
-                    {items.map((item, idx) => (
-                      <View
-                        key={`summary-item-${item.id}`}
-                        style={idx % 2 === 1 ? [styles.tableRow, styles.tableRowAlt] : styles.tableRow}
-                      >
-                        <View style={styles.colName}>
-                          <Text style={styles.itemName}>{item.name}</Text>
-                          {item.subcategory && <Text style={styles.itemSub}>{item.subcategory}</Text>}
-                        </View>
-                        <Text style={[styles.colDays, { fontSize: 7 }]}>{item.days_hours}</Text>
-                        <Text style={[styles.colQty, { fontSize: 7 }]}>{item.quantity}</Text>
-                        <Text style={[styles.colPrice, { fontSize: 7 }]}>{formatCurrency(item.unit_price)}</Text>
-                        <Text style={[styles.colTotal, { fontSize: 7, fontWeight: 'bold' }]}>
-                          {formatCurrency(item.total_price)}
-                        </Text>
-                      </View>
-                    ))}
-                    <View style={styles.categoryTotal}>
-                      <Text style={styles.categoryTotalText}>
-                        {categoryName}: {formatCurrency(catTotal)}
-                      </Text>
-                    </View>
+                  <View
+                    key={`summary-${offer.id}-${categoryName}`}
+                    style={[styles.tableRow, idx % 2 === 1 ? styles.tableRowAlt : {}]}
+                  >
+                    <Text style={{ width: '60%', fontSize: 8 }}>{categoryName}</Text>
+                    <Text style={{ width: '40%', fontSize: 8, fontWeight: 'bold', textAlign: 'right' }}>
+                      {formatCurrency(catTotal)}
+                    </Text>
                   </View>
                 );
               })}
+
+              {/* Stage discount if any */}
+              {offer.discount_amount > 0 && (
+                <View style={[styles.tableRow, { backgroundColor: '#f0fdf4' }]}>
+                  <Text style={{ width: '60%', fontSize: 8, color: '#16a34a' }}>
+                    Sleva ({offer.discount_percent}%)
+                  </Text>
+                  <Text style={{ width: '40%', fontSize: 8, fontWeight: 'bold', textAlign: 'right', color: '#16a34a' }}>
+                    -{formatCurrency(offer.discount_amount)}
+                  </Text>
+                </View>
+              )}
 
               {/* Stage subtotal */}
               <View style={styles.subOfferTotal}>
