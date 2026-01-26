@@ -362,9 +362,25 @@ export function OfferPdfDocument({ offer, logoBase64 }: OfferPdfDocumentProps) {
           )}
 
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>CELKOVÁ CENA BEZ DPH:</Text>
+            <Text style={styles.totalLabel}>
+              {offer.is_vat_payer !== false ? 'CELKEM BEZ DPH:' : 'CELKOVÁ CENA:'}
+            </Text>
             <Text style={styles.totalValue}>{formatCurrency(offer.total_amount)}</Text>
           </View>
+
+          {/* DPH section - only for VAT payers */}
+          {offer.is_vat_payer !== false && (
+            <>
+              <View style={[styles.summaryRow, { marginTop: 6 }]}>
+                <Text style={styles.summaryLabel}>DPH (21%):</Text>
+                <Text style={styles.summaryValue}>{formatCurrency(Math.round(offer.total_amount * 0.21))}</Text>
+              </View>
+              <View style={[styles.totalRow, { marginTop: 4, paddingTop: 4 }]}>
+                <Text style={styles.totalLabel}>CELKEM S DPH:</Text>
+                <Text style={styles.totalValue}>{formatCurrency(Math.round(offer.total_amount * 1.21))}</Text>
+              </View>
+            </>
+          )}
         </View>
 
         {/* Valid Until */}
