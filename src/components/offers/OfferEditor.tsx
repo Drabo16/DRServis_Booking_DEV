@@ -90,6 +90,8 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
   const [localSetId, setLocalSetId] = useState<string | null>(null);
   const [localSetLabel, setLocalSetLabel] = useState('');
   const [localIsVatPayer, setLocalIsVatPayer] = useState(true);
+  const [localTitle, setLocalTitle] = useState('');
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
 
   // Dirty tracking
   const [isDirty, setIsDirty] = useState(false);
@@ -110,6 +112,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
   const localIsVatPayerRef = useRef(true);
   const localSetIdRef = useRef<string | null>(null);
   const localSetLabelRef = useRef('');
+  const localTitleRef = useRef('');
   const isDirtyRef = useRef(false);
   const isSavingRef = useRef(false);
 
@@ -129,9 +132,10 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     localIsVatPayerRef.current = localIsVatPayer;
     localSetIdRef.current = localSetId;
     localSetLabelRef.current = localSetLabel;
+    localTitleRef.current = localTitle;
     isDirtyRef.current = isDirty;
     isSavingRef.current = isSaving;
-  }, [localItems, localDiscount, localStatus, localIsVatPayer, localSetId, localSetLabel, isDirty, isSaving]);
+  }, [localItems, localDiscount, localStatus, localIsVatPayer, localSetId, localSetLabel, localTitle, isDirty, isSaving]);
 
   // Load data once on mount
   useEffect(() => {
@@ -160,6 +164,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
         setLocalIsVatPayer(offerData.is_vat_payer ?? true);
         setLocalSetId(offerData.offer_set_id || null);
         setLocalSetLabel(offerData.set_label || '');
+        setLocalTitle(offerData.title || '');
 
         // Build local items from templates + offer
         buildLocalItems(templatesData, offerData);
@@ -246,6 +251,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     const isVatPayer = localIsVatPayerRef.current;
     const setId = localSetIdRef.current;
     const setLabel = localSetLabelRef.current;
+    const title = localTitleRef.current;
 
     try {
       // OPTIMIZATION: Prepare batch operations - only save CHANGED items
@@ -292,6 +298,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
             is_vat_payer: isVatPayer,
             offer_set_id: setId,
             set_label: setLabel || null,
+            title: title || null,
             recalculate: true,
           }),
         })
@@ -517,6 +524,12 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     markDirty(); // This will trigger auto-save after 4s
   }, [markDirty]);
 
+  // Handle title change
+  const handleTitleChange = useCallback((title: string) => {
+    setLocalTitle(title);
+    markDirty();
+  }, [markDirty]);
+
   // Handle add custom item - OPTIMIZED: optimistic update instead of full reload
   const handleAddCustomItem = useCallback(async () => {
     if (!customItemName.trim()) return;
@@ -700,7 +713,31 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
                 {formatOfferNumber(offer.offer_number, offer.year)}
               </span>
               <span className="text-slate-400 text-sm">-</span>
-              <span className="text-slate-600 text-sm">{offer.title}</span>
+              {isEditingTitle ? (
+                <input
+                  type="text"
+                  value={localTitle}
+                  onChange={(e) => handleTitleChange(e.target.value)}
+                  onBlur={() => setIsEditingTitle(false)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') setIsEditingTitle(false);
+                    if (e.key === 'Escape') {
+                      setLocalTitle(offer.title);
+                      setIsEditingTitle(false);
+                    }
+                  }}
+                  autoFocus
+                  className="text-slate-600 text-sm border-b border-blue-500 bg-blue-50 px-1 outline-none min-w-[150px]"
+                />
+              ) : (
+                <span
+                  className="text-slate-600 text-sm cursor-pointer hover:bg-slate-100 px-1 rounded"
+                  onClick={() => setIsEditingTitle(true)}
+                  title="Klikněte pro úpravu názvu"
+                >
+                  {localTitle || offer.title}
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2 mt-0.5">
               <Badge className={`text-xs ${OFFER_STATUS_COLORS[localStatus]}`}>
@@ -981,9 +1018,10 @@ const CategoryBlock = memo(function CategoryBlock({
         <td className="py-1 px-1 text-center">
           <input
             type="number"
-            min={1}
+            min={0.5}
+            step={0.5}
             value={commonDays}
-            onChange={(e) => onCategoryDaysChange(category, parseInt(e.target.value) || 1)}
+            onChange={(e) => onCategoryDaysChange(category, parseFloat(e.target.value) || 1)}
             onClick={(e) => e.stopPropagation()}
             onFocus={(e) => e.target.select()}
             className="w-10 h-5 text-center text-xs bg-slate-600 border border-slate-500 rounded text-white focus:bg-slate-500 focus:outline-none"
@@ -1044,9 +1082,10 @@ const ItemRow = memo(function ItemRow({
         <input
           ref={(el) => registerRef(index, 'days', el)}
           type="number"
-          min={1}
+          min={0.5}
+          step={0.5}
           value={item.days}
-          onChange={(e) => onItemChange(index, 'days', parseInt(e.target.value) || 1)}
+          onChange={(e) => onItemChange(index, 'days', parseFloat(e.target.value) || 1)}
           onKeyDown={(e) => onKeyDown(e, index, 'days')}
           onFocus={(e) => e.target.select()}
           className="w-12 h-6 text-center text-xs border rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"

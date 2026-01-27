@@ -677,9 +677,10 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
                       <span className="flex-1 truncate" title={item.name}>{item.name}</span>
                       <input
                         type="number"
-                        min={1}
+                        min={0.5}
+                        step={0.5}
                         value={item.days_hours}
-                        onChange={(e) => handleUpdateItem(item.id, 'days_hours', parseInt(e.target.value) || 1)}
+                        onChange={(e) => handleUpdateItem(item.id, 'days_hours', parseFloat(e.target.value) || 1)}
                         className="w-12 h-6 text-center border rounded"
                         title="Dny"
                       />
