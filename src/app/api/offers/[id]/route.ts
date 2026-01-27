@@ -145,7 +145,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         total_amount,
       };
 
-      // Also update status and set fields if provided
+      // Also update status, title and set fields if provided
+      if (title !== undefined) updateData.title = title;
       if (status !== undefined) updateData.status = status;
       if (is_vat_payer !== undefined) updateData.is_vat_payer = is_vat_payer;
       if (offer_set_id !== undefined) updateData.offer_set_id = offer_set_id;
