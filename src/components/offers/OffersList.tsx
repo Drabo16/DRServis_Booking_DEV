@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useMemo } from 'react';
-import { useOffers, useDeleteOffer } from '@/hooks/useOffers';
+import { useOffers, useDeleteOffer, useDuplicateOffer } from '@/hooks/useOffers';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -53,6 +53,7 @@ export default function OffersList({ onOfferSelect, isAdmin }: OffersListProps) 
   });
 
   const deleteOffer = useDeleteOffer();
+  const duplicateOffer = useDuplicateOffer();
 
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setSearch(e.target.value);
@@ -67,6 +68,19 @@ export default function OffersList({ onOfferSelect, isAdmin }: OffersListProps) 
       console.error('Failed to delete offer:', error);
     }
   }, [deleteOffer]);
+
+  const handleDuplicate = useCallback(async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const result = await duplicateOffer.mutateAsync(id);
+      if (result.offer) {
+        onOfferSelect(result.offer.id);
+      }
+    } catch (error) {
+      console.error('Failed to duplicate offer:', error);
+      alert('Nepodařilo se duplikovat nabídku');
+    }
+  }, [duplicateOffer, onOfferSelect]);
 
   // Get unique years from offers
   const years = useMemo(() => {
@@ -193,12 +207,12 @@ export default function OffersList({ onOfferSelect, isAdmin }: OffersListProps) 
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={(e) => {
-                          e.stopPropagation();
-                          // TODO: Implement duplicate
-                        }}>
+                        <DropdownMenuItem
+                          onClick={(e) => handleDuplicate(offer.id, e)}
+                          disabled={duplicateOffer.isPending}
+                        >
                           <Copy className="w-4 h-4 mr-2" />
-                          Duplikovat
+                          {duplicateOffer.isPending ? 'Duplikuji...' : 'Duplikovat'}
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           className="text-red-600"

@@ -212,6 +212,22 @@ export function useDeleteOffer() {
   });
 }
 
+export function useDuplicateOffer() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await fetch(`/api/offers/${id}/duplicate`, {
+        method: 'POST',
+      });
+      if (!response.ok) throw new Error('Failed to duplicate offer');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: offerKeys.lists() });
+    },
+  });
+}
+
 // =====================================================
 // Offer Items Hooks
 // =====================================================
