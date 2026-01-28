@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getProfileWithFallback } from '@/lib/supabase/server';
 import EventsClientWrapper from '@/components/events/EventsClientWrapper';
 
 // Disable SSR caching - let React Query handle it
@@ -22,12 +22,8 @@ export default async function HomePage() {
     );
   }
 
-  // Načti profil pro kontrolu role
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, id')
-    .eq('auth_user_id', user.id)
-    .single();
+  // Načti profil s fallbackem na email lookup
+  const profile = await getProfileWithFallback(supabase, user);
 
   const isAdmin = profile?.role === 'admin';
 

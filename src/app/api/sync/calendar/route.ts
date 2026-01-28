@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getProfileWithFallback } from '@/lib/supabase/server';
 import { fetchCalendarEvents } from '@/lib/google/calendar';
 
 /**
@@ -19,12 +19,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get profile and check permissions
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id, role, email')
-      .eq('auth_user_id', user.id)
-      .single();
+    // Get profile with fallback to email lookup
+    const profile = await getProfileWithFallback(supabase, user);
 
     if (!profile) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });

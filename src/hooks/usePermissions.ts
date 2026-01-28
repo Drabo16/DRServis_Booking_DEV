@@ -49,7 +49,7 @@ export function useMyPermissions() {
   return useQuery({
     queryKey: ['myPermissions'],
     queryFn: fetchMyPermissions,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 30, // 30 seconds - refresh more often for permission changes
   });
 }
 
@@ -88,6 +88,8 @@ export function useUpdateUserPermissions() {
     onSuccess: (_, { userId }) => {
       queryClient.invalidateQueries({ queryKey: ['userPermissions', userId] });
       queryClient.invalidateQueries({ queryKey: ['users'] });
+      // Also invalidate myPermissions in case user updated their own permissions
+      queryClient.invalidateQueries({ queryKey: ['myPermissions'] });
     },
   });
 }

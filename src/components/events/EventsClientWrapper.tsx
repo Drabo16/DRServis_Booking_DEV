@@ -29,6 +29,23 @@ export default function EventsClientWrapper({ isAdmin, userId }: EventsClientWra
   // Can see all events = admin OR has booking_view OR has any booking management permission
   const canSeeAllEvents = isAdmin || hasBookingView || hasManageEvents || hasManagePositions || hasInvite;
 
+  // DEBUG: Log permissions state to browser console
+  console.log('[DEBUG EventsClientWrapper]', {
+    permissions: permissions ? {
+      is_admin: permissions.is_admin,
+      is_supervisor: permissions.is_supervisor,
+      permissions_count: permissions.permissions?.length,
+      permissions_with_true: permissions.permissions?.filter(p => p.has_permission).map(p => p.code),
+    } : null,
+    isAdmin,
+    hasBookingView,
+    hasManageEvents,
+    hasManagePositions,
+    hasInvite,
+    canSeeAllEvents,
+    eventsCount: events.length,
+  });
+
   // Can manage events like an admin (full booking access)
   const hasFullBookingAccess = isAdmin || hasManageEvents || hasManagePositions || hasInvite || hasManageFolders;
 

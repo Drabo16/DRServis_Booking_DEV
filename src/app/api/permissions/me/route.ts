@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getProfileWithFallback } from '@/lib/supabase/server';
 
 // GET /api/permissions/me - Get current user's permissions
 export async function GET(request: NextRequest) {
@@ -11,14 +11,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get current user profile
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('id, email, full_name, role')
-      .eq('auth_user_id', user.id)
-      .single();
+    // Get current user profile with fallback to email lookup
+    const profile = await getProfileWithFallback(supabase, user);
 
-    if (profileError || !profile) {
+    if (!profile) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 

@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getProfileWithFallback } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
@@ -20,12 +20,8 @@ export default async function DashboardLayout({
     redirect('/login');
   }
 
-  // Načti profil uživatele (linked by auth_user_id)
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('auth_user_id', user.id)
-    .single();
+  // Načti profil uživatele s fallbackem na email lookup
+  const profile = await getProfileWithFallback(supabase, user);
 
   return (
     <SidebarProvider>
