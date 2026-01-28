@@ -17,19 +17,28 @@ export default function EventsClientWrapper({ isAdmin, userId }: EventsClientWra
   // Use React Query for data fetching with aggressive caching
   const { data: events = [], isLoading: eventsLoading, error: eventsError, refetch } = useEvents();
   const { data: technicians = [] } = useTechnicians();
-  const { data: permissions } = useMyPermissions();
+  const { data: permissions, isLoading: permissionsLoading } = useMyPermissions();
 
-  // Can see all events = admin/supervisor OR has booking_manage_events permission
-  const canSeeAllEvents = isAdmin || canPerformAction(permissions, 'booking_manage_events');
-  // Can manage events (invite, edit positions etc.)
-  const canManageEvents = isAdmin || canPerformAction(permissions, 'booking_manage_events');
+  // Permission checks - user with ANY booking permission should see all events
+  const hasBookingView = canPerformAction(permissions, 'booking_view');
+  const hasManageEvents = canPerformAction(permissions, 'booking_manage_events');
+  const hasManagePositions = canPerformAction(permissions, 'booking_manage_positions');
+  const hasInvite = canPerformAction(permissions, 'booking_invite');
+  const hasManageFolders = canPerformAction(permissions, 'booking_manage_folders');
 
-  if (eventsLoading) {
+  // Can see all events = admin OR has booking_view OR has any booking management permission
+  const canSeeAllEvents = isAdmin || hasBookingView || hasManageEvents || hasManagePositions || hasInvite;
+
+  // Can manage events like an admin (full booking access)
+  const hasFullBookingAccess = isAdmin || hasManageEvents || hasManagePositions || hasInvite || hasManageFolders;
+
+  // Show loading while either events or permissions are loading
+  if (eventsLoading || permissionsLoading) {
     return (
       <div className="w-full">
         <div className="mb-4 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-slate-900">
-            {canSeeAllEvents ? 'Akce' : 'Moje akce'}
+            Akce
           </h1>
         </div>
         <EventCardSkeletonList count={5} />
@@ -53,7 +62,7 @@ export default function EventsClientWrapper({ isAdmin, userId }: EventsClientWra
     );
   }
 
-  // Filter events - users with booking_manage_events permission see all, others only their assignments
+  // Filter events - users with booking permissions see all, others only their assignments
   const filteredEvents = canSeeAllEvents
     ? events
     : events.filter((event) =>
@@ -65,7 +74,7 @@ export default function EventsClientWrapper({ isAdmin, userId }: EventsClientWra
   return (
     <EventsWithSidebar
       events={filteredEvents}
-      isAdmin={canManageEvents}
+      isAdmin={hasFullBookingAccess}
       userId={userId}
       allTechnicians={technicians}
     />

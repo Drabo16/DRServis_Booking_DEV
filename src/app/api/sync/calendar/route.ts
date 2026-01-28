@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     // Get profile and check permissions
     const { data: profile } = await supabase
       .from('profiles')
-      .select('id, role')
+      .select('id, role, email')
       .eq('auth_user_id', user.id)
       .single();
 
@@ -33,9 +33,17 @@ export async function POST(request: NextRequest) {
     // Admin has full access
     const isAdmin = profile.role === 'admin';
 
-    // Check booking_manage_events permission if not admin
-    let hasPermission = isAdmin;
-    if (!isAdmin) {
+    // Check if supervisor
+    const { data: supervisorCheck } = await supabase
+      .from('supervisor_emails')
+      .select('email')
+      .ilike('email', profile.email)
+      .single();
+    const isSupervisor = !!supervisorCheck;
+
+    // Check booking_manage_events permission if not admin/supervisor
+    let hasPermission = isAdmin || isSupervisor;
+    if (!hasPermission) {
       const { data: permission } = await supabase
         .from('user_permissions')
         .select('id')
