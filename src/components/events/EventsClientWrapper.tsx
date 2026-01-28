@@ -2,6 +2,7 @@
 
 import { useEvents } from '@/hooks/useEvents';
 import { useTechnicians } from '@/hooks/useTechnicians';
+import { useMyPermissions, canPerformAction } from '@/hooks/usePermissions';
 import EventsWithSidebar from './EventsWithSidebar';
 import { EventCardSkeletonList } from './EventCardSkeleton';
 import { AlertCircle, RefreshCw } from 'lucide-react';
@@ -16,13 +17,19 @@ export default function EventsClientWrapper({ isAdmin, userId }: EventsClientWra
   // Use React Query for data fetching with aggressive caching
   const { data: events = [], isLoading: eventsLoading, error: eventsError, refetch } = useEvents();
   const { data: technicians = [] } = useTechnicians();
+  const { data: permissions } = useMyPermissions();
+
+  // Can see all events = admin/supervisor OR has booking_manage_events permission
+  const canSeeAllEvents = isAdmin || canPerformAction(permissions, 'booking_manage_events');
+  // Can manage events (invite, edit positions etc.)
+  const canManageEvents = isAdmin || canPerformAction(permissions, 'booking_manage_events');
 
   if (eventsLoading) {
     return (
       <div className="w-full">
         <div className="mb-4 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-slate-900">
-            {isAdmin ? 'Akce' : 'Moje akce'}
+            {canSeeAllEvents ? 'Akce' : 'Moje akce'}
           </h1>
         </div>
         <EventCardSkeletonList count={5} />
@@ -46,8 +53,8 @@ export default function EventsClientWrapper({ isAdmin, userId }: EventsClientWra
     );
   }
 
-  // Filter events for non-admin users (show only their assignments)
-  const filteredEvents = isAdmin
+  // Filter events - users with booking_manage_events permission see all, others only their assignments
+  const filteredEvents = canSeeAllEvents
     ? events
     : events.filter((event) =>
         event.positions?.some((position) =>
@@ -58,7 +65,7 @@ export default function EventsClientWrapper({ isAdmin, userId }: EventsClientWra
   return (
     <EventsWithSidebar
       events={filteredEvents}
-      isAdmin={isAdmin}
+      isAdmin={canManageEvents}
       userId={userId}
       allTechnicians={technicians}
     />

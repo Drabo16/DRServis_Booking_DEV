@@ -19,14 +19,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Kontrola admin role
+    // Get profile and check permissions
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('id, role')
       .eq('auth_user_id', user.id)
       .single();
 
-    if (profile?.role !== 'admin') {
+    if (!profile) {
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+    }
+
+    // Admin has full access
+    const isAdmin = profile.role === 'admin';
+
+    // Check booking_manage_events permission if not admin
+    let hasPermission = isAdmin;
+    if (!isAdmin) {
+      const { data: permission } = await supabase
+        .from('user_permissions')
+        .select('id')
+        .eq('user_id', profile.id)
+        .eq('permission_code', 'booking_manage_events')
+        .single();
+      hasPermission = !!permission;
+    }
+
+    if (!hasPermission) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { useSaveStatus } from '@/contexts/SaveStatusContext';
+import { useMyPermissions, canPerformAction } from '@/hooks/usePermissions';
 import type { User } from '@supabase/supabase-js';
 import type { Profile } from '@/types';
 
@@ -21,6 +22,10 @@ export default function Header({ user, profile }: HeaderProps) {
   const [syncing, setSyncing] = useState(false);
   const { toggleMobile } = useSidebar();
   const { isSaving, savingMessage } = useSaveStatus();
+  const { data: permissions } = useMyPermissions();
+
+  // Can sync = admin/supervisor OR has booking_manage_events permission
+  const canSync = canPerformAction(permissions, 'booking_manage_events');
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -29,7 +34,7 @@ export default function Header({ user, profile }: HeaderProps) {
   };
 
   const handleSync = async () => {
-    if (profile?.role !== 'admin') return;
+    if (!canSync) return;
 
     setSyncing(true);
     try {
@@ -80,7 +85,7 @@ export default function Header({ user, profile }: HeaderProps) {
           </div>
         )}
 
-        {profile?.role === 'admin' && (
+        {canSync && (
           <Button
             variant="outline"
             size="sm"
@@ -94,7 +99,7 @@ export default function Header({ user, profile }: HeaderProps) {
         )}
 
         {/* Mobile sync button (icon only) */}
-        {profile?.role === 'admin' && (
+        {canSync && (
           <Button
             variant="outline"
             size="sm"
