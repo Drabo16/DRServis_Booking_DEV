@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import CreateUserDialog from '@/components/users/CreateUserDialog';
 import EditUserDialog from '@/components/users/EditUserDialog';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Crown, UserCog, User } from 'lucide-react';
+import { ROLE_LABELS } from '@/types/modules';
 
 export default function UsersPage() {
   const { data: users = [], isLoading, error } = useUsers();
@@ -51,8 +52,17 @@ export default function UsersPage() {
                   <CardTitle className="text-lg">{user.full_name}</CardTitle>
                   <p className="text-sm text-slate-500 mt-1">{user.email}</p>
                 </div>
-                <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
-                  {user.role === 'admin' ? 'Admin' : 'Technik'}
+                <Badge
+                  variant={user.role === 'admin' ? 'default' : 'secondary'}
+                  className={`flex items-center gap-1 ${
+                    user.role === 'admin' ? 'bg-amber-500' :
+                    user.role === 'manager' ? 'bg-blue-500 text-white' : ''
+                  }`}
+                >
+                  {user.role === 'admin' && <Crown className="w-3 h-3" />}
+                  {user.role === 'manager' && <UserCog className="w-3 h-3" />}
+                  {user.role === 'technician' && <User className="w-3 h-3" />}
+                  {ROLE_LABELS[user.role as keyof typeof ROLE_LABELS] || user.role}
                 </Badge>
               </div>
             </CardHeader>

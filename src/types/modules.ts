@@ -202,3 +202,56 @@ export const PERMISSIONS_BY_MODULE: Record<ModuleCode, PermissionCode[]> = {
     'offers_manage_templates',
   ],
 };
+
+// =====================================================
+// ROLE PRESETS
+// =====================================================
+// Default modules and permissions for each role
+// Admin has full access automatically (handled in code)
+
+import type { UserRole } from './index';
+
+export const ROLE_LABELS: Record<UserRole, string> = {
+  admin: 'Administrátor',
+  manager: 'Správce',
+  technician: 'Technik',
+};
+
+export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
+  admin: 'Plný přístup ke všem modulům a nastavením',
+  manager: 'Plný přístup k Bookingu, volitelně další moduly',
+  technician: 'Základní přístup - vidí své akce a může odpovídat',
+};
+
+export interface RolePreset {
+  modules: ModuleCode[];
+  permissions: PermissionCode[];
+}
+
+export const ROLE_PRESETS: Record<Exclude<UserRole, 'admin'>, RolePreset> = {
+  manager: {
+    modules: ['booking', 'warehouse', 'offers'],
+    permissions: [
+      // Booking - full access
+      'booking_view',
+      'booking_invite',
+      'booking_manage_events',
+      'booking_manage_positions',
+      'booking_manage_folders',
+      'booking_manage_roles',
+      // Warehouse - view and reserve
+      'warehouse_view',
+      'warehouse_reserve',
+      // Offers - view and create
+      'offers_view',
+      'offers_create',
+      'offers_edit_own',
+    ],
+  },
+  technician: {
+    modules: ['booking'],
+    permissions: [
+      'booking_view',
+    ],
+  },
+};

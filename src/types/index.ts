@@ -2,7 +2,7 @@
 // ZÁKLADNÍ TYPY PRO APLIKACI
 // =====================================================
 
-export type UserRole = 'admin' | 'technician';
+export type UserRole = 'admin' | 'manager' | 'technician';
 
 export type RoleType = 'sound' | 'lights' | 'stage' | 'video' | 'other';
 

@@ -13,15 +13,15 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { UserPlus } from 'lucide-react';
+import { UserPlus, Crown, UserCog, User, Check } from 'lucide-react';
 import { ROLE_TYPES } from '@/lib/constants';
+import { UserRole, ROLE_LABELS, ROLE_DESCRIPTIONS } from '@/types';
+
+const ROLE_ICONS: Record<UserRole, React.ReactNode> = {
+  admin: <Crown className="w-4 h-4" />,
+  manager: <UserCog className="w-4 h-4" />,
+  technician: <User className="w-4 h-4" />,
+};
 
 export default function CreateUserDialog() {
   const router = useRouter();
@@ -31,7 +31,7 @@ export default function CreateUserDialog() {
     email: '',
     full_name: '',
     phone: '',
-    role: 'technician' as 'admin' | 'technician',
+    role: 'technician' as UserRole,
     specialization: [] as string[],
   });
 
@@ -135,22 +135,36 @@ export default function CreateUserDialog() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="role">Role *</Label>
-            <Select
-              value={formData.role}
-              onValueChange={(value: 'admin' | 'technician') =>
-                setFormData({ ...formData, role: value })
-              }
-              disabled={loading}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="technician">Technik</SelectItem>
-                <SelectItem value="admin">Administrátor</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label>Role *</Label>
+            <div className="grid grid-cols-3 gap-2">
+              {(['technician', 'manager', 'admin'] as UserRole[]).map((role) => {
+                const isSelected = formData.role === role;
+                return (
+                  <button
+                    key={role}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, role })}
+                    disabled={loading}
+                    className={`p-2 rounded-lg border-2 text-left transition-all ${
+                      isSelected
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span className={isSelected ? 'text-blue-600' : 'text-slate-500'}>
+                        {ROLE_ICONS[role]}
+                      </span>
+                      <span className={`font-medium text-xs ${isSelected ? 'text-blue-900' : 'text-slate-900'}`}>
+                        {ROLE_LABELS[role]}
+                      </span>
+                      {isSelected && <Check className="w-3 h-3 text-blue-600 ml-auto" />}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-xs text-slate-500">{ROLE_DESCRIPTIONS[formData.role]}</p>
           </div>
 
           <div className="space-y-2">
