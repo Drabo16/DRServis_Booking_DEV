@@ -14,8 +14,8 @@ import { getRoleTypeLabel, getAttendanceStatusLabel, getAttendanceStatusColor } 
 import { UserPlus, Mail } from 'lucide-react';
 import type { Position, Assignment, Profile, AttendanceStatus } from '@/types';
 import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { eventKeys } from '@/hooks/useEvents';
+import { useSendInvite } from '@/hooks/useEvents';
+import { useUpdateAssignment } from '@/hooks/useAssignments';
 import AssignTechnicianDialog from './AssignTechnicianDialog';
 
 interface PositionCardProps {
@@ -26,49 +26,39 @@ interface PositionCardProps {
 }
 
 export default function PositionCard({ position, isAdmin }: PositionCardProps) {
-  const queryClient = useQueryClient();
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
 
-  const handleInvite = async (assignmentId: string) => {
-    try {
-      const response = await fetch(`/api/events/${position.event_id}/invite`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assignmentId }),
-      });
+  const sendInvite = useSendInvite();
+  const updateAssignment = useUpdateAssignment();
 
-      if (response.ok) {
-        alert('Pozvánka odeslána!');
-        // No need to refresh - invites don't change the data structure
-      } else {
-        alert('Chyba při odesílání pozvánky');
+  const handleInvite = async (assignmentId: string) => {
+    sendInvite.mutate(
+      { eventId: position.event_id, assignmentId },
+      {
+        onSuccess: () => {
+          alert('Pozvánka odeslána!');
+        },
+        onError: () => {
+          alert('Chyba při odesílání pozvánky');
+        },
       }
-    } catch (error) {
-      alert('Chyba při odesílání pozvánky');
-    }
+    );
   };
 
   const handleStatusChange = async (assignmentId: string, newStatus: AttendanceStatus) => {
     setUpdatingStatus(assignmentId);
-    try {
-      const response = await fetch(`/api/assignments/${assignmentId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ attendance_status: newStatus }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update status');
+    updateAssignment.mutate(
+      { id: assignmentId, data: { attendance_status: newStatus } },
+      {
+        onError: () => {
+          alert('Chyba při aktualizaci statusu');
+        },
+        onSettled: () => {
+          setUpdatingStatus(null);
+        },
       }
-
-      // Invalidate React Query cache to update all views
-      await queryClient.invalidateQueries({ queryKey: eventKeys.all });
-    } catch (error) {
-      alert('Chyba při aktualizaci statusu');
-    } finally {
-      setUpdatingStatus(null);
-    }
+    );
   };
 
   return (

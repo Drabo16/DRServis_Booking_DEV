@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -29,6 +28,7 @@ import {
   ROLE_PRESETS,
 } from '@/types';
 import { useUserPermissions, useUpdateUserPermissions, useMyPermissions } from '@/hooks/usePermissions';
+import { useUpdateUser, useDeleteUser } from '@/hooks/useUsers';
 
 const MODULE_NAMES: Record<ModuleCode, string> = {
   booking: 'Booking',
@@ -53,9 +53,7 @@ interface EditUserDialogProps {
 }
 
 export default function EditUserDialog({ user }: EditUserDialogProps) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     full_name: user.full_name,
     phone: user.phone || '',
@@ -63,6 +61,10 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
     specialization: user.specialization || [],
     is_active: user.is_active,
   });
+
+  // Mutation hooks for user CRUD
+  const updateUser = useUpdateUser();
+  const deleteUser = useDeleteUser();
 
   // Current user permissions (to check if supervisor)
   const { data: myPermissions } = useMyPermissions();
@@ -72,6 +74,9 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
   // Target user permissions
   const { data: userPermissions, refetch: refetchPermissions } = useUserPermissions(open ? user.id : null);
   const updatePermissions = useUpdateUserPermissions();
+
+  // Combined loading state
+  const loading = updateUser.isPending || deleteUser.isPending;
 
   // Local state for permissions and modules
   const [localModules, setLocalModules] = useState<Set<ModuleCode>>(new Set());
@@ -179,32 +184,23 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
 
     try {
-      const response = await fetch(`/api/users/${user.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      // Update user via mutation hook
+      await updateUser.mutateAsync({
+        id: user.id,
+        data: {
           ...formData,
           specialization: formData.specialization.length > 0 ? formData.specialization : null,
-        }),
+        },
       });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to update user');
-      }
 
       // Save permissions if changed
       await savePermissions();
 
       setOpen(false);
-      router.refresh();
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Chyba při aktualizaci uživatele');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -213,24 +209,14 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
       return;
     }
 
-    setLoading(true);
-    try {
-      const response = await fetch(`/api/users/${user.id}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to delete user');
-      }
-
-      setOpen(false);
-      router.refresh();
-    } catch (error) {
-      alert(error instanceof Error ? error.message : 'Chyba při mazání uživatele');
-    } finally {
-      setLoading(false);
-    }
+    deleteUser.mutate(user.id, {
+      onSuccess: () => {
+        setOpen(false);
+      },
+      onError: (error) => {
+        alert(error instanceof Error ? error.message : 'Chyba při mazání uživatele');
+      },
+    });
   };
 
   const toggleSpecialization = (value: string) => {

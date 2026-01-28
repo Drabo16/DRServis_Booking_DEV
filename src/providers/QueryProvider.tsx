@@ -16,23 +16,23 @@ export default function QueryProvider({ children }: { children: React.ReactNode 
       new QueryClient({
         defaultOptions: {
           queries: {
-            // AGGRESSIVE CACHING - data stays fresh for 5 minutes
-            staleTime: 5 * 60 * 1000, // 5 minutes
-            gcTime: 10 * 60 * 1000, // 10 minutes (formerly cacheTime)
+            // Data is fresh for 30 seconds - after that it will refetch on mount
+            staleTime: 30 * 1000, // 30 seconds
+            gcTime: 5 * 60 * 1000, // 5 minutes garbage collection
             // Retry failed requests
             retry: 2,
             // Refetch on window focus for live data
             refetchOnWindowFocus: true,
             // Refetch on reconnect
             refetchOnReconnect: true,
-            // Don't refetch on mount if data is still fresh
-            refetchOnMount: false,
+            // IMPORTANT: Refetch when component mounts if data is stale
+            refetchOnMount: true,
             // Structural sharing for better performance
             structuralSharing: true,
           },
           mutations: {
-            // Retry failed mutations once
-            retry: 1,
+            // Don't retry mutations - user should retry manually
+            retry: 0,
           },
         },
       })

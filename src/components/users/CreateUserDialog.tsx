@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -16,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { UserPlus, Crown, UserCog, User, Check } from 'lucide-react';
 import { ROLE_TYPES } from '@/lib/constants';
 import { UserRole, ROLE_LABELS, ROLE_DESCRIPTIONS } from '@/types';
+import { useCreateUser } from '@/hooks/useUsers';
 
 const ROLE_ICONS: Record<UserRole, React.ReactNode> = {
   admin: <Crown className="w-4 h-4" />,
@@ -24,9 +24,7 @@ const ROLE_ICONS: Record<UserRole, React.ReactNode> = {
 };
 
 export default function CreateUserDialog() {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     full_name: '',
@@ -35,41 +33,36 @@ export default function CreateUserDialog() {
     specialization: [] as string[],
   });
 
+  const createUser = useCreateUser();
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
 
-    try {
-      const response = await fetch('/api/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          specialization: formData.specialization.length > 0 ? formData.specialization : null,
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to create user');
+    createUser.mutate(
+      {
+        ...formData,
+        specialization: formData.specialization.length > 0 ? formData.specialization : null,
+      },
+      {
+        onSuccess: () => {
+          // Reset form and close dialog
+          setFormData({
+            email: '',
+            full_name: '',
+            phone: '',
+            role: 'technician',
+            specialization: [],
+          });
+          setOpen(false);
+        },
+        onError: (error) => {
+          alert(error instanceof Error ? error.message : 'Chyba při vytváření uživatele');
+        },
       }
-
-      // Reset form
-      setFormData({
-        email: '',
-        full_name: '',
-        phone: '',
-        role: 'technician',
-        specialization: [],
-      });
-      setOpen(false);
-      router.refresh();
-    } catch (error) {
-      alert(error instanceof Error ? error.message : 'Chyba při vytváření uživatele');
-    } finally {
-      setLoading(false);
-    }
+    );
   };
+
+  const loading = createUser.isPending;
 
   const toggleSpecialization = (value: string) => {
     setFormData((prev) => ({

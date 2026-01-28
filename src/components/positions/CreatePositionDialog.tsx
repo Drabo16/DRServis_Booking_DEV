@@ -1,8 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { eventKeys } from '@/hooks/useEvents';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -23,6 +21,7 @@ import {
 } from '@/components/ui/select';
 import { Plus } from 'lucide-react';
 import { ROLE_TYPES } from '@/lib/constants';
+import { useCreatePosition } from '@/hooks/usePositions';
 
 interface CreatePositionDialogProps {
   eventId: string;
@@ -30,47 +29,37 @@ interface CreatePositionDialogProps {
 
 export default function CreatePositionDialog({ eventId }: CreatePositionDialogProps) {
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     role_type: 'sound',
     description: '',
     hourly_rate: '',
   });
-  const queryClient = useQueryClient();
+
+  const createPosition = useCreatePosition();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
 
-    try {
-      const response = await fetch('/api/positions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          event_id: eventId,
-          title: formData.title,
-          role_type: formData.role_type,
-          description: formData.description || null,
-          hourly_rate: formData.hourly_rate ? parseFloat(formData.hourly_rate) : null,
-        }),
-      });
-
-      if (response.ok) {
-        setOpen(false);
-        setFormData({ title: '', role_type: 'sound', description: '', hourly_rate: '' });
-
-        // Invalidate cache to sync all views
-        await queryClient.invalidateQueries({ queryKey: eventKeys.all });
-      } else {
-        alert('Chyba při vytváření pozice');
+    createPosition.mutate(
+      {
+        event_id: eventId,
+        title: formData.title,
+        role_type: formData.role_type,
+      },
+      {
+        onSuccess: () => {
+          setOpen(false);
+          setFormData({ title: '', role_type: 'sound', description: '', hourly_rate: '' });
+        },
+        onError: () => {
+          alert('Chyba při vytváření pozice');
+        },
       }
-    } catch (error) {
-      alert('Chyba při vytváření pozice');
-    } finally {
-      setLoading(false);
-    }
+    );
   };
+
+  const loading = createPosition.isPending;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
