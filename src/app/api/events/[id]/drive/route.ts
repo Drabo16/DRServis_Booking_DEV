@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, getProfileWithFallback, hasBookingAccess } from '@/lib/supabase/server';
+import { createClient, createServiceRoleClient, getProfileWithFallback, hasBookingAccess } from '@/lib/supabase/server';
 import { createEventFolderStructure, updateInfoFile, deleteFolder } from '@/lib/google/drive';
 import { removeDriveFolderFromEvent } from '@/lib/google/calendar';
 
@@ -34,9 +34,12 @@ export async function POST(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    // Use service role client for database operations to bypass RLS
+    const serviceClient = createServiceRoleClient();
+
     // Načtení eventu s pozicemi a přiřazenými techniky
     // Použití explicitního foreign key pro disambiguaci vztahu profiles
-    const { data: event, error: eventError } = await supabase
+    const { data: event, error: eventError } = await serviceClient
       .from('events')
       .select(`
         *,
@@ -99,7 +102,7 @@ export async function POST(
     );
 
     // Uložení odkazu do DB
-    await supabase
+    await serviceClient
       .from('events')
       .update({
         drive_folder_id: folderResult.folderId,
@@ -152,9 +155,12 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Use service role client for database operations to bypass RLS
+    const serviceClient = createServiceRoleClient();
+
     // Načtení eventu s pozicemi a techniky
     // Použití explicitního foreign key pro disambiguaci vztahu profiles
-    const { data: event, error: eventError } = await supabase
+    const { data: event, error: eventError } = await serviceClient
       .from('events')
       .select(`
         *,
@@ -253,8 +259,11 @@ export async function DELETE(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    // Use service role client for database operations to bypass RLS
+    const serviceClient = createServiceRoleClient();
+
     // Načtení eventu
-    const { data: event, error: eventError } = await supabase
+    const { data: event, error: eventError } = await serviceClient
       .from('events')
       .select('id, title, drive_folder_id, drive_folder_url, google_event_id, calendar_attachment_synced')
       .eq('id', eventId)
@@ -289,7 +298,7 @@ export async function DELETE(
     const deleteResult = await deleteFolder(event.drive_folder_id);
 
     // Vymazání odkazu z DB
-    await supabase
+    await serviceClient
       .from('events')
       .update({
         drive_folder_id: null,

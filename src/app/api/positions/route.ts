@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, getProfileWithFallback, hasBookingAccess } from '@/lib/supabase/server';
+import { createClient, createServiceRoleClient, getProfileWithFallback, hasBookingAccess } from '@/lib/supabase/server';
 
 /**
  * POST /api/positions
@@ -17,13 +17,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Kontrola přístupu - admin, supervisor, nebo uživatel s booking_manage_positions
+    // Kontrola přístupu - admin, supervisor, nebo manager
     const profile = await getProfileWithFallback(supabase, user);
     const canManagePositions = await hasBookingAccess(supabase, profile, ['booking_manage_positions']);
 
     if (!canManagePositions) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
+
+    // Use service role client for database operations to bypass RLS
+    const serviceClient = createServiceRoleClient();
 
     const body = await request.json();
     const {
@@ -42,7 +45,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await serviceClient
       .from('positions')
       .insert({
         event_id,
@@ -88,13 +91,16 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Kontrola přístupu - admin, supervisor, nebo uživatel s booking_manage_positions
+    // Kontrola přístupu - admin, supervisor, nebo manager
     const profile = await getProfileWithFallback(supabase, user);
     const canManagePositions = await hasBookingAccess(supabase, profile, ['booking_manage_positions']);
 
     if (!canManagePositions) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
+
+    // Use service role client for database operations to bypass RLS
+    const serviceClient = createServiceRoleClient();
 
     const { searchParams } = new URL(request.url);
     const positionId = searchParams.get('id');
@@ -106,7 +112,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const { error } = await supabase
+    const { error } = await serviceClient
       .from('positions')
       .delete()
       .eq('id', positionId);

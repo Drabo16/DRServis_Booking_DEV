@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, getProfileWithFallback, hasBookingAccess } from '@/lib/supabase/server';
+import { createClient, createServiceRoleClient, getProfileWithFallback, hasBookingAccess } from '@/lib/supabase/server';
 
 /**
  * POST /api/assignments
@@ -25,6 +25,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    // Use service role client for database operations to bypass RLS
+    const serviceClient = createServiceRoleClient();
+
     const body = await request.json();
     const { position_id, technician_id, notes } = body;
 
@@ -36,7 +39,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Získej event_id z pozice
-    const { data: position, error: positionError } = await supabase
+    const { data: position, error: positionError } = await serviceClient
       .from('positions')
       .select('event_id')
       .eq('id', position_id)
@@ -69,7 +72,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Ověř, že technician existuje
-    const { data: technicianExists, error: techError } = await supabase
+    const { data: technicianExists, error: techError } = await serviceClient
       .from('profiles')
       .select('id')
       .eq('id', technician_id)
@@ -91,7 +94,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Zkontroluj duplicitní přiřazení
-    const { data: existing } = await supabase
+    const { data: existing } = await serviceClient
       .from('assignments')
       .select('id')
       .eq('position_id', position_id)
@@ -120,7 +123,7 @@ export async function POST(request: NextRequest) {
       assigned_by: profile?.id,
     });
 
-    const { data, error } = await supabase
+    const { data, error } = await serviceClient
       .from('assignments')
       .insert({
         position_id,

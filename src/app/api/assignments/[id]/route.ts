@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, getProfileWithFallback, hasBookingAccess } from '@/lib/supabase/server';
+import { createClient, createServiceRoleClient, getProfileWithFallback, hasBookingAccess } from '@/lib/supabase/server';
 
 /**
  * PATCH /api/assignments/[id]
- * Update assignment attendance status (admin only)
+ * Update assignment attendance status
  */
 export async function PATCH(
   request: NextRequest,
@@ -21,13 +21,16 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Kontrola přístupu - admin, supervisor, nebo uživatel s booking_manage_positions
+    // Kontrola přístupu - admin, supervisor, nebo manager
     const profile = await getProfileWithFallback(supabase, user);
     const canManagePositions = await hasBookingAccess(supabase, profile, ['booking_manage_positions']);
 
     if (!canManagePositions) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
+
+    // Use service role client for database operations to bypass RLS
+    const serviceClient = createServiceRoleClient();
 
     const body = await request.json();
     const { attendance_status } = body;
@@ -48,7 +51,7 @@ export async function PATCH(
       );
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await serviceClient
       .from('assignments')
       .update({ attendance_status })
       .eq('id', assignmentId)
@@ -74,7 +77,7 @@ export async function PATCH(
 
 /**
  * DELETE /api/assignments/[id]
- * Delete assignment (admin only)
+ * Delete assignment
  */
 export async function DELETE(
   request: NextRequest,
@@ -92,7 +95,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Kontrola přístupu - admin, supervisor, nebo uživatel s booking_manage_positions
+    // Kontrola přístupu - admin, supervisor, nebo manager
     const profile = await getProfileWithFallback(supabase, user);
     const canManagePositions = await hasBookingAccess(supabase, profile, ['booking_manage_positions']);
 
@@ -100,8 +103,11 @@ export async function DELETE(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    // Use service role client for database operations to bypass RLS
+    const serviceClient = createServiceRoleClient();
+
     // Delete assignment
-    const { error } = await supabase
+    const { error } = await serviceClient
       .from('assignments')
       .delete()
       .eq('id', assignmentId);

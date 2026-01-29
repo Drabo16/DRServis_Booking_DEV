@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, getProfileWithFallback, hasBookingAccess } from '@/lib/supabase/server';
+import { createClient, createServiceRoleClient, getProfileWithFallback, hasBookingAccess } from '@/lib/supabase/server';
 import { addAttendeeToEvent } from '@/lib/google/calendar';
 
 /**
@@ -24,13 +24,17 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Kontrola přístupu - admin, supervisor, nebo uživatel s booking_invite
+    // Kontrola přístupu - admin, supervisor, nebo manager
     const profile = await getProfileWithFallback(supabase, user);
     const canInvite = await hasBookingAccess(supabase, profile, ['booking_invite']);
 
     if (!canInvite) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
+
+    // Use service role client for database operations to bypass RLS
+    const serviceClient = createServiceRoleClient();
+
     const body = await request.json();
     const { assignmentId } = body;
 
@@ -42,7 +46,7 @@ export async function POST(
     }
 
     // Načtení assignment s detaily
-    const { data: assignment, error: assignmentError } = await supabase
+    const { data: assignment, error: assignmentError } = await serviceClient
       .from('assignments')
       .select('*, event:events(*), technician:profiles!assignments_technician_id_fkey(*)')
       .eq('id', assignmentId)
@@ -60,7 +64,7 @@ export async function POST(
     );
 
     // Aktualizace assignment statusu na pending (čeká na odpověď)
-    await supabase
+    await serviceClient
       .from('assignments')
       .update({
         attendance_status: 'pending',
@@ -68,7 +72,7 @@ export async function POST(
       .eq('id', assignmentId);
 
     // Log do sync_logs
-    await supabase.from('sync_logs').insert({
+    await serviceClient.from('sync_logs').insert({
       sync_type: 'attendee_update',
       status: 'success',
       events_processed: 1,
