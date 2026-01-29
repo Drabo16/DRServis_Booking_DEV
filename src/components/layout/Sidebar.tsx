@@ -7,6 +7,7 @@ import { Calendar, Users, Settings, UserCog, ChevronLeft, ChevronRight, X, Packa
 import { cn } from '@/lib/utils';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { useAccessibleModules } from '@/hooks/useModules';
+import { useMyPermissions, canPerformAction } from '@/hooks/usePermissions';
 import type { User } from '@supabase/supabase-js';
 import type { Profile } from '@/types';
 
@@ -27,17 +28,25 @@ export default function Sidebar({ user, profile }: SidebarProps) {
   const pathname = usePathname();
   const { isCollapsed, isMobileOpen, toggleCollapse, closeMobile } = useSidebar();
   const { data: accessibleModules, isLoading } = useAccessibleModules();
+  const { data: permissions } = useMyPermissions();
+
+  // Check permissions for users and settings pages
+  const canManageUsers = canPerformAction(permissions, 'users_settings_manage_users');
+  const canManageRoles = canPerformAction(permissions, 'users_settings_manage_roles');
 
   // Build navigation items from accessible modules
   // During loading, show only core booking to prevent flash
+  // Filter out users_settings - it's a permission module, not a navigation item
   const moduleNavItems = isLoading
     ? [{ href: '/', label: 'Booking', icon: Calendar }]
     : (accessibleModules && accessibleModules.length > 0)
-      ? accessibleModules.map((module) => ({
-          href: module.route,
-          label: module.name,
-          icon: iconMap[module.icon] || Calendar,
-        }))
+      ? accessibleModules
+          .filter((module) => module.code !== 'users_settings')
+          .map((module) => ({
+            href: module.route,
+            label: module.name,
+            icon: iconMap[module.icon] || Calendar,
+          }))
       : [{ href: '/', label: 'Booking', icon: Calendar }];
 
   // Static items that are always shown (technicians - part of core booking)
@@ -49,28 +58,33 @@ export default function Sidebar({ user, profile }: SidebarProps) {
     },
   ];
 
-  // Admin-only items
-  const adminNavItems = profile?.role === 'admin'
-    ? [
-        {
-          href: '/users',
-          label: 'Uživatelé',
-          icon: UserCog,
-        },
-        {
-          href: '/settings',
-          label: 'Nastavení',
-          icon: Settings,
-        },
-      ]
-    : [];
+  // Items for users with appropriate permissions
+  const permissionNavItems: { href: string; label: string; icon: typeof UserCog }[] = [];
 
-  // Combine: modules first, then static items, then admin items
+  // Show "Uživatelé" if user can manage users
+  if (canManageUsers) {
+    permissionNavItems.push({
+      href: '/users',
+      label: 'Uživatelé',
+      icon: UserCog,
+    });
+  }
+
+  // Show "Nastavení" if user can manage roles (or is admin)
+  if (canManageRoles || profile?.role === 'admin') {
+    permissionNavItems.push({
+      href: '/settings',
+      label: 'Nastavení',
+      icon: Settings,
+    });
+  }
+
+  // Combine: modules first, then static items, then permission-based items
   // Filter out duplicates
   const navItems = [
     ...moduleNavItems,
     ...staticNavItems.filter(item => !moduleNavItems.some(m => m.href === item.href)),
-    ...adminNavItems,
+    ...permissionNavItems,
   ];
 
   const sidebarContent = (
