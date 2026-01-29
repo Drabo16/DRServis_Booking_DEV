@@ -165,20 +165,22 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
   };
 
   // Bulk attach Drive folders to calendar
+  // Allows re-attaching to add new files from the folder
   const bulkAttachToCalendar = async () => {
     if (selectedEvents.size === 0) return;
 
     const eligibleEvents = Array.from(selectedEvents).filter(id => {
       const event = filteredEvents.find(e => e.id === id) as any;
-      return event && event.drive_folder_id && event.google_event_id && !event.calendar_attachment_synced;
+      // Allow attaching even if already synced - this will add any new files from the folder
+      return event && event.drive_folder_id && event.google_event_id;
     });
 
     if (eligibleEvents.length === 0) {
-      alert('Žádné vybrané akce nemají Drive složku nebo nejsou v kalendáři, nebo už mají přílohu připojenou.');
+      alert('Žádné vybrané akce nemají Drive složku nebo nejsou synchronizovány s kalendářem.');
       return;
     }
 
-    if (!confirm(`Připojit Drive složky jako přílohu do kalendáře pro ${eligibleEvents.length} akcí?`)) return;
+    if (!confirm(`Připojit/aktualizovat přílohy pro ${eligibleEvents.length} akcí?`)) return;
 
     setIsProcessing(true);
     let successCount = 0;

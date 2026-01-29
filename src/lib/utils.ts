@@ -23,10 +23,11 @@ export function formatDateRange(startDate: string | Date, endDate: string | Date
   const start = typeof startDate === 'string' ? new Date(startDate) : startDate
   let end = typeof endDate === 'string' ? new Date(endDate) : endDate
 
-  // Google Calendar sets end_time to midnight of the NEXT day for all-day events
-  // If end is at exactly midnight (00:00:00), subtract 1 second to get the actual end date
-  if (end.getHours() === 0 && end.getMinutes() === 0 && end.getSeconds() === 0) {
-    end = new Date(end.getTime() - 1000) // Subtract 1 second
+  // Google Calendar sets end_time to midnight UTC of the NEXT day for all-day events
+  // Check for midnight in UTC (not local time!) and subtract 1 day
+  if (end.getUTCHours() === 0 && end.getUTCMinutes() === 0 && end.getUTCSeconds() === 0) {
+    // Subtract 1 day (86400000 ms) to get the actual end date
+    end = new Date(end.getTime() - 86400000)
   }
 
   const startStr = format(start, 'd. M. yyyy', { locale: cs })
