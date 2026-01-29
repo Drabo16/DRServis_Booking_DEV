@@ -197,7 +197,7 @@ export default function QuickAddPosition({ eventId, variant = 'default', onSucce
           ) : (
             <Plus className="h-4 w-4 mr-2" />
           )}
-          Přidat pozici
+          Přidat pozice
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-48 p-0">
