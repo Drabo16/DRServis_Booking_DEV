@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceRoleClient, getProfileWithFallback, hasBookingAccess } from '@/lib/supabase/server';
 import { attachDriveFolderToEvent } from '@/lib/google/calendar';
+import { listFilesInFolder } from '@/lib/google/drive';
 
 /**
  * POST /api/events/[id]/attach-drive
- * Připojí existující Drive složku ke Google Calendar události
+ * Připojí existující Drive složku A její soubory ke Google Calendar události
+ * Přidává složku + jednotlivé dokumenty (Docs, Sheets, PDF, Office soubory)
  */
 export async function POST(
   request: NextRequest,
@@ -62,12 +64,29 @@ export async function POST(
       );
     }
 
-    // Připojíme Drive složku ke kalendáři jako přílohu
-    await attachDriveFolderToEvent(
+    // Získáme seznam souborů ve složce
+    let folderFiles: Array<{ id: string; name: string; mimeType: string; webViewLink: string }> = [];
+    try {
+      const files = await listFilesInFolder(event.drive_folder_id);
+      folderFiles = files.map((f: any) => ({
+        id: f.id!,
+        name: f.name!,
+        mimeType: f.mimeType!,
+        webViewLink: f.webViewLink!,
+      }));
+      console.log(`[Attach Drive] Found ${folderFiles.length} files in folder`);
+    } catch (listError) {
+      console.warn('[Attach Drive] Could not list files in folder:', listError);
+      // Pokračujeme bez souborů - připojíme alespoň složku
+    }
+
+    // Připojíme Drive složku a její soubory ke kalendáři jako přílohy
+    const result = await attachDriveFolderToEvent(
       event.google_event_id,
       event.drive_folder_url,
       event.drive_folder_id,
-      `Podklady - ${event.title}`
+      `Podklady - ${event.title}`,
+      folderFiles
     );
 
     // Aktualizujeme stav synchronizace v DB
@@ -78,7 +97,9 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      message: 'Drive folder attached to calendar event successfully',
+      message: `Drive folder and ${result.attachedCount} files attached to calendar event`,
+      attachedCount: result.attachedCount,
+      filesFound: folderFiles.length,
     });
   } catch (error) {
     console.error('Attach Drive folder error:', error);

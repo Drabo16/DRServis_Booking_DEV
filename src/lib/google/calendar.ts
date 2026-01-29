@@ -208,15 +208,29 @@ export async function createCalendarEvent(
   }
 }
 
+// MIME types for Google Docs/Sheets and MS Office equivalents that should be attached
+const ATTACHABLE_MIME_TYPES: Record<string, { icon: string }> = {
+  'application/vnd.google-apps.document': { icon: 'https://drive-thirdparty.googleusercontent.com/16/type/application/vnd.google-apps.document' },
+  'application/vnd.google-apps.spreadsheet': { icon: 'https://drive-thirdparty.googleusercontent.com/16/type/application/vnd.google-apps.spreadsheet' },
+  'application/vnd.google-apps.presentation': { icon: 'https://drive-thirdparty.googleusercontent.com/16/type/application/vnd.google-apps.presentation' },
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': { icon: 'https://drive-thirdparty.googleusercontent.com/16/type/application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': { icon: 'https://drive-thirdparty.googleusercontent.com/16/type/application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': { icon: 'https://drive-thirdparty.googleusercontent.com/16/type/application/vnd.openxmlformats-officedocument.presentationml.presentation' },
+  'application/msword': { icon: 'https://drive-thirdparty.googleusercontent.com/16/type/application/msword' },
+  'application/vnd.ms-excel': { icon: 'https://drive-thirdparty.googleusercontent.com/16/type/application/vnd.ms-excel' },
+  'application/pdf': { icon: 'https://drive-thirdparty.googleusercontent.com/16/type/application/pdf' },
+};
+
 /**
- * Připojení Drive složky k události v kalendáři jako příloha (attachment)
- * Používá Google Calendar API attachments field
+ * Připojení Drive složky A jejích souborů k události v kalendáři jako přílohy
+ * Přidává jak složku, tak jednotlivé dokumenty (Google Docs, Sheets, PDF, Office soubory)
  */
 export async function attachDriveFolderToEvent(
   eventId: string,
   driveFolderUrl: string,
   driveFolderId: string,
-  driveFolderName?: string
+  driveFolderName?: string,
+  folderFiles?: Array<{ id: string; name: string; mimeType: string; webViewLink: string }>
 ) {
   const calendar = getCalendarClient();
 
@@ -228,37 +242,71 @@ export async function attachDriveFolderToEvent(
     });
 
     const existingAttachments = event.data.attachments || [];
+    const newAttachments: Array<{
+      fileUrl: string;
+      title: string;
+      mimeType: string;
+      iconLink: string;
+      fileId: string;
+    }> = [];
 
-    // Zkontrolujeme, jestli už příloha není přidaná
-    const alreadyAttached = existingAttachments.some(
+    // 1. Přidáme Drive složku jako hlavní přílohu (pokud ještě není)
+    const folderAlreadyAttached = existingAttachments.some(
       (att) => att.fileId === driveFolderId || att.fileUrl === driveFolderUrl
     );
 
-    if (alreadyAttached) {
-      console.log('Drive folder already attached to event');
-      return event.data;
+    if (!folderAlreadyAttached) {
+      newAttachments.push({
+        fileUrl: driveFolderUrl,
+        title: driveFolderName || 'Podklady akce',
+        mimeType: 'application/vnd.google-apps.folder',
+        iconLink: 'https://drive-thirdparty.googleusercontent.com/16/type/application/vnd.google-apps.folder',
+        fileId: driveFolderId,
+      });
     }
 
-    // Přidáme Drive složku jako přílohu
-    const newAttachment = {
-      fileUrl: driveFolderUrl,
-      title: driveFolderName || 'Podklady akce',
-      mimeType: 'application/vnd.google-apps.folder',
-      iconLink: 'https://drive-thirdparty.googleusercontent.com/16/type/application/vnd.google-apps.folder',
-      fileId: driveFolderId,
-    };
+    // 2. Přidáme jednotlivé dokumenty ze složky
+    if (folderFiles && folderFiles.length > 0) {
+      for (const file of folderFiles) {
+        // Zkontrolujeme, jestli je to podporovaný typ souboru
+        const mimeConfig = ATTACHABLE_MIME_TYPES[file.mimeType];
+        if (!mimeConfig) continue;
 
-    // Aktualizujeme event s přílohou
+        // Zkontrolujeme, jestli už není přidaný
+        const fileAlreadyAttached = existingAttachments.some(
+          (att) => att.fileId === file.id
+        );
+        if (fileAlreadyAttached) continue;
+
+        newAttachments.push({
+          fileUrl: file.webViewLink,
+          title: file.name,
+          mimeType: file.mimeType,
+          iconLink: mimeConfig.icon,
+          fileId: file.id,
+        });
+      }
+    }
+
+    // Pokud nejsou žádné nové přílohy, vrátíme stávající event
+    if (newAttachments.length === 0) {
+      console.log('[Calendar] No new attachments to add');
+      return { event: event.data, attachedCount: 0 };
+    }
+
+    console.log(`[Calendar] Adding ${newAttachments.length} attachments to event`);
+
+    // Aktualizujeme event s novými přílohami
     const response = await calendar.events.patch({
       calendarId: CALENDAR_ID,
       eventId,
       supportsAttachments: true,
       requestBody: {
-        attachments: [...existingAttachments, newAttachment],
+        attachments: [...existingAttachments, ...newAttachments],
       },
     });
 
-    return response.data;
+    return { event: response.data, attachedCount: newAttachments.length };
   } catch (error: any) {
     console.error('Error attaching Drive folder to event:', error);
     console.error('Error details:', {

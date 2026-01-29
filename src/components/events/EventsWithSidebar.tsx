@@ -91,6 +91,7 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
   };
 
   // Filter events - show only incomplete if filter is active
+  // A position is "filled" only if it has an ACCEPTED assignment
   const filteredEvents = useMemo(() => {
     if (!showIncompleteOnly) return events;
 
@@ -99,10 +100,10 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
       if (totalPositions === 0) return true; // Show events with no positions
 
       const filledPositions = event.positions?.filter(pos =>
-        pos.assignments && pos.assignments.length > 0
+        pos.assignments && pos.assignments.some(a => a.attendance_status === 'accepted')
       ).length || 0;
 
-      return filledPositions < totalPositions; // Show if not all positions filled
+      return filledPositions < totalPositions; // Show if not all positions have accepted assignment
     });
   }, [events, showIncompleteOnly]);
 

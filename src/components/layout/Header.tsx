@@ -5,9 +5,11 @@ import { LogOut, RefreshCw, Menu, Save } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { useSaveStatus } from '@/contexts/SaveStatusContext';
 import { useMyPermissions, canPerformAction } from '@/hooks/usePermissions';
+import { eventKeys } from '@/hooks/useEvents';
 import type { User } from '@supabase/supabase-js';
 import type { Profile } from '@/types';
 
@@ -18,6 +20,7 @@ interface HeaderProps {
 
 export default function Header({ user, profile }: HeaderProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const supabase = createClient();
   const [syncing, setSyncing] = useState(false);
   const { toggleMobile } = useSidebar();
@@ -45,8 +48,11 @@ export default function Header({ user, profile }: HeaderProps) {
       });
 
       if (response.ok) {
+        const data = await response.json();
+        // Invalidate React Query cache to immediately show new events
+        await queryClient.invalidateQueries({ queryKey: eventKeys.all });
         router.refresh();
-        alert('Synchronizace dokončena!');
+        alert(`Synchronizace dokončena! Načteno ${data.processed} akcí, smazáno ${data.deleted} zrušených.`);
       } else {
         alert('Chyba při synchronizaci');
       }
