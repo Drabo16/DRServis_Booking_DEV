@@ -162,3 +162,77 @@ export async function hasBookingAccess(
   console.log('[hasBookingAccess] No access granted, denying');
   return false;
 }
+
+import type { PermissionCode } from '@/types/modules';
+
+/**
+ * Check if user has a specific permission.
+ * Returns true if user is admin, supervisor, or has the permission granted.
+ */
+export async function hasPermission(
+  profile: Profile | null,
+  permissionCode: PermissionCode
+): Promise<boolean> {
+  if (!profile?.id) {
+    return false;
+  }
+
+  // Admin always has all permissions
+  if (profile.role === 'admin') {
+    return true;
+  }
+
+  // Check supervisor
+  if (profile.email) {
+    const serviceClient = createServiceRoleClient();
+    const { data: supervisorCheck } = await serviceClient
+      .from('supervisor_emails')
+      .select('email')
+      .ilike('email', profile.email)
+      .single();
+    if (supervisorCheck) {
+      return true;
+    }
+  }
+
+  // Check specific permission in database
+  const serviceClient = createServiceRoleClient();
+  const { data: permissionCheck } = await serviceClient
+    .from('user_permissions')
+    .select('id')
+    .eq('user_id', profile.id)
+    .eq('permission_code', permissionCode)
+    .single();
+
+  return !!permissionCheck;
+}
+
+/**
+ * Check multiple permissions - returns true if user has ALL specified permissions.
+ */
+export async function hasAllPermissions(
+  profile: Profile | null,
+  permissionCodes: PermissionCode[]
+): Promise<boolean> {
+  for (const code of permissionCodes) {
+    if (!(await hasPermission(profile, code))) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Check multiple permissions - returns true if user has ANY of the specified permissions.
+ */
+export async function hasAnyPermission(
+  profile: Profile | null,
+  permissionCodes: PermissionCode[]
+): Promise<boolean> {
+  for (const code of permissionCodes) {
+    if (await hasPermission(profile, code)) {
+      return true;
+    }
+  }
+  return false;
+}

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getProfileWithFallback, hasPermission, createServiceRoleClient } from '@/lib/supabase/server';
 
 /**
  * PATCH /api/users/[id]
- * Aktualizace uživatele (pouze pro adminy)
+ * Aktualizace uživatele (pro uživatele s oprávněním users_settings_manage_users)
  */
 export async function PATCH(
   request: NextRequest,
@@ -22,22 +22,25 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Kontrola admin role
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('auth_user_id', user.id)
-      .single();
+    // Get profile with fallback
+    const profile = await getProfileWithFallback(supabase, user);
 
-    if (profile?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!profile) {
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+    }
+
+    // Check permission to manage users
+    const canManageUsers = await hasPermission(profile, 'users_settings_manage_users');
+
+    if (!canManageUsers) {
+      return NextResponse.json({ error: 'Forbidden - nemáte oprávnění spravovat uživatele' }, { status: 403 });
     }
 
     const body = await request.json();
     const { full_name, phone, role, specialization, is_active } = body;
 
     // Sestavit update objekt pouze s poskytnutými poli
-    const updates: any = {};
+    const updates: Record<string, unknown> = {};
     if (full_name !== undefined) updates.full_name = full_name;
     if (phone !== undefined) updates.phone = phone;
     if (role !== undefined) updates.role = role;
@@ -48,8 +51,11 @@ export async function PATCH(
       return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
     }
 
+    // Use service client to bypass RLS
+    const serviceClient = createServiceRoleClient();
+
     // Aktualizace uživatele
-    const { data: updatedUser, error } = await supabase
+    const { data: updatedUser, error } = await serviceClient
       .from('profiles')
       .update(updates)
       .eq('id', userId)
@@ -75,7 +81,7 @@ export async function PATCH(
 
 /**
  * DELETE /api/users/[id]
- * Smazání uživatele (pouze pro adminy)
+ * Smazání uživatele (pro uživatele s oprávněním users_settings_manage_users)
  */
 export async function DELETE(
   request: NextRequest,
@@ -94,15 +100,18 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Kontrola admin role
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, id')
-      .eq('auth_user_id', user.id)
-      .single();
+    // Get profile with fallback
+    const profile = await getProfileWithFallback(supabase, user);
 
-    if (profile?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!profile) {
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+    }
+
+    // Check permission to manage users
+    const canManageUsers = await hasPermission(profile, 'users_settings_manage_users');
+
+    if (!canManageUsers) {
+      return NextResponse.json({ error: 'Forbidden - nemáte oprávnění spravovat uživatele' }, { status: 403 });
     }
 
     // Zabránit smazání vlastního účtu
@@ -113,8 +122,11 @@ export async function DELETE(
       );
     }
 
+    // Use service client to bypass RLS
+    const serviceClient = createServiceRoleClient();
+
     // Smazání uživatele (cascade smaže i všechny assignments)
-    const { error } = await supabase.from('profiles').delete().eq('id', userId);
+    const { error } = await serviceClient.from('profiles').delete().eq('id', userId);
 
     if (error) {
       throw error;

@@ -1,22 +1,40 @@
 'use client';
 
 import { useUsers } from '@/hooks/useUsers';
+import { useMyPermissions, canPerformAction } from '@/hooks/usePermissions';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import CreateUserDialog from '@/components/users/CreateUserDialog';
 import EditUserDialog from '@/components/users/EditUserDialog';
-import { Loader2, Crown, UserCog, User } from 'lucide-react';
+import { Loader2, Crown, UserCog, User, ShieldAlert } from 'lucide-react';
 import { ROLE_LABELS } from '@/types/modules';
 
 export default function UsersPage() {
   const { data: users = [], isLoading, error } = useUsers();
+  const { data: permissions, isLoading: permissionsLoading } = useMyPermissions();
 
-  if (isLoading) {
+  // Check permission to manage users
+  const canManageUsers = canPerformAction(permissions, 'users_settings_manage_users');
+
+  if (isLoading || permissionsLoading) {
     return (
       <div className="flex items-center justify-center min-h-[600px]">
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-slate-600" />
           <p className="text-slate-600">Načítání uživatelů...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show access denied if user doesn't have permission
+  if (!canManageUsers) {
+    return (
+      <div className="flex items-center justify-center min-h-[600px]">
+        <div className="text-center">
+          <ShieldAlert className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-slate-900 mb-2">Přístup odepřen</h2>
+          <p className="text-slate-600">Nemáte oprávnění spravovat uživatele.</p>
         </div>
       </div>
     );

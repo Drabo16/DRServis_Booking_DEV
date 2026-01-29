@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getProfileWithFallback, hasPermission, createServiceRoleClient } from '@/lib/supabase/server';
 
 /**
  * GET /api/users
- * Načtení všech uživatelů (pouze pro adminy)
+ * Načtení všech uživatelů (pro uživatele s oprávněním users_settings_manage_users)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -17,19 +17,25 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Kontrola admin role - profil je linkovaný přes auth_user_id
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('auth_user_id', user.id)
-      .single();
+    // Get profile with fallback
+    const profile = await getProfileWithFallback(supabase, user);
 
-    if (profile?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!profile) {
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
+    // Check permission to manage users
+    const canManageUsers = await hasPermission(profile, 'users_settings_manage_users');
+
+    if (!canManageUsers) {
+      return NextResponse.json({ error: 'Forbidden - nemáte oprávnění spravovat uživatele' }, { status: 403 });
+    }
+
+    // Use service client to bypass RLS for listing all users
+    const serviceClient = createServiceRoleClient();
+
     // Načtení všech uživatelů
-    const { data: users, error } = await supabase
+    const { data: users, error } = await serviceClient
       .from('profiles')
       .select('*')
       .order('created_at', { ascending: false });
@@ -53,7 +59,7 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/users
- * Vytvoření nového uživatele (pouze pro adminy)
+ * Vytvoření nového uživatele (pro uživatele s oprávněním users_settings_manage_users)
  */
 export async function POST(request: NextRequest) {
   try {
@@ -67,15 +73,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Kontrola admin role - profil je linkovaný přes auth_user_id
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('auth_user_id', user.id)
-      .single();
+    // Get profile with fallback
+    const profile = await getProfileWithFallback(supabase, user);
 
-    if (profile?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!profile) {
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+    }
+
+    // Check permission to manage users
+    const canManageUsers = await hasPermission(profile, 'users_settings_manage_users');
+
+    if (!canManageUsers) {
+      return NextResponse.json({ error: 'Forbidden - nemáte oprávnění spravovat uživatele' }, { status: 403 });
     }
 
     const body = await request.json();
@@ -95,8 +104,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid email format' }, { status: 400 });
     }
 
+    // Use service client to bypass RLS
+    const serviceClient = createServiceRoleClient();
+
     // Kontrola zda email již neexistuje
-    const { data: existingUser } = await supabase
+    const { data: existingUser } = await serviceClient
       .from('profiles')
       .select('id')
       .eq('email', email)
@@ -112,7 +124,7 @@ export async function POST(request: NextRequest) {
     // Vytvoření nového profilu
     // Note: User se vytvoří v profiles tabulce, ale ne v auth.users
     // Uživatel se bude moci přihlásit přes Google OAuth pomocí tohoto emailu
-    const { data: newUser, error } = await supabase
+    const { data: newUser, error } = await serviceClient
       .from('profiles')
       .insert({
         id: crypto.randomUUID(), // Vygeneruj UUID pro profil

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
+import { createClient, createServiceRoleClient, getProfileWithFallback, hasPermission } from '@/lib/supabase/server';
 
-// GET /api/role-types - Načíst všechny typy rolí
+// GET /api/role-types - Načíst všechny typy rolí (veřejné pro všechny přihlášené)
 export async function GET() {
   try {
     const supabase = await createClient();
@@ -23,7 +23,7 @@ export async function GET() {
   }
 }
 
-// POST /api/role-types - Vytvořit nový typ role (admin only)
+// POST /api/role-types - Vytvořit nový typ role (pro uživatele s oprávněním users_settings_manage_roles)
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -37,15 +37,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Kontrola admin role
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('auth_user_id', user.id)
-      .single();
+    // Get profile with fallback
+    const profile = await getProfileWithFallback(supabase, user);
 
-    if (profile?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!profile) {
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+    }
+
+    // Check permission to manage roles
+    const canManageRoles = await hasPermission(profile, 'users_settings_manage_roles');
+
+    if (!canManageRoles) {
+      return NextResponse.json({ error: 'Forbidden - nemáte oprávnění spravovat typy rolí' }, { status: 403 });
     }
 
     const body = await request.json();

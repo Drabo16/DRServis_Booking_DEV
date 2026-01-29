@@ -4,7 +4,7 @@
 // Types for the modular access system.
 // To remove: delete this file and remove export from index.ts
 
-export type ModuleCode = 'booking' | 'warehouse' | 'offers';
+export type ModuleCode = 'booking' | 'warehouse' | 'offers' | 'users_settings';
 
 export interface AppModule {
   code: ModuleCode;
@@ -71,9 +71,7 @@ export type BookingPermission =
   | 'booking_invite'
   | 'booking_manage_events'
   | 'booking_manage_positions'
-  | 'booking_manage_users'
-  | 'booking_manage_folders'
-  | 'booking_manage_roles';
+  | 'booking_manage_folders';
 
 export type WarehousePermission =
   | 'warehouse_view'
@@ -88,7 +86,11 @@ export type OffersPermission =
   | 'offers_edit_all'
   | 'offers_manage_templates';
 
-export type PermissionCode = BookingPermission | WarehousePermission | OffersPermission;
+export type UsersSettingsPermission =
+  | 'users_settings_manage_users'
+  | 'users_settings_manage_roles';
+
+export type PermissionCode = BookingPermission | WarehousePermission | OffersPermission | UsersSettingsPermission;
 
 export interface PermissionType {
   code: PermissionCode;
@@ -161,9 +163,7 @@ export const PERMISSION_LABELS: Record<PermissionCode, string> = {
   booking_invite: 'Zvát na akce',
   booking_manage_events: 'Spravovat akce',
   booking_manage_positions: 'Spravovat pozice',
-  booking_manage_users: 'Spravovat uživatele',
   booking_manage_folders: 'Spravovat složky',
-  booking_manage_roles: 'Spravovat typy rolí',
   // Warehouse
   warehouse_view: 'Zobrazit sklad',
   warehouse_reserve: 'Rezervovat materiál',
@@ -175,6 +175,9 @@ export const PERMISSION_LABELS: Record<PermissionCode, string> = {
   offers_edit_own: 'Editovat vlastní',
   offers_edit_all: 'Editovat vše',
   offers_manage_templates: 'Spravovat ceník',
+  // Users & Settings
+  users_settings_manage_users: 'Spravovat uživatele',
+  users_settings_manage_roles: 'Spravovat typy rolí',
 };
 
 // Permissions grouped by module for UI
@@ -184,9 +187,7 @@ export const PERMISSIONS_BY_MODULE: Record<ModuleCode, PermissionCode[]> = {
     'booking_invite',
     'booking_manage_events',
     'booking_manage_positions',
-    'booking_manage_users',
     'booking_manage_folders',
-    'booking_manage_roles',
   ],
   warehouse: [
     'warehouse_view',
@@ -200,6 +201,10 @@ export const PERMISSIONS_BY_MODULE: Record<ModuleCode, PermissionCode[]> = {
     'offers_edit_own',
     'offers_edit_all',
     'offers_manage_templates',
+  ],
+  users_settings: [
+    'users_settings_manage_users',
+    'users_settings_manage_roles',
   ],
 };
 
@@ -238,7 +243,6 @@ export const ROLE_PRESETS: Record<Exclude<UserRole, 'admin'>, RolePreset> = {
       'booking_manage_events',
       'booking_manage_positions',
       'booking_manage_folders',
-      'booking_manage_roles',
       // Warehouse - view and reserve
       'warehouse_view',
       'warehouse_reserve',

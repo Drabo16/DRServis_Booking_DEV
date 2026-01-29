@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
+import { createClient, createServiceRoleClient, getProfileWithFallback, hasPermission } from '@/lib/supabase/server';
 
-// PATCH /api/role-types/[id] - Aktualizovat typ role (admin only)
+// PATCH /api/role-types/[id] - Aktualizovat typ role (pro uživatele s oprávněním users_settings_manage_roles)
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -19,15 +19,18 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Kontrola admin role
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('auth_user_id', user.id)
-      .single();
+    // Get profile with fallback
+    const profile = await getProfileWithFallback(supabase, user);
 
-    if (profile?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!profile) {
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+    }
+
+    // Check permission to manage roles
+    const canManageRoles = await hasPermission(profile, 'users_settings_manage_roles');
+
+    if (!canManageRoles) {
+      return NextResponse.json({ error: 'Forbidden - nemáte oprávnění spravovat typy rolí' }, { status: 403 });
     }
 
     const body = await request.json();
@@ -55,7 +58,7 @@ export async function PATCH(
   }
 }
 
-// DELETE /api/role-types/[id] - Smazat typ role (admin only)
+// DELETE /api/role-types/[id] - Smazat typ role (pro uživatele s oprávněním users_settings_manage_roles)
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -73,15 +76,18 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Kontrola admin role
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('auth_user_id', user.id)
-      .single();
+    // Get profile with fallback
+    const profile = await getProfileWithFallback(supabase, user);
 
-    if (profile?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!profile) {
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+    }
+
+    // Check permission to manage roles
+    const canManageRoles = await hasPermission(profile, 'users_settings_manage_roles');
+
+    if (!canManageRoles) {
+      return NextResponse.json({ error: 'Forbidden - nemáte oprávnění spravovat typy rolí' }, { status: 403 });
     }
 
     // Use service role client to bypass RLS

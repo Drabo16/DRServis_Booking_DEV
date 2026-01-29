@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Pencil, Package, Calendar, FileText, Loader2, ChevronDown, Shield, Check, Crown, UserCog, User } from 'lucide-react';
+import { Pencil, Package, Calendar, FileText, Loader2, ChevronDown, Shield, Check, Crown, UserCog, User, Users } from 'lucide-react';
 import { ROLE_TYPES } from '@/lib/constants';
 import {
   Profile,
@@ -34,12 +34,14 @@ const MODULE_NAMES: Record<ModuleCode, string> = {
   booking: 'Booking',
   warehouse: 'Sklad',
   offers: 'Nabídky',
+  users_settings: 'Uživatelé a nastavení',
 };
 
 const MODULE_ICONS: Record<ModuleCode, React.ReactNode> = {
   booking: <Calendar className="w-4 h-4" />,
   warehouse: <Package className="w-4 h-4" />,
   offers: <FileText className="w-4 h-4" />,
+  users_settings: <Users className="w-4 h-4" />,
 };
 
 const ROLE_ICONS: Record<UserRole, React.ReactNode> = {
@@ -396,7 +398,7 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
 
               {/* Modules with permissions */}
               <div className="space-y-2">
-                {(['booking', 'warehouse', 'offers'] as ModuleCode[]).map((moduleCode) => {
+                {(['booking', 'warehouse', 'offers', 'users_settings'] as ModuleCode[]).map((moduleCode) => {
                   const hasAccess = localModules.has(moduleCode);
                   const isExpanded = expandedModules.has(moduleCode);
                   const modulePermissions = PERMISSIONS_BY_MODULE[moduleCode];

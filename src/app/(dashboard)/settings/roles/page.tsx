@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getProfileWithFallback, hasPermission } from '@/lib/supabase/server';
 import { notFound, redirect } from 'next/navigation';
 import RoleTypesManager from '@/components/settings/RoleTypesManager';
 
@@ -14,14 +14,17 @@ export default async function RoleSettingsPage() {
     redirect('/login');
   }
 
-  // Kontrola admin role
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('auth_user_id', user.id)
-    .single();
+  // Get profile with fallback
+  const profile = await getProfileWithFallback(supabase, user);
 
-  if (profile?.role !== 'admin') {
+  if (!profile) {
+    notFound();
+  }
+
+  // Check permission to manage roles
+  const canManageRoles = await hasPermission(profile, 'users_settings_manage_roles');
+
+  if (!canManageRoles) {
     notFound();
   }
 
