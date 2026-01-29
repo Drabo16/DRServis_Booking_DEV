@@ -53,12 +53,20 @@ export async function getProfileWithFallback(
   supabase: Awaited<ReturnType<typeof createClient>>,
   user: { id: string; email?: string | null | undefined }
 ): Promise<Profile | null> {
+  console.log('[getProfileWithFallback] Looking up profile for user:', { id: user.id, email: user.email });
+
   // First try to find profile by auth_user_id
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('*')
     .eq('auth_user_id', user.id)
     .single();
+
+  console.log('[getProfileWithFallback] auth_user_id lookup result:', {
+    found: !!profile,
+    role: profile?.role,
+    error: profileError?.message
+  });
 
   if (profile) {
     return profile as Profile;
@@ -66,11 +74,17 @@ export async function getProfileWithFallback(
 
   // Fallback: try to find profile by email if not linked yet
   if (user.email) {
-    const { data: profileByEmail } = await supabase
+    const { data: profileByEmail, error: emailError } = await supabase
       .from('profiles')
       .select('*')
       .eq('email', user.email)
       .single();
+
+    console.log('[getProfileWithFallback] email lookup result:', {
+      found: !!profileByEmail,
+      role: profileByEmail?.role,
+      error: emailError?.message
+    });
 
     if (profileByEmail) {
       // Try to link auth_user_id if not already set
@@ -89,6 +103,7 @@ export async function getProfileWithFallback(
     }
   }
 
+  console.log('[getProfileWithFallback] No profile found for user');
   return null;
 }
 
@@ -103,17 +118,26 @@ export async function hasBookingAccess(
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _requiredPermissions?: string[]
 ): Promise<boolean> {
+  console.log('[hasBookingAccess] Checking access for profile:', {
+    id: profile?.id,
+    email: profile?.email,
+    role: profile?.role,
+  });
+
   // Admin always has access
   if (profile?.role === 'admin') {
+    console.log('[hasBookingAccess] User is admin, granting access');
     return true;
   }
 
   // Manager (Správce) has FULL booking access - same as admin for booking module
   if (profile?.role === 'manager') {
+    console.log('[hasBookingAccess] User is manager, granting access');
     return true;
   }
 
   if (!profile?.id) {
+    console.log('[hasBookingAccess] No profile found, denying access');
     return false;
   }
 
@@ -125,9 +149,11 @@ export async function hasBookingAccess(
       .ilike('email', profile.email)
       .single();
     if (supervisorCheck) {
+      console.log('[hasBookingAccess] User is supervisor, granting access');
       return true;
     }
   }
 
+  console.log('[hasBookingAccess] No access granted, denying');
   return false;
 }
