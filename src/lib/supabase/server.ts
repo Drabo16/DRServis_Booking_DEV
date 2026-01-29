@@ -46,17 +46,21 @@ import type { Profile } from '@/types';
 
 /**
  * Get user profile with fallback to email lookup.
+ * Uses SERVICE ROLE client to bypass RLS restrictions.
  * This handles the case where auth_user_id is not yet linked to the profile.
  * Also attempts to link auth_user_id if profile is found by email but not linked.
  */
 export async function getProfileWithFallback(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  _supabase: Awaited<ReturnType<typeof createClient>>,
   user: { id: string; email?: string | null | undefined }
 ): Promise<Profile | null> {
+  // Use service role client to bypass RLS
+  const serviceClient = createServiceRoleClient();
+
   console.log('[getProfileWithFallback] Looking up profile for user:', { id: user.id, email: user.email });
 
   // First try to find profile by auth_user_id
-  const { data: profile, error: profileError } = await supabase
+  const { data: profile, error: profileError } = await serviceClient
     .from('profiles')
     .select('*')
     .eq('auth_user_id', user.id)
@@ -74,7 +78,7 @@ export async function getProfileWithFallback(
 
   // Fallback: try to find profile by email if not linked yet
   if (user.email) {
-    const { data: profileByEmail, error: emailError } = await supabase
+    const { data: profileByEmail, error: emailError } = await serviceClient
       .from('profiles')
       .select('*')
       .eq('email', user.email)
@@ -90,7 +94,7 @@ export async function getProfileWithFallback(
       // Try to link auth_user_id if not already set
       if (!profileByEmail.auth_user_id) {
         console.log('[getProfileWithFallback] Linking auth_user_id to profile:', user.id, 'for email:', user.email);
-        await supabase
+        await serviceClient
           .from('profiles')
           .update({ auth_user_id: user.id })
           .eq('id', profileByEmail.id);
@@ -113,7 +117,7 @@ export async function getProfileWithFallback(
  * Manager role has FULL booking access automatically - same as admin for booking module.
  */
 export async function hasBookingAccess(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  _supabase: Awaited<ReturnType<typeof createClient>>,
   profile: Profile | null,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _requiredPermissions?: string[]
@@ -141,9 +145,10 @@ export async function hasBookingAccess(
     return false;
   }
 
-  // Check supervisor
+  // Check supervisor - use service role client to bypass RLS
   if (profile.email) {
-    const { data: supervisorCheck } = await supabase
+    const serviceClient = createServiceRoleClient();
+    const { data: supervisorCheck } = await serviceClient
       .from('supervisor_emails')
       .select('email')
       .ilike('email', profile.email)
