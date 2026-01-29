@@ -4,6 +4,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Calendar, MapPin, CheckCircle2, FolderOpen, Link2 } from 'lucide-react';
 import { formatDateRange } from '@/lib/utils';
 import { usePrefetchEvent } from '@/hooks/useEvents';
+import QuickAddPosition from '@/components/positions/QuickAddPosition';
 import type { Event } from '@/types';
 
 interface EventCardProps {
@@ -19,9 +20,10 @@ interface EventCardProps {
   selected?: boolean;
   onSelectChange?: (id: string, selected: boolean) => void;
   showCheckbox?: boolean;
+  showQuickAdd?: boolean;
 }
 
-function EventCard({ event, onOpen, selected, onSelectChange, showCheckbox }: EventCardProps) {
+function EventCard({ event, onOpen, selected, onSelectChange, showCheckbox, showQuickAdd }: EventCardProps) {
   const prefetchEvent = usePrefetchEvent();
 
   // Prefetch on hover for faster detail loading
@@ -78,8 +80,11 @@ function EventCard({ event, onOpen, selected, onSelectChange, showCheckbox }: Ev
               </div>
             )}
             <CardTitle className="text-base font-semibold line-clamp-1 flex-1">{event.title}</CardTitle>
-            {/* Status icons */}
+            {/* Status icons and quick add */}
             <div className="flex items-center gap-1 flex-shrink-0">
+              {showQuickAdd && (
+                <QuickAddPosition eventId={event.id} variant="icon" />
+              )}
               {event.drive_folder_id && (
                 <div
                   className="p-1 rounded text-green-600 bg-green-50"

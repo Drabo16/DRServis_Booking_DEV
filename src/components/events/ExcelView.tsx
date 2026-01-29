@@ -355,6 +355,42 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
     scheduleAutoSave();
   }, [allTechnicians, roleTypes, scheduleAutoSave]);
 
+  // Add just a position (role) without technician
+  const addPositionOnly = useCallback((eventId: string, roleType: string) => {
+    const tempId = `temp-${Date.now()}-${Math.random()}`;
+    const roleLabel = roleTypes.find(r => r.value === roleType)?.label || roleType;
+
+    setLocalData(prev => prev.map(event => {
+      if (event.id !== eventId) return event;
+
+      const newPosition = {
+        id: tempId,
+        event_id: eventId,
+        title: roleLabel,
+        role_type: roleType as RoleType,
+        requirements: null,
+        shift_start: null,
+        shift_end: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        assignments: [] // No assignment, just the position
+      };
+
+      return {
+        ...event,
+        positions: [...(event.positions || []), newPosition]
+      };
+    }));
+
+    setPendingOperations(prev => [...prev, {
+      type: 'addRole',
+      eventId,
+      roleType
+    }]);
+
+    scheduleAutoSave();
+  }, [roleTypes, scheduleAutoSave]);
+
   // Remove assignment
   const removeAssignment = useCallback((assignmentId: string, positionId: string, eventId: string) => {
     setLocalData(prev => prev.map(event => {
@@ -417,6 +453,34 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
         }))
       );
   };
+
+  // Get empty positions (positions without assignments) for role
+  const getEmptyPositionsForRole = (event: typeof localData[0], roleType: string) => {
+    return (event.positions || [])
+      .filter(p => p.role_type === roleType && (!p.assignments || p.assignments.length === 0));
+  };
+
+  // Remove empty position
+  const removeEmptyPosition = useCallback((positionId: string, eventId: string) => {
+    setLocalData(prev => prev.map(event => {
+      if (event.id !== eventId) return event;
+      return {
+        ...event,
+        positions: (event.positions || []).filter(p => p.id !== positionId)
+      };
+    }));
+
+    if (!positionId.startsWith('temp-')) {
+      setPendingOperations(prev => [...prev, {
+        type: 'removeRole',
+        eventId,
+        roleType: '',
+        positionIds: [positionId]
+      }]);
+    }
+
+    scheduleAutoSave();
+  }, [scheduleAutoSave]);
 
   // Get event stats
   const getEventStats = (event: typeof localData[0]) => {
@@ -751,7 +815,8 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
               <div className="space-y-2">
                 {roleTypes.map(role => {
                   const assignments = getAssignmentsForRole(event, role.value);
-                  if (assignments.length === 0 && !isAdmin) return null;
+                  const emptyPositions = getEmptyPositionsForRole(event, role.value);
+                  if (assignments.length === 0 && emptyPositions.length === 0 && !isAdmin) return null;
 
                   return (
                     <div key={role.id} className="flex items-start gap-2">
@@ -759,6 +824,23 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                         {role.label.substring(0, 8)}{role.label.length > 8 ? '.' : ''}
                       </span>
                       <div className="flex flex-wrap gap-1 flex-1">
+                        {/* Empty positions */}
+                        {emptyPositions.map(pos => (
+                          <div
+                            key={pos.id}
+                            className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] border border-dashed border-slate-400 bg-slate-50 text-slate-600"
+                          >
+                            <span className="font-medium">Volná</span>
+                            {isAdmin && (
+                              <button
+                                onClick={() => removeEmptyPosition(pos.id, event.id)}
+                                className="hover:text-red-600"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                        ))}
                         {assignments.map(assignment => (
                           <div
                             key={assignment.id}
@@ -801,6 +883,14 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                               </button>
                             </PopoverTrigger>
                             <PopoverContent className="w-48 p-1">
+                              {/* Add position only button */}
+                              <button
+                                onClick={() => addPositionOnly(event.id, role.value)}
+                                className="w-full text-left px-2 py-1.5 text-sm rounded bg-slate-100 hover:bg-slate-200 mb-1 font-medium text-slate-700"
+                              >
+                                + Pouze pozice
+                              </button>
+                              <div className="border-t my-1" />
                               <div className="text-xs font-medium text-slate-500 px-2 py-1">
                                 Poptat osobu
                               </div>
@@ -901,10 +991,28 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
 
                   {roleTypes.map(role => {
                     const assignments = getAssignmentsForRole(event, role.value);
+                    const emptyPositions = getEmptyPositionsForRole(event, role.value);
 
                     return (
                       <TableCell key={role.id} className="p-2">
                         <div className="flex flex-wrap gap-1">
+                          {/* Empty positions (without assigned technician) */}
+                          {emptyPositions.map(pos => (
+                            <div
+                              key={pos.id}
+                              className="flex items-center gap-1 px-2 py-0.5 rounded text-xs border border-dashed border-slate-400 bg-slate-50 text-slate-600"
+                            >
+                              <span className="font-medium">Volná pozice</span>
+                              {isAdmin && (
+                                <button
+                                  onClick={() => removeEmptyPosition(pos.id, event.id)}
+                                  className="hover:text-red-600 p-0.5"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                          ))}
                           {assignments.map(assignment => (
                             <div
                               key={assignment.id}
@@ -950,6 +1058,14 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                                 </button>
                               </PopoverTrigger>
                               <PopoverContent className="w-48 p-1">
+                                {/* Add position only button */}
+                                <button
+                                  onClick={() => addPositionOnly(event.id, role.value)}
+                                  className="w-full text-left px-2 py-1.5 text-sm rounded bg-slate-100 hover:bg-slate-200 mb-1 font-medium text-slate-700"
+                                >
+                                  + Pouze pozice
+                                </button>
+                                <div className="border-t my-1" />
                                 <div className="text-xs font-medium text-slate-500 px-2 py-1">
                                   Poptat osobu
                                 </div>

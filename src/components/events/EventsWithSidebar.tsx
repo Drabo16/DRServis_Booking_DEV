@@ -434,6 +434,7 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
                     selected={selectedEvents.has(event.id)}
                     onSelectChange={handleSelectChange}
                     showCheckbox={isAdmin}
+                    showQuickAdd={isAdmin}
                   />
                 ))}
               </div>

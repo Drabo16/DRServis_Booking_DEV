@@ -59,10 +59,29 @@ export default function CalendarView({ events, onEventClick }: CalendarViewProps
   const calendarEvents: BigCalendarEvent[] = useMemo(() => {
     return events.map((event) => {
       const fillRate = getEventFillRate(event);
+
+      // Fix for Google Calendar all-day events: end time is midnight UTC of next day
+      let endDate = new Date(event.end_time);
+      if (endDate.getUTCHours() === 0 && endDate.getUTCMinutes() === 0 && endDate.getUTCSeconds() === 0) {
+        // For calendar display, we need to keep the end at midnight for proper rendering
+        // but react-big-calendar treats end date as exclusive, so this is correct
+        // However, we need to check if start and end are on consecutive days (single-day event)
+        const startDate = new Date(event.start_time);
+        const startDay = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+        const endDay = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+
+        // If end is exactly one day after start (all-day single-day event), adjust
+        const diffDays = (endDay.getTime() - startDay.getTime()) / (1000 * 60 * 60 * 24);
+        if (diffDays === 1) {
+          // Single day event - set end to end of the same day
+          endDate = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), 23, 59, 59);
+        }
+      }
+
       return {
         title: `${event.title} (${fillRate.filled}/${fillRate.total})`,
         start: new Date(event.start_time),
-        end: new Date(event.end_time),
+        end: endDate,
         resource: { event, fillRate },
       };
     });
