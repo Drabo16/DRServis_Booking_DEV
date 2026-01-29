@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getProfileWithFallback } from '@/lib/supabase/server';
 
 /**
  * GET /api/events
@@ -17,14 +17,35 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Načti profil pro kontrolu role
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, id')
-      .eq('auth_user_id', user.id)
-      .single();
+    // Načti profil s fallbackem na email lookup
+    const profile = await getProfileWithFallback(supabase, user);
 
     const isAdmin = profile?.role === 'admin';
+
+    // Check if supervisor
+    let isSupervisor = false;
+    if (profile?.email) {
+      const { data: supervisorCheck } = await supabase
+        .from('supervisor_emails')
+        .select('email')
+        .ilike('email', profile.email)
+        .single();
+      isSupervisor = !!supervisorCheck;
+    }
+
+    // Check user permissions - users with booking permissions can see all events
+    let hasBookingPermissions = false;
+    if (profile?.id) {
+      const { data: userPermissions } = await supabase
+        .from('user_permissions')
+        .select('permission_code')
+        .eq('user_id', profile.id)
+        .in('permission_code', ['booking_view', 'booking_manage_events', 'booking_manage_positions', 'booking_invite']);
+      hasBookingPermissions = !!(userPermissions && userPermissions.length > 0);
+    }
+
+    // User can see all events if admin, supervisor, or has booking permissions
+    const canSeeAllEvents = isAdmin || isSupervisor || hasBookingPermissions;
 
     // Fetch events based on role
     const query = supabase
@@ -58,9 +79,8 @@ export async function GET() {
       throw error;
     }
 
-    // For non-admin, filter on server side for better security
-    // Client can also filter but this ensures data security
-    const filteredEvents = isAdmin
+    // For users without booking permissions, filter to show only their assigned events
+    const filteredEvents = canSeeAllEvents
       ? events
       : events?.filter((event) =>
           event.positions?.some((position: any) =>

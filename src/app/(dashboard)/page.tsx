@@ -27,11 +27,37 @@ export default async function HomePage() {
 
   const isAdmin = profile?.role === 'admin';
 
-  // Pass minimal data - let client handle fetching with React Query
+  // Check if supervisor
+  let isSupervisor = false;
+  if (profile?.email) {
+    const { data: supervisorCheck } = await supabase
+      .from('supervisor_emails')
+      .select('email')
+      .ilike('email', profile.email)
+      .single();
+    isSupervisor = !!supervisorCheck;
+  }
+
+  // Check user permissions directly from database
+  let canSeeAllEvents = isAdmin || isSupervisor;
+
+  if (!canSeeAllEvents && profile?.id) {
+    // Check if user has any booking permission that allows seeing all events
+    const { data: userPermissions } = await supabase
+      .from('user_permissions')
+      .select('permission_code')
+      .eq('user_id', profile.id)
+      .in('permission_code', ['booking_view', 'booking_manage_events', 'booking_manage_positions', 'booking_invite']);
+
+    canSeeAllEvents = !!(userPermissions && userPermissions.length > 0);
+  }
+
+  // Pass canSeeAllEvents calculated on server
   return (
     <EventsClientWrapper
       isAdmin={isAdmin}
       userId={profile?.id || ''}
+      canSeeAllEvents={canSeeAllEvents}
     />
   );
 }

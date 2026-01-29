@@ -11,46 +11,35 @@ import { Button } from '@/components/ui/button';
 interface EventsClientWrapperProps {
   isAdmin: boolean;
   userId: string;
+  canSeeAllEvents: boolean; // Calculated on server-side for reliability
 }
 
-export default function EventsClientWrapper({ isAdmin, userId }: EventsClientWrapperProps) {
+export default function EventsClientWrapper({ isAdmin, userId, canSeeAllEvents }: EventsClientWrapperProps) {
   // Use React Query for data fetching with aggressive caching
   const { data: events = [], isLoading: eventsLoading, error: eventsError, refetch } = useEvents();
   const { data: technicians = [] } = useTechnicians();
-  const { data: permissions, isLoading: permissionsLoading } = useMyPermissions();
+  const { data: permissions } = useMyPermissions();
 
-  // Permission checks - user with ANY booking permission should see all events
-  const hasBookingView = canPerformAction(permissions, 'booking_view');
+  // Permission checks for UI elements (manage buttons etc.)
   const hasManageEvents = canPerformAction(permissions, 'booking_manage_events');
   const hasManagePositions = canPerformAction(permissions, 'booking_manage_positions');
   const hasInvite = canPerformAction(permissions, 'booking_invite');
   const hasManageFolders = canPerformAction(permissions, 'booking_manage_folders');
 
-  // Can see all events = admin OR has booking_view OR has any booking management permission
-  const canSeeAllEvents = isAdmin || hasBookingView || hasManageEvents || hasManagePositions || hasInvite;
+  // canSeeAllEvents is now passed from server - no client-side calculation needed
 
   // DEBUG: Log permissions state to browser console
   console.log('[DEBUG EventsClientWrapper]', {
-    permissions: permissions ? {
-      is_admin: permissions.is_admin,
-      is_supervisor: permissions.is_supervisor,
-      permissions_count: permissions.permissions?.length,
-      permissions_with_true: permissions.permissions?.filter(p => p.has_permission).map(p => p.code),
-    } : null,
+    canSeeAllEventsFromServer: canSeeAllEvents,
     isAdmin,
-    hasBookingView,
-    hasManageEvents,
-    hasManagePositions,
-    hasInvite,
-    canSeeAllEvents,
     eventsCount: events.length,
   });
 
   // Can manage events like an admin (full booking access)
   const hasFullBookingAccess = isAdmin || hasManageEvents || hasManagePositions || hasInvite || hasManageFolders;
 
-  // Show loading while either events or permissions are loading
-  if (eventsLoading || permissionsLoading) {
+  // Show loading while events are loading (permissions for visibility come from server)
+  if (eventsLoading) {
     return (
       <div className="w-full">
         <div className="mb-4 flex items-center justify-between">
