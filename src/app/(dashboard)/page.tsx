@@ -26,6 +26,7 @@ export default async function HomePage() {
   const profile = await getProfileWithFallback(supabase, user);
 
   const isAdmin = profile?.role === 'admin';
+  const isManager = profile?.role === 'manager';
 
   // Check if supervisor
   let isSupervisor = false;
@@ -38,24 +39,16 @@ export default async function HomePage() {
     isSupervisor = !!supervisorCheck;
   }
 
-  // Check user permissions directly from database
-  let canSeeAllEvents = isAdmin || isSupervisor;
+  // Manager (Správce) has FULL booking access - same as admin for booking module
+  const canSeeAllEvents = isAdmin || isManager || isSupervisor;
 
-  if (!canSeeAllEvents && profile?.id) {
-    // Check if user has any booking permission that allows seeing all events
-    const { data: userPermissions } = await supabase
-      .from('user_permissions')
-      .select('permission_code')
-      .eq('user_id', profile.id)
-      .in('permission_code', ['booking_view', 'booking_manage_events', 'booking_manage_positions', 'booking_invite']);
-
-    canSeeAllEvents = !!(userPermissions && userPermissions.length > 0);
-  }
+  // For booking module, manager has same rights as admin
+  const hasFullBookingAccess = isAdmin || isManager || isSupervisor;
 
   // Pass canSeeAllEvents calculated on server
   return (
     <EventsClientWrapper
-      isAdmin={isAdmin}
+      isAdmin={hasFullBookingAccess}
       userId={profile?.id || ''}
       canSeeAllEvents={canSeeAllEvents}
     />

@@ -21,6 +21,7 @@ export async function GET() {
     const profile = await getProfileWithFallback(supabase, user);
 
     const isAdmin = profile?.role === 'admin';
+    const isManager = profile?.role === 'manager';
 
     // Check if supervisor
     let isSupervisor = false;
@@ -33,19 +34,9 @@ export async function GET() {
       isSupervisor = !!supervisorCheck;
     }
 
-    // Check user permissions - users with booking permissions can see all events
-    let hasBookingPermissions = false;
-    if (profile?.id) {
-      const { data: userPermissions } = await supabase
-        .from('user_permissions')
-        .select('permission_code')
-        .eq('user_id', profile.id)
-        .in('permission_code', ['booking_view', 'booking_manage_events', 'booking_manage_positions', 'booking_invite']);
-      hasBookingPermissions = !!(userPermissions && userPermissions.length > 0);
-    }
-
-    // User can see all events if admin, supervisor, or has booking permissions
-    const canSeeAllEvents = isAdmin || isSupervisor || hasBookingPermissions;
+    // Manager (Správce) has full booking access - sees all events
+    // Admin and Supervisor also see all events
+    const canSeeAllEvents = isAdmin || isManager || isSupervisor;
 
     // Fetch events based on role
     const query = supabase
