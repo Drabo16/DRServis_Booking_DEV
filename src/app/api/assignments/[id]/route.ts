@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getProfileWithFallback, hasBookingAccess } from '@/lib/supabase/server';
 
 /**
  * PATCH /api/assignments/[id]
@@ -21,14 +21,11 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check admin role
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('auth_user_id', user.id)
-      .single();
+    // Kontrola přístupu - admin, supervisor, nebo uživatel s booking_manage_positions
+    const profile = await getProfileWithFallback(supabase, user);
+    const canManagePositions = await hasBookingAccess(supabase, profile, ['booking_manage_positions']);
 
-    if (profile?.role !== 'admin') {
+    if (!canManagePositions) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -95,14 +92,11 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check admin role
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('auth_user_id', user.id)
-      .single();
+    // Kontrola přístupu - admin, supervisor, nebo uživatel s booking_manage_positions
+    const profile = await getProfileWithFallback(supabase, user);
+    const canManagePositions = await hasBookingAccess(supabase, profile, ['booking_manage_positions']);
 
-    if (profile?.role !== 'admin') {
+    if (!canManagePositions) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

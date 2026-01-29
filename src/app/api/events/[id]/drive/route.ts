@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getProfileWithFallback, hasBookingAccess } from '@/lib/supabase/server';
 import { createEventFolderStructure, updateInfoFile, deleteFolder } from '@/lib/google/drive';
 import { removeDriveFolderFromEvent } from '@/lib/google/calendar';
 
@@ -26,14 +26,11 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Kontrola admin role
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('auth_user_id', user.id)
-      .single();
+    // Kontrola přístupu - admin, supervisor, nebo uživatel s booking_manage_folders
+    const profile = await getProfileWithFallback(supabase, user);
+    const canManageFolders = await hasBookingAccess(supabase, profile, ['booking_manage_folders']);
 
-    if (profile?.role !== 'admin') {
+    if (!canManageFolders) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -248,14 +245,11 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Kontrola admin role
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('auth_user_id', user.id)
-      .single();
+    // Kontrola přístupu - admin, supervisor, nebo uživatel s booking_manage_folders
+    const profile = await getProfileWithFallback(supabase, user);
+    const canManageFolders = await hasBookingAccess(supabase, profile, ['booking_manage_folders']);
 
-    if (profile?.role !== 'admin') {
+    if (!canManageFolders) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

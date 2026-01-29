@@ -91,3 +91,43 @@ export async function getProfileWithFallback(
 
   return null;
 }
+
+/**
+ * Check if user has full booking access (can do everything admin can in booking module).
+ * Returns true if user is admin, supervisor, or has relevant booking permissions.
+ */
+export async function hasBookingAccess(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  profile: Profile | null,
+  requiredPermissions: string[] = ['booking_manage_events', 'booking_manage_positions', 'booking_invite', 'booking_manage_folders']
+): Promise<boolean> {
+  // Admin always has access
+  if (profile?.role === 'admin') {
+    return true;
+  }
+
+  if (!profile?.id) {
+    return false;
+  }
+
+  // Check supervisor
+  if (profile.email) {
+    const { data: supervisorCheck } = await supabase
+      .from('supervisor_emails')
+      .select('email')
+      .ilike('email', profile.email)
+      .single();
+    if (supervisorCheck) {
+      return true;
+    }
+  }
+
+  // Check user permissions
+  const { data: userPermissions } = await supabase
+    .from('user_permissions')
+    .select('permission_code')
+    .eq('user_id', profile.id)
+    .in('permission_code', requiredPermissions);
+
+  return !!(userPermissions && userPermissions.length > 0);
+}
