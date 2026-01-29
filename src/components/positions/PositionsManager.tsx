@@ -12,6 +12,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
   Table,
   TableBody,
   TableCell,
@@ -19,7 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, Trash2, X, Mail, UserPlus, Loader2 } from 'lucide-react';
+import { Plus, Trash2, X, Mail, UserPlus, Loader2, Check } from 'lucide-react';
 import { getRoleTypeLabel, getAttendanceStatusLabel, getAttendanceStatusColor } from '@/lib/utils';
 import type { Position, Assignment, Profile, RoleType, AttendanceStatus } from '@/types';
 import { useQueryClient } from '@tanstack/react-query';
@@ -48,11 +54,8 @@ export default function PositionsManager({
 }: PositionsManagerProps) {
   const queryClient = useQueryClient();
   const [positions, setPositions] = useState(initialPositions);
-  const [isAddingPosition, setIsAddingPosition] = useState(false);
-  const [newPosition, setNewPosition] = useState<{ role_type: RoleType | '', technicianId: string }>({
-    role_type: '',
-    technicianId: '',
-  });
+  const [selectedRoles, setSelectedRoles] = useState<Set<string>>(new Set());
+  const [popoverOpen, setPopoverOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [selectedTechnician, setSelectedTechnician] = useState<{ [key: string]: string }>({});
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
@@ -84,64 +87,57 @@ export default function PositionsManager({
     setPositions(initialPositions);
   }, [initialPositions]);
 
-  const handleAddPosition = async () => {
-    if (!newPosition.role_type) return;
+  // Toggle role selection
+  const toggleRole = (roleValue: string) => {
+    setSelectedRoles(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(roleValue)) {
+        newSet.delete(roleValue);
+      } else {
+        newSet.add(roleValue);
+      }
+      return newSet;
+    });
+  };
+
+  // Add multiple positions at once
+  const handleAddPositions = async () => {
+    if (selectedRoles.size === 0) return;
 
     setLoading(true);
-    const roleLabel = roleTypes.find((t) => t.value === newPosition.role_type)?.label || newPosition.role_type;
 
     try {
-      // Server call
-      const response = await fetch('/api/positions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          event_id: eventId,
-          title: roleLabel,
-          role_type: newPosition.role_type,
-        }),
-      });
+      const newPositions: any[] = [];
 
-      if (!response.ok) throw new Error('Failed to create position');
-      const { position } = await response.json();
+      for (const roleValue of selectedRoles) {
+        const role = roleTypes.find(r => r.value === roleValue);
+        if (!role) continue;
 
-      // Přiřaď technika pokud je vybraný
-      if (newPosition.technicianId) {
-        const assignResp = await fetch('/api/assignments', {
+        const response = await fetch('/api/positions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            position_id: position.id,
-            technician_id: newPosition.technicianId,
+            event_id: eventId,
+            title: role.label,
+            role_type: roleValue,
           }),
         });
 
-        if (assignResp.ok) {
-          const { assignment } = await assignResp.json();
-
-          // Manuální update UI bez router.refresh
-          const tech = allTechnicians.find(t => t.id === newPosition.technicianId);
-          const newPos: any = {
-            ...position,
-            assignments: assignment && tech ? [{
-              ...assignment,
-              technician: tech
-            }] : []
-          };
-          setPositions([...positions, newPos]);
+        if (response.ok) {
+          const { position } = await response.json();
+          newPositions.push({ ...position, assignments: [] });
         }
-      } else {
-        // Přidej prázdnou pozici
-        setPositions([...positions, { ...position, assignments: [] } as any]);
       }
 
-      setNewPosition({ role_type: '', technicianId: '' });
-      setIsAddingPosition(false);
+      // Update UI with all new positions
+      setPositions([...positions, ...newPositions]);
+      setSelectedRoles(new Set());
+      setPopoverOpen(false);
 
       // Invalidate cache to sync all views
       await queryClient.invalidateQueries({ queryKey: eventKeys.all });
     } catch (error) {
-      alert('Chyba při vytváření pozice');
+      alert('Chyba při vytváření pozic');
     } finally {
       setLoading(false);
     }
@@ -345,15 +341,59 @@ export default function PositionsManager({
         <div className="flex items-center justify-between">
           <CardTitle className="text-base md:text-xl">Pozice a přiřazení</CardTitle>
           {isAdmin && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setIsAddingPosition(true)}
-              className="text-xs md:text-sm"
-            >
-              <Plus className="w-4 h-4 md:mr-2" />
-              <span className="hidden md:inline">Přidat pozici</span>
-            </Button>
+            <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs md:text-sm"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <Loader2 className="w-4 h-4 md:mr-2 animate-spin" />
+                  ) : (
+                    <Plus className="w-4 h-4 md:mr-2" />
+                  )}
+                  <span className="hidden md:inline">Přidat pozice</span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-52 p-0">
+                <div className="text-xs font-medium text-slate-500 px-3 py-2 border-b">
+                  Vyberte role
+                </div>
+                <div className="py-1 px-1">
+                  {roleTypes.map((role) => (
+                    <label
+                      key={role.id}
+                      className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-100 cursor-pointer rounded"
+                    >
+                      <Checkbox
+                        checked={selectedRoles.has(role.value)}
+                        onCheckedChange={() => toggleRole(role.value)}
+                      />
+                      <span className="text-sm">{role.label}</span>
+                    </label>
+                  ))}
+                </div>
+                {selectedRoles.size > 0 && (
+                  <div className="border-t px-2 py-2">
+                    <Button
+                      size="sm"
+                      className="w-full gap-1"
+                      onClick={handleAddPositions}
+                      disabled={loading}
+                    >
+                      {loading ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Check className="h-3 w-3" />
+                      )}
+                      Přidat {selectedRoles.size} {selectedRoles.size === 1 ? 'pozici' : selectedRoles.size < 5 ? 'pozice' : 'pozic'}
+                    </Button>
+                  </div>
+                )}
+              </PopoverContent>
+            </Popover>
           )}
         </div>
       </CardHeader>
@@ -476,66 +516,6 @@ export default function PositionsManager({
               </div>
             </div>
           ))}
-          {/* Mobile: Add position form */}
-          {isAddingPosition && (
-            <div className="border rounded-lg p-3 bg-blue-50 space-y-2">
-              <Select
-                value={newPosition.role_type}
-                onValueChange={(value) =>
-                  setNewPosition({ ...newPosition, role_type: value as RoleType })
-                }
-              >
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="Vyberte typ role..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {roleTypes.map((role) => (
-                    <SelectItem key={role.id} value={role.value}>
-                      {role.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={newPosition.technicianId}
-                onValueChange={(value) =>
-                  setNewPosition({ ...newPosition, technicianId: value })
-                }
-              >
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="Technik (volitelné)..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {allTechnicians.map((tech) => (
-                    <SelectItem key={tech.id} value={tech.id}>
-                      {tech.full_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  onClick={handleAddPosition}
-                  disabled={!newPosition.role_type || loading}
-                  className="flex-1 h-8 text-xs"
-                >
-                  Uložit
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setIsAddingPosition(false);
-                    setNewPosition({ role_type: '', technicianId: '' });
-                  }}
-                  className="h-8 text-xs"
-                >
-                  Zrušit
-                </Button>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Desktop: Table layout */}
@@ -666,74 +646,11 @@ export default function PositionsManager({
                   )}
                 </TableRow>
               ))}
-              {isAddingPosition && (
-                <TableRow>
-                  <TableCell>
-                    <Select
-                      value={newPosition.role_type}
-                      onValueChange={(value) =>
-                        setNewPosition({ ...newPosition, role_type: value as RoleType })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Vyberte typ role..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {roleTypes.map((role) => (
-                          <SelectItem key={role.id} value={role.value}>
-                            {role.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell>
-                    <Select
-                      value={newPosition.technicianId}
-                      onValueChange={(value) =>
-                        setNewPosition({ ...newPosition, technicianId: value })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Vyberte technika (volitelné)..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {allTechnicians.map((tech) => (
-                          <SelectItem key={tech.id} value={tech.id}>
-                            {tech.full_name} ({tech.email})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        onClick={handleAddPosition}
-                        disabled={!newPosition.role_type || loading}
-                      >
-                        Uložit
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                          setIsAddingPosition(false);
-                          setNewPosition({ role_type: '', technicianId: '' });
-                        }}
-                      >
-                        Zrušit
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              )}
             </TableBody>
           </Table>
         </div>
 
-        {positions.length === 0 && !isAddingPosition && (
+        {positions.length === 0 && (
           <div className="text-center py-6 md:py-8 text-slate-500 text-sm">
             {isAdmin ? 'Zatím nejsou vytvořené žádné pozice.' : 'Pro tuto akci zatím nejsou vytvořené žádné pozice.'}
           </div>
