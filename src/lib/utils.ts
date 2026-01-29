@@ -21,7 +21,13 @@ export function formatTime(date: string | Date): string {
 
 export function formatDateRange(startDate: string | Date, endDate: string | Date): string {
   const start = typeof startDate === 'string' ? new Date(startDate) : startDate
-  const end = typeof endDate === 'string' ? new Date(endDate) : endDate
+  let end = typeof endDate === 'string' ? new Date(endDate) : endDate
+
+  // Google Calendar sets end_time to midnight of the NEXT day for all-day events
+  // If end is at exactly midnight (00:00:00), subtract 1 second to get the actual end date
+  if (end.getHours() === 0 && end.getMinutes() === 0 && end.getSeconds() === 0) {
+    end = new Date(end.getTime() - 1000) // Subtract 1 second
+  }
 
   const startStr = format(start, 'd. M. yyyy', { locale: cs })
   const endStr = format(end, 'd. M. yyyy', { locale: cs })
