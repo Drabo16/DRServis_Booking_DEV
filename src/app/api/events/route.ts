@@ -1,13 +1,23 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient, getProfileWithFallback } from '@/lib/supabase/server';
 
 /**
  * GET /api/events
  * Fetch all events with positions and assignments
+ * Query params:
+ *   - showPast: 'true' to show past events instead of upcoming
+ *   - daysBack: number of days back to show (default 30, max 365)
+ *   - daysAhead: number of days ahead to show (default 90, max 365)
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
+    const { searchParams } = new URL(request.url);
+
+    // Parse query parameters
+    const showPast = searchParams.get('showPast') === 'true';
+    const daysBack = Math.min(Math.max(parseInt(searchParams.get('daysBack') || '30'), 1), 365);
+    const daysAhead = Math.min(Math.max(parseInt(searchParams.get('daysAhead') || '90'), 1), 365);
 
     const {
       data: { user },
@@ -38,6 +48,21 @@ export async function GET() {
     // Admin and Supervisor also see all events
     const canSeeAllEvents = isAdmin || isManager || isSupervisor;
 
+    // Calculate date range based on showPast flag
+    const now = new Date();
+    let startDate: Date;
+    let endDate: Date;
+
+    if (showPast) {
+      // Past events: from X days ago until now
+      startDate = new Date(now.getTime() - daysBack * 24 * 60 * 60 * 1000);
+      endDate = now;
+    } else {
+      // Upcoming events: from now until X days ahead
+      startDate = now;
+      endDate = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
+    }
+
     // Fetch events based on role
     const query = supabase
       .from('events')
@@ -58,10 +83,10 @@ export async function GET() {
           )
         )
       `)
-      .gte('start_time', new Date().toISOString())
-      .lte('start_time', new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString())
-      .order('start_time', { ascending: true })
-      .limit(50);
+      .gte('start_time', startDate.toISOString())
+      .lte('start_time', endDate.toISOString())
+      .order('start_time', { ascending: !showPast }) // Past events: newest first
+      .limit(100);
 
     const { data: events, error } = await query;
 

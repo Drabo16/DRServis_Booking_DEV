@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useEvents } from '@/hooks/useEvents';
 import { useTechnicians } from '@/hooks/useTechnicians';
 import { useMyPermissions, canPerformAction } from '@/hooks/usePermissions';
@@ -15,8 +16,11 @@ interface EventsClientWrapperProps {
 }
 
 export default function EventsClientWrapper({ isAdmin, userId, canSeeAllEvents }: EventsClientWrapperProps) {
+  // Toggle between upcoming and past events
+  const [showPast, setShowPast] = useState(false);
+
   // Use React Query for data fetching with aggressive caching
-  const { data: events = [], isLoading: eventsLoading, error: eventsError, refetch } = useEvents();
+  const { data: events = [], isLoading: eventsLoading, error: eventsError, refetch } = useEvents(showPast);
   const { data: technicians = [] } = useTechnicians();
   const { data: permissions } = useMyPermissions();
 
@@ -83,6 +87,8 @@ export default function EventsClientWrapper({ isAdmin, userId, canSeeAllEvents }
       isAdmin={hasFullBookingAccess}
       userId={userId}
       allTechnicians={technicians}
+      showPast={showPast}
+      onTogglePast={() => setShowPast(!showPast)}
     />
   );
 }

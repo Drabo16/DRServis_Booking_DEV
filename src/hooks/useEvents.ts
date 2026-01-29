@@ -25,11 +25,14 @@ type EventWithPositions = Event & {
 };
 
 // Fetch all events
-export function useEvents() {
+// showPast: true = past events, false = upcoming events
+export function useEvents(showPast: boolean = false) {
   return useQuery({
-    queryKey: eventKeys.list(),
+    queryKey: eventKeys.list({ showPast }),
     queryFn: async () => {
-      const response = await fetch('/api/events');
+      const params = new URLSearchParams();
+      if (showPast) params.set('showPast', 'true');
+      const response = await fetch(`/api/events?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to fetch events');
       return response.json() as Promise<EventWithPositions[]>;
     },

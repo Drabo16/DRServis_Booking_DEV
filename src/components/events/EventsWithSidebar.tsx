@@ -17,7 +17,7 @@ import EventCard from './EventCard';
 import EventDetailPanel from './EventDetailPanel';
 import type { Event, Profile } from '@/types';
 import { eventKeys } from '@/hooks/useEvents';
-import { Loader2, Filter, X, FolderPlus, Link2, RefreshCw, Trash2, MoreHorizontal } from 'lucide-react';
+import { Loader2, Filter, X, FolderPlus, Link2, RefreshCw, Trash2, MoreHorizontal, History, CalendarDays } from 'lucide-react';
 
 // Lazy load heavy components for better initial load time
 const CalendarView = lazy(() => import('@/components/calendar/CalendarView'));
@@ -34,9 +34,11 @@ interface EventsWithSidebarProps {
   isAdmin: boolean;
   userId: string;
   allTechnicians?: Profile[];
+  showPast?: boolean;
+  onTogglePast?: () => void;
 }
 
-export default function EventsWithSidebar({ events, isAdmin, userId, allTechnicians = [] }: EventsWithSidebarProps) {
+export default function EventsWithSidebar({ events, isAdmin, userId, allTechnicians = [], showPast = false, onTogglePast }: EventsWithSidebarProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
@@ -348,28 +350,52 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
         {/* Fixed height header area to prevent layout shift when switching tabs */}
         <div className="mb-4 flex items-center justify-between gap-2 min-h-[40px]">
           <h1 className="text-xl md:text-2xl font-bold text-slate-900">
-            {isAdmin ? 'Akce' : 'Moje akce'}
+            {showPast ? 'Uplynulé akce' : (isAdmin ? 'Akce' : 'Moje akce')}
           </h1>
 
-          {/* Filter button */}
-          <Button
-            variant={showIncompleteOnly ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setShowIncompleteOnly(!showIncompleteOnly)}
-            className="gap-1 md:gap-2"
-          >
-            {showIncompleteOnly ? (
-              <>
-                <X className="w-4 h-4" />
-                <span className="hidden sm:inline">Zrušit filtr</span>
-              </>
-            ) : (
-              <>
-                <Filter className="w-4 h-4" />
-                <span className="hidden sm:inline">Neúplné obsazení</span>
-              </>
+          <div className="flex items-center gap-2">
+            {/* Past/Upcoming toggle */}
+            {onTogglePast && (
+              <Button
+                variant={showPast ? 'default' : 'outline'}
+                size="sm"
+                onClick={onTogglePast}
+                className="gap-1 md:gap-2"
+              >
+                {showPast ? (
+                  <>
+                    <CalendarDays className="w-4 h-4" />
+                    <span className="hidden sm:inline">Nadcházející</span>
+                  </>
+                ) : (
+                  <>
+                    <History className="w-4 h-4" />
+                    <span className="hidden sm:inline">Uplynulé</span>
+                  </>
+                )}
+              </Button>
             )}
-          </Button>
+
+            {/* Filter button */}
+            <Button
+              variant={showIncompleteOnly ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setShowIncompleteOnly(!showIncompleteOnly)}
+              className="gap-1 md:gap-2"
+            >
+              {showIncompleteOnly ? (
+                <>
+                  <X className="w-4 h-4" />
+                  <span className="hidden sm:inline">Zrušit filtr</span>
+                </>
+              ) : (
+                <>
+                  <Filter className="w-4 h-4" />
+                  <span className="hidden sm:inline">Neúplné obsazení</span>
+                </>
+              )}
+            </Button>
+          </div>
         </div>
 
         <Tabs defaultValue="list" className="w-full" onValueChange={setActiveTab}>
