@@ -55,6 +55,7 @@ type PendingOperation =
   | { type: 'addRole'; eventId: string; roleType: string }
   | { type: 'removeRole'; eventId: string; roleType: string; positionIds: string[] }
   | { type: 'assignTechnician'; eventId: string; roleType: string; technicianId: string; tempId: string }
+  | { type: 'fillEmptyPosition'; eventId: string; positionId: string; technicianId: string; tempId: string }
   | { type: 'removeAssignment'; assignmentId: string; positionId: string; eventId: string }
   | { type: 'updateStatus'; assignmentId: string; newStatus: AttendanceStatus };
 
@@ -256,6 +257,21 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
             break;
           }
 
+          case 'fillEmptyPosition': {
+            // Position already exists, just add assignment
+            if (op.positionId.startsWith('temp-')) continue;
+
+            await fetch('/api/assignments', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                position_id: op.positionId,
+                technician_id: op.technicianId,
+              }),
+            });
+            break;
+          }
+
           case 'removeAssignment': {
             if (op.assignmentId.startsWith('temp-')) continue;
 
@@ -302,55 +318,108 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
     performSave(pendingOperations);
   }, [pendingOperations, roleTypes, queryClient]);
 
-  // Add technician to role
+  // Add technician to role - fills empty position if available, otherwise creates new
   const addTechnician = useCallback((eventId: string, roleType: string, technicianId: string) => {
     const tech = allTechnicians.find(t => t.id === technicianId);
     if (!tech) return;
 
-    const tempId = `temp-${Date.now()}-${Math.random()}`;
+    const tempAssignmentId = `temp-${Date.now()}-${Math.random()}`;
     const roleLabel = roleTypes.find(r => r.value === roleType)?.label || roleType;
+
+    // Check for empty position to fill
+    let filledExistingPosition = false;
+    let existingPositionId: string | null = null;
 
     setLocalData(prev => prev.map(event => {
       if (event.id !== eventId) return event;
 
-      const newPosition = {
-        id: tempId,
-        event_id: eventId,
-        title: roleLabel,
-        role_type: roleType as RoleType,
-        requirements: null,
-        shift_start: null,
-        shift_end: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        assignments: [{
-          id: tempId,
-          position_id: tempId,
-          event_id: eventId,
-          technician_id: technicianId,
-          attendance_status: 'pending' as AttendanceStatus,
-          response_time: null,
-          notes: null,
-          assigned_by: null,
-          assigned_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          technician: tech
-        }]
-      };
+      // Find empty position for this role type
+      const emptyPosition = (event.positions || []).find(
+        p => p.role_type === roleType && (!p.assignments || p.assignments.length === 0)
+      );
 
-      return {
-        ...event,
-        positions: [...(event.positions || []), newPosition]
-      };
+      if (emptyPosition) {
+        // Fill the existing empty position
+        filledExistingPosition = true;
+        existingPositionId = emptyPosition.id;
+
+        return {
+          ...event,
+          positions: (event.positions || []).map(pos => {
+            if (pos.id === emptyPosition.id) {
+              return {
+                ...pos,
+                assignments: [{
+                  id: tempAssignmentId,
+                  position_id: pos.id,
+                  event_id: eventId,
+                  technician_id: technicianId,
+                  attendance_status: 'pending' as AttendanceStatus,
+                  response_time: null,
+                  notes: null,
+                  assigned_by: null,
+                  assigned_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                  technician: tech
+                }]
+              };
+            }
+            return pos;
+          })
+        };
+      } else {
+        // Create new position with assignment
+        const newPosition = {
+          id: tempAssignmentId,
+          event_id: eventId,
+          title: roleLabel,
+          role_type: roleType as RoleType,
+          requirements: null,
+          shift_start: null,
+          shift_end: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          assignments: [{
+            id: tempAssignmentId,
+            position_id: tempAssignmentId,
+            event_id: eventId,
+            technician_id: technicianId,
+            attendance_status: 'pending' as AttendanceStatus,
+            response_time: null,
+            notes: null,
+            assigned_by: null,
+            assigned_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            technician: tech
+          }]
+        };
+
+        return {
+          ...event,
+          positions: [...(event.positions || []), newPosition]
+        };
+      }
     }));
 
-    setPendingOperations(prev => [...prev, {
-      type: 'assignTechnician',
-      eventId,
-      roleType,
-      technicianId,
-      tempId
-    }]);
+    // Add appropriate pending operation
+    if (filledExistingPosition && existingPositionId) {
+      const positionIdToFill = existingPositionId; // Store in const for TypeScript narrowing
+      setPendingOperations(prev => [...prev, {
+        type: 'fillEmptyPosition',
+        eventId,
+        positionId: positionIdToFill,
+        technicianId,
+        tempId: tempAssignmentId
+      }]);
+    } else {
+      setPendingOperations(prev => [...prev, {
+        type: 'assignTechnician',
+        eventId,
+        roleType,
+        technicianId,
+        tempId: tempAssignmentId
+      }]);
+    }
 
     scheduleAutoSave();
   }, [allTechnicians, roleTypes, scheduleAutoSave]);
