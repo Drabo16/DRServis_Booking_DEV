@@ -1,44 +1,68 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, AlertTriangle, ChevronRight, ChevronLeft, Minus, Plus, Check, X } from 'lucide-react';
-import { useCheckAvailabilityMutation, useUpdateWarehouseReservation, warehouseKeys } from '@/hooks/useWarehouse';
-import { useQueryClient } from '@tanstack/react-query';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Loader2, AlertTriangle, Trash2, RefreshCw, Check, X } from 'lucide-react';
+import {
+  useCheckAvailabilityMutation,
+  useUpdateWarehouseReservation,
+  useDeleteWarehouseReservation,
+  useWarehouseItems,
+  useCreateWarehouseReservation,
+} from '@/hooks/useWarehouse';
 import { format, addDays } from 'date-fns';
 import { cs } from 'date-fns/locale';
-import type { ItemAvailability } from '@/types/warehouse';
 
 interface ConflictManagerProps {
   isAdmin: boolean;
 }
 
-// Conflict group - items with overlapping reservations
-interface ConflictGroup {
-  item: ItemAvailability;
-  reservationsByEvent: Map<string, {
-    eventId: string | null;
-    eventTitle: string;
-    reservationId: string;
-    quantity: number;
-    startDate: string;
-    endDate: string;
-  }[]>;
-  totalNeeded: number;
+// Flat conflict row for table display
+interface ConflictRow {
+  reservationId: string;
+  itemId: string;
+  itemName: string;
+  itemSku: string | null;
+  categoryName: string | null;
+  eventId: string | null;
+  eventTitle: string;
+  startDate: string;
+  endDate: string;
+  quantity: number;
+  quantityAvailable: number;
   shortage: number;
 }
 
 export default function ConflictManager({ isAdmin }: ConflictManagerProps) {
-  const queryClient = useQueryClient();
   const [daysAhead, setDaysAhead] = useState(30);
-  const [editingReservation, setEditingReservation] = useState<string | null>(null);
+  const [editingRow, setEditingRow] = useState<string | null>(null);
   const [editQuantity, setEditQuantity] = useState<number>(0);
+  const [replacingRow, setReplacingRow] = useState<string | null>(null);
+  const [selectedReplacement, setSelectedReplacement] = useState<string>('');
 
   const checkAvailability = useCheckAvailabilityMutation();
   const updateReservation = useUpdateWarehouseReservation();
+  const deleteReservation = useDeleteWarehouseReservation();
+  const createReservation = useCreateWarehouseReservation();
+  const { data: allItems } = useWarehouseItems();
 
   // Calculate date range
   const dateRange = useMemo(() => {
@@ -50,133 +74,122 @@ export default function ConflictManager({ isAdmin }: ConflictManagerProps) {
     };
   }, [daysAhead]);
 
-  // Fetch conflicts on mount and when date range changes
+  // Fetch conflicts
   const { data, isPending } = checkAvailability;
 
-  // Load conflicts
   const loadConflicts = useCallback(() => {
     checkAvailability.mutate(dateRange);
   }, [checkAvailability, dateRange]);
 
   // Initial load
-  useState(() => {
+  useEffect(() => {
     loadConflicts();
-  });
+  }, []);
 
-  // Process data into conflict groups
-  const conflicts = useMemo((): ConflictGroup[] => {
+  // Reload when days change
+  useEffect(() => {
+    loadConflicts();
+  }, [daysAhead]);
+
+  // Process data into flat conflict rows
+  const conflictRows = useMemo((): ConflictRow[] => {
     if (!data?.items) return [];
 
-    return data.items
-      .filter(item => item.quantity_reserved > item.quantity_total)
-      .map(item => {
-        const reservationsByEvent = new Map<string, {
-          eventId: string | null;
-          eventTitle: string;
-          reservationId: string;
-          quantity: number;
-          startDate: string;
-          endDate: string;
-        }[]>();
+    const rows: ConflictRow[] = [];
 
+    data.items
+      .filter(item => item.quantity_reserved > item.quantity_total)
+      .forEach(item => {
         item.conflicting_reservations.forEach(res => {
-          const key = res.event_id || 'no-event';
-          const existing = reservationsByEvent.get(key) || [];
-          existing.push({
+          rows.push({
+            reservationId: res.reservation_id,
+            itemId: item.item_id,
+            itemName: item.item_name,
+            itemSku: item.sku,
+            categoryName: item.category_name,
             eventId: res.event_id,
             eventTitle: res.event_title || 'Bez akce',
-            reservationId: res.reservation_id,
-            quantity: res.quantity,
             startDate: res.start_date,
             endDate: res.end_date,
+            quantity: res.quantity,
+            quantityAvailable: item.quantity_total,
+            shortage: item.quantity_reserved - item.quantity_total,
           });
-          reservationsByEvent.set(key, existing);
         });
+      });
 
-        return {
-          item,
-          reservationsByEvent,
-          totalNeeded: item.quantity_reserved,
-          shortage: item.quantity_reserved - item.quantity_total,
-        };
-      })
-      .sort((a, b) => b.shortage - a.shortage);
+    // Sort by shortage (most urgent first), then by date
+    return rows.sort((a, b) => {
+      if (b.shortage !== a.shortage) return b.shortage - a.shortage;
+      return new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
+    });
   }, [data]);
 
-  // Quick quantity adjustment
-  const handleQuickAdjust = useCallback(async (reservationId: string, currentQty: number, delta: number) => {
-    const newQty = Math.max(0, currentQty + delta);
-    if (newQty === currentQty) return;
+  // Get alternative items for replacement (same category, different item)
+  const getAlternativeItems = useCallback((row: ConflictRow) => {
+    if (!allItems) return [];
+    return allItems.filter(item =>
+      item.id !== row.itemId &&
+      (row.categoryName ? item.category?.name === row.categoryName : true) &&
+      item.quantity_total > 0
+    );
+  }, [allItems]);
+
+  // Handle quantity update
+  const handleSaveQuantity = useCallback(async () => {
+    if (!editingRow) return;
 
     try {
       await updateReservation.mutateAsync({
-        id: reservationId,
-        data: { quantity: newQty },
-      });
-      // Reload conflicts
-      loadConflicts();
-    } catch (error) {
-      console.error('Failed to update quantity:', error);
-    }
-  }, [updateReservation, loadConflicts]);
-
-  // Start inline editing
-  const startEditing = useCallback((reservationId: string, currentQty: number) => {
-    setEditingReservation(reservationId);
-    setEditQuantity(currentQty);
-  }, []);
-
-  // Save edited quantity
-  const saveEdit = useCallback(async () => {
-    if (!editingReservation) return;
-
-    try {
-      await updateReservation.mutateAsync({
-        id: editingReservation,
+        id: editingRow,
         data: { quantity: editQuantity },
       });
-      setEditingReservation(null);
+      setEditingRow(null);
       loadConflicts();
     } catch (error) {
       console.error('Failed to update quantity:', error);
     }
-  }, [editingReservation, editQuantity, updateReservation, loadConflicts]);
+  }, [editingRow, editQuantity, updateReservation, loadConflicts]);
 
-  // Cancel editing
-  const cancelEdit = useCallback(() => {
-    setEditingReservation(null);
-    setEditQuantity(0);
-  }, []);
-
-  // Transfer quantity between reservations
-  const handleTransfer = useCallback(async (
-    fromReservationId: string,
-    toReservationId: string,
-    fromCurrentQty: number,
-    toCurrentQty: number,
-    amount: number = 1
-  ) => {
-    if (fromCurrentQty < amount) return;
+  // Handle item replacement
+  const handleReplaceItem = useCallback(async (row: ConflictRow) => {
+    if (!selectedReplacement) return;
 
     try {
-      // Update both reservations
-      await Promise.all([
-        updateReservation.mutateAsync({
-          id: fromReservationId,
-          data: { quantity: fromCurrentQty - amount },
-        }),
-        updateReservation.mutateAsync({
-          id: toReservationId,
-          data: { quantity: toCurrentQty + amount },
-        }),
-      ]);
+      // Create new reservation with the replacement item
+      await createReservation.mutateAsync({
+        item_id: selectedReplacement,
+        event_id: row.eventId || undefined,
+        quantity: row.quantity,
+        start_date: row.startDate,
+        end_date: row.endDate,
+        notes: `Nahrazeno za: ${row.itemName}`,
+      });
+
+      // Delete the old reservation
+      await deleteReservation.mutateAsync(row.reservationId);
+
+      setReplacingRow(null);
+      setSelectedReplacement('');
       loadConflicts();
     } catch (error) {
-      console.error('Failed to transfer:', error);
+      console.error('Failed to replace item:', error);
     }
-  }, [updateReservation, loadConflicts]);
+  }, [selectedReplacement, createReservation, deleteReservation, loadConflicts]);
 
-  const isLoading = isPending || updateReservation.isPending;
+  // Handle reservation deletion
+  const handleDelete = useCallback(async (reservationId: string) => {
+    if (!confirm('Opravdu smazat tuto rezervaci?')) return;
+
+    try {
+      await deleteReservation.mutateAsync(reservationId);
+      loadConflicts();
+    } catch (error) {
+      console.error('Failed to delete reservation:', error);
+    }
+  }, [deleteReservation, loadConflicts]);
+
+  const isLoading = isPending || updateReservation.isPending || deleteReservation.isPending || createReservation.isPending;
 
   // Stats
   const stats = useMemo(() => {
@@ -200,10 +213,7 @@ export default function ConflictManager({ isAdmin }: ConflictManagerProps) {
             <span className="text-sm text-slate-600">Období:</span>
             <select
               value={daysAhead}
-              onChange={(e) => {
-                setDaysAhead(Number(e.target.value));
-                setTimeout(loadConflicts, 0);
-              }}
+              onChange={(e) => setDaysAhead(Number(e.target.value))}
               className="text-sm border rounded px-2 py-1"
             >
               <option value={7}>7 dní</option>
@@ -213,7 +223,7 @@ export default function ConflictManager({ isAdmin }: ConflictManagerProps) {
               <option value={90}>90 dní</option>
             </select>
             <Button size="sm" variant="outline" onClick={loadConflicts} disabled={isLoading}>
-              {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Obnovit'}
+              {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
             </Button>
           </div>
         </div>
@@ -233,180 +243,175 @@ export default function ConflictManager({ isAdmin }: ConflictManagerProps) {
       </CardHeader>
 
       <CardContent>
-        {isLoading && conflicts.length === 0 ? (
+        {isLoading && conflictRows.length === 0 ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
           </div>
-        ) : conflicts.length === 0 ? (
+        ) : conflictRows.length === 0 ? (
           <div className="text-center py-12 text-slate-500">
             <AlertTriangle className="w-12 h-12 mx-auto mb-4 text-green-500" />
             <p className="font-medium">Žádné konflikty</p>
             <p className="text-sm">Všechen materiál je v daném období dostupný</p>
           </div>
         ) : (
-          <div className="space-y-6">
-            {conflicts.map((conflict) => (
-              <div
-                key={conflict.item.item_id}
-                className="border rounded-lg p-4 bg-red-50/50"
-              >
-                {/* Item header */}
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="font-semibold text-slate-900">
-                      {conflict.item.item_name}
-                    </h3>
-                    {conflict.item.sku && (
-                      <span className="text-xs text-slate-500">{conflict.item.sku}</span>
-                    )}
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm">
-                      <span className="text-slate-600">Máte: </span>
-                      <span className="font-bold">{conflict.item.quantity_total} ks</span>
-                    </div>
-                    <div className="text-sm">
-                      <span className="text-slate-600">Potřeba: </span>
-                      <span className="font-bold text-red-600">{conflict.totalNeeded} ks</span>
-                    </div>
-                    <Badge variant="destructive" className="mt-1">
-                      Chybí {conflict.shortage} ks
-                    </Badge>
-                  </div>
-                </div>
-
-                {/* Reservations grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {Array.from(conflict.reservationsByEvent.entries()).map(([eventKey, reservations]) => {
-                    const firstRes = reservations[0];
-                    const totalForEvent = reservations.reduce((sum, r) => sum + r.quantity, 0);
-
-                    return (
-                      <div
-                        key={eventKey}
-                        className="bg-white rounded-lg border p-3 shadow-sm"
-                      >
-                        <div className="text-sm font-medium text-slate-900 mb-1 truncate">
-                          {firstRes.eventTitle}
-                        </div>
-                        <div className="text-xs text-slate-500 mb-3">
-                          {format(new Date(firstRes.startDate), 'd.M.', { locale: cs })} - {format(new Date(firstRes.endDate), 'd.M.yyyy', { locale: cs })}
-                        </div>
-
-                        {reservations.map((res) => (
-                          <div key={res.reservationId} className="flex items-center justify-center gap-2">
-                            {editingReservation === res.reservationId ? (
-                              // Inline edit mode
-                              <div className="flex items-center gap-1">
-                                <Input
-                                  type="number"
-                                  value={editQuantity}
-                                  onChange={(e) => setEditQuantity(Number(e.target.value))}
-                                  className="w-16 h-8 text-center text-lg font-bold"
-                                  min={0}
-                                  autoFocus
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') saveEdit();
-                                    if (e.key === 'Escape') cancelEdit();
-                                  }}
-                                />
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-8 w-8 p-0"
-                                  onClick={saveEdit}
-                                  disabled={updateReservation.isPending}
-                                >
-                                  <Check className="w-4 h-4 text-green-600" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-8 w-8 p-0"
-                                  onClick={cancelEdit}
-                                >
-                                  <X className="w-4 h-4 text-red-600" />
-                                </Button>
-                              </div>
-                            ) : (
-                              // Display mode with quick controls
-                              <>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-8 w-8 p-0"
-                                  onClick={() => handleQuickAdjust(res.reservationId, res.quantity, -1)}
-                                  disabled={res.quantity <= 0 || isLoading}
-                                >
-                                  <Minus className="w-3 h-3" />
-                                </Button>
-
-                                <button
-                                  onClick={() => startEditing(res.reservationId, res.quantity)}
-                                  className="w-12 h-10 text-xl font-bold text-slate-900 hover:bg-slate-100 rounded transition-colors"
-                                  title="Klikni pro editaci"
-                                >
-                                  {res.quantity}
-                                </button>
-
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-8 w-8 p-0"
-                                  onClick={() => handleQuickAdjust(res.reservationId, res.quantity, 1)}
-                                  disabled={isLoading}
-                                >
-                                  <Plus className="w-3 h-3" />
-                                </Button>
-                              </>
-                            )}
-                          </div>
-                        ))}
-
-                        {/* Transfer buttons - show if there are multiple events */}
-                        {conflict.reservationsByEvent.size > 1 && (
-                          <div className="flex justify-center gap-1 mt-2 pt-2 border-t">
-                            {Array.from(conflict.reservationsByEvent.entries())
-                              .filter(([key]) => key !== eventKey)
-                              .slice(0, 2)
-                              .map(([otherKey, otherReservations]) => {
-                                const otherRes = otherReservations[0];
-                                const currentRes = reservations[0];
-                                return (
-                                  <Button
-                                    key={otherKey}
-                                    size="sm"
-                                    variant="ghost"
-                                    className="text-xs h-7 px-2"
-                                    onClick={() => handleTransfer(
-                                      currentRes.reservationId,
-                                      otherRes.reservationId,
-                                      currentRes.quantity,
-                                      otherRes.quantity,
-                                      1
-                                    )}
-                                    disabled={currentRes.quantity <= 0 || isLoading}
-                                    title={`Přesunout 1 ks na ${otherRes.eventTitle}`}
-                                  >
-                                    <ChevronRight className="w-3 h-3 mr-1" />
-                                    {otherRes.eventTitle.substring(0, 10)}...
-                                  </Button>
-                                );
-                              })}
-                          </div>
-                        )}
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Materiál</TableHead>
+                  <TableHead>Akce</TableHead>
+                  <TableHead>Termín</TableHead>
+                  <TableHead className="text-center">Máte</TableHead>
+                  <TableHead className="text-center">Potřeba</TableHead>
+                  <TableHead className="text-center">Chybí</TableHead>
+                  <TableHead className="text-right">Akce</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {conflictRows.map((row) => (
+                  <TableRow key={row.reservationId} className="bg-red-50/30">
+                    <TableCell>
+                      <div className="font-medium">{row.itemName}</div>
+                      {row.itemSku && (
+                        <div className="text-xs text-slate-500">{row.itemSku}</div>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="max-w-[200px] truncate" title={row.eventTitle}>
+                        {row.eventTitle}
                       </div>
-                    );
-                  })}
-                </div>
-
-                {/* Quick tip */}
-                <p className="text-xs text-slate-500 mt-3">
-                  Klikni na číslo pro editaci, použij +/- pro rychlou úpravu, nebo šipky pro přesun mezi akcemi
-                </p>
-              </div>
-            ))}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {format(new Date(row.startDate), 'd.M.', { locale: cs })} - {format(new Date(row.endDate), 'd.M.', { locale: cs })}
+                    </TableCell>
+                    <TableCell className="text-center font-medium">
+                      {row.quantityAvailable}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {editingRow === row.reservationId ? (
+                        <div className="flex items-center justify-center gap-1">
+                          <Input
+                            type="number"
+                            value={editQuantity}
+                            onChange={(e) => setEditQuantity(Number(e.target.value))}
+                            className="w-16 h-8 text-center"
+                            min={0}
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleSaveQuantity();
+                              if (e.key === 'Escape') setEditingRow(null);
+                            }}
+                          />
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-8 p-0"
+                            onClick={handleSaveQuantity}
+                            disabled={isLoading}
+                          >
+                            <Check className="w-4 h-4 text-green-600" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-8 p-0"
+                            onClick={() => setEditingRow(null)}
+                          >
+                            <X className="w-4 h-4 text-red-600" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setEditingRow(row.reservationId);
+                            setEditQuantity(row.quantity);
+                          }}
+                          className="font-bold hover:bg-slate-100 px-2 py-1 rounded"
+                          title="Klikni pro úpravu"
+                        >
+                          {row.quantity}
+                        </button>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Badge variant="destructive">{row.shortage}</Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {replacingRow === row.reservationId ? (
+                        <div className="flex items-center justify-end gap-2">
+                          <Select
+                            value={selectedReplacement}
+                            onValueChange={setSelectedReplacement}
+                          >
+                            <SelectTrigger className="w-[180px] h-8">
+                              <SelectValue placeholder="Vyberte náhradu..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {getAlternativeItems(row).map((item) => (
+                                <SelectItem key={item.id} value={item.id}>
+                                  {item.name} ({item.quantity_total} ks)
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-8 p-0"
+                            onClick={() => handleReplaceItem(row)}
+                            disabled={!selectedReplacement || isLoading}
+                          >
+                            <Check className="w-4 h-4 text-green-600" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-8 p-0"
+                            onClick={() => {
+                              setReplacingRow(null);
+                              setSelectedReplacement('');
+                            }}
+                          >
+                            <X className="w-4 h-4 text-red-600" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 text-xs"
+                            onClick={() => {
+                              setReplacingRow(row.reservationId);
+                              setSelectedReplacement('');
+                            }}
+                            disabled={isLoading}
+                          >
+                            Nahradit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => handleDelete(row.reservationId)}
+                            disabled={isLoading}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
+        )}
+
+        {conflictRows.length > 0 && (
+          <p className="text-xs text-slate-500 mt-4">
+            Klikni na číslo v sloupci &quot;Potřeba&quot; pro úpravu množství. Použij &quot;Nahradit&quot; pro výměnu za jiný materiál.
+          </p>
         )}
       </CardContent>
     </Card>
