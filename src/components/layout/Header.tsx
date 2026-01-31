@@ -29,8 +29,10 @@ export default function Header({ user, profile }: HeaderProps) {
 
   // Can sync = admin/supervisor/manager OR has booking_manage_events permission
   // Managers have FULL booking access (same as backend logic)
-  const isManager = permissions?.role === 'manager';
-  const canSync = isManager || canPerformAction(permissions, 'booking_manage_events');
+  // Use profile from props as fallback (immediately available from server)
+  const isManager = profile?.role === 'manager' || permissions?.role === 'manager';
+  const isAdmin = profile?.role === 'admin' || permissions?.is_admin;
+  const canSync = isAdmin || isManager || canPerformAction(permissions, 'booking_manage_events');
 
   const handleLogout = async () => {
     await supabase.auth.signOut();

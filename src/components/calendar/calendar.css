@@ -120,38 +120,50 @@
 
 .rbc-month-row {
   border-top: 1px solid #e2e8f0;
-  min-height: 80px;
-  overflow: visible;
+  min-height: 100px;
 }
 
 @media (min-width: 640px) {
   .rbc-month-row {
-    min-height: 100px;
+    min-height: 120px;
   }
-}
-
-/* Show all events - no limit */
-.rbc-row-content {
-  z-index: 4;
-  position: relative;
 }
 
 .rbc-row-segment {
   padding: 1px 2px;
 }
 
+/* Style for "show more" link */
 .rbc-show-more {
-  display: none !important;
+  background: transparent;
+  color: #3b82f6;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 4px;
+  cursor: pointer;
 }
 
-/* Make sure event rows don't get cut off */
-.rbc-month-row .rbc-row-bg {
-  z-index: 1;
+.rbc-show-more:hover {
+  text-decoration: underline;
 }
 
-.rbc-month-row .rbc-row-content {
-  z-index: 2;
-  min-height: auto;
+/* Popup overlay styles */
+.rbc-overlay {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  padding: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 100;
+}
+
+.rbc-overlay-header {
+  font-weight: 600;
+  padding: 4px 8px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .rbc-date-cell {

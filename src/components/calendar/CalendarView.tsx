@@ -89,19 +89,29 @@ export default function CalendarView({ events, onEventClick }: CalendarViewProps
 
   // Calculate max events per day for dynamic height
   const maxEventsPerDay = useMemo(() => {
+    if (calendarEvents.length === 0) return 3;
+
     const eventsByDay: Record<string, number> = {};
     calendarEvents.forEach(event => {
       // Count events for each day they span
       const start = new Date(event.start as Date);
       const end = new Date(event.end as Date);
+
+      // Safety: limit to 30 days max to prevent infinite loops
+      const maxIterations = 30;
+      let iterations = 0;
       const current = new Date(start);
-      while (current <= end) {
-        const dayKey = current.toISOString().split('T')[0];
+
+      while (current <= end && iterations < maxIterations) {
+        const dayKey = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
         eventsByDay[dayKey] = (eventsByDay[dayKey] || 0) + 1;
         current.setDate(current.getDate() + 1);
+        iterations++;
       }
     });
-    return Math.max(3, ...Object.values(eventsByDay)); // Minimum 3 events per row
+
+    const counts = Object.values(eventsByDay);
+    return counts.length > 0 ? Math.max(3, ...counts) : 3;
   }, [calendarEvents]);
 
   // Memoizovaný handler
@@ -214,7 +224,7 @@ export default function CalendarView({ events, onEventClick }: CalendarViewProps
 
   return (
     <div
-      className="bg-white p-2 sm:p-4 rounded-lg shadow-sm"
+      className="bg-white p-2 sm:p-4 rounded-lg shadow-sm calendar-container"
       style={{ minHeight: `${dynamicHeight}px` }}
     >
       <Calendar
@@ -230,13 +240,8 @@ export default function CalendarView({ events, onEventClick }: CalendarViewProps
         culture="cs"
         views={['month']}
         defaultView="month"
-        popup={false}
+        popup
         components={components}
-        dayPropGetter={() => ({
-          style: {
-            minHeight: `${40 + maxEventsPerDay * 26}px`,
-          },
-        })}
       />
     </div>
   );
