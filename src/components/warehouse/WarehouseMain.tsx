@@ -4,7 +4,7 @@ import { useState, lazy, Suspense, useEffect, useCallback, useMemo } from 'react
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Loader2, Plus, Package, Layers, BarChart3, Calendar, Settings, Upload, CalendarCheck } from 'lucide-react';
+import { Loader2, Plus, Package, Layers, BarChart3, Calendar, Settings, Upload, CalendarCheck, AlertTriangle } from 'lucide-react';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import ItemsList from './ItemsList';
 import ItemDetailPanel from './ItemDetailPanel';
@@ -16,6 +16,7 @@ const CategoriesManager = lazy(() => import('./CategoriesManager'));
 const WarehouseStatsOverview = lazy(() => import('./WarehouseStatsOverview'));
 const ReservationsView = lazy(() => import('./ReservationsView'));
 const AvailabilityChecker = lazy(() => import('./AvailabilityChecker'));
+const ConflictManager = lazy(() => import('./ConflictManager'));
 
 // Shared loading fallback component
 const LoadingFallback = () => (
@@ -94,13 +95,13 @@ export default function WarehouseMain({ isAdmin, userId }: WarehouseMainProps) {
 
   // Memoize which tabs hide the right panel
   const hideRightPanel = useMemo(() =>
-    activeTab === 'stats' || activeTab === 'categories' || activeTab === 'reservations' || activeTab === 'kits' || activeTab === 'availability',
+    activeTab === 'stats' || activeTab === 'categories' || activeTab === 'reservations' || activeTab === 'kits' || activeTab === 'availability' || activeTab === 'conflicts',
     [activeTab]
   );
 
   // Memoize grid class for tabs
   const tabsGridClass = useMemo(() =>
-    `grid h-10 max-w-2xl ${isAdmin ? 'grid-cols-6' : 'grid-cols-5'}`,
+    `grid h-10 max-w-3xl ${isAdmin ? 'grid-cols-7' : 'grid-cols-6'}`,
     [isAdmin]
   );
 
@@ -149,6 +150,10 @@ export default function WarehouseMain({ isAdmin, userId }: WarehouseMainProps) {
               <BarChart3 className="w-4 h-4 mr-1 hidden sm:block" />
               Statistiky
             </TabsTrigger>
+            <TabsTrigger value="conflicts" className="text-xs sm:text-sm">
+              <AlertTriangle className="w-4 h-4 mr-1 hidden sm:block" />
+              Konflikty
+            </TabsTrigger>
             {isAdmin && (
               <TabsTrigger value="categories" className="text-xs sm:text-sm">
                 <Settings className="w-4 h-4 mr-1 hidden sm:block" />
@@ -182,6 +187,12 @@ export default function WarehouseMain({ isAdmin, userId }: WarehouseMainProps) {
           <TabsContent value="stats" className="mt-4">
             <Suspense fallback={<LoadingFallback />}>
               <WarehouseStatsOverview />
+            </Suspense>
+          </TabsContent>
+
+          <TabsContent value="conflicts" className="mt-4">
+            <Suspense fallback={<LoadingFallback />}>
+              <ConflictManager isAdmin={isAdmin} />
             </Suspense>
           </TabsContent>
 
