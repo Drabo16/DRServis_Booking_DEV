@@ -54,6 +54,17 @@ export async function POST(request: NextRequest) {
       canManageEvents = await hasPermission(profile, 'booking_manage_events');
     }
 
+    console.log('[Sync] Permission check:', {
+      userId: user.id,
+      email: profile.email,
+      role: profile.role,
+      isAdmin,
+      isManager,
+      isSupervisor,
+      hasFullBookingAccess,
+      canManageEvents,
+    });
+
     if (!canManageEvents) {
       return NextResponse.json({
         error: 'Forbidden - nemáte oprávnění spravovat akce (booking_manage_events)'
@@ -82,7 +93,18 @@ export async function POST(request: NextRequest) {
     const syncLogStart = new Date();
 
     // Načtení eventů z Google Calendar
+    console.log('[Sync] Fetching events from Google Calendar:', {
+      timeMin: timeMin.toISOString(),
+      timeMax: timeMax.toISOString(),
+      daysAhead,
+    });
+
     const calendarEvents = await fetchCalendarEvents(timeMin, timeMax);
+
+    console.log('[Sync] Fetched from Google Calendar:', {
+      count: calendarEvents.length,
+      events: calendarEvents.slice(0, 5).map(e => ({ id: e.id, summary: e.summary })),
+    });
 
     let successCount = 0;
     let errorCount = 0;
@@ -94,8 +116,11 @@ export async function POST(request: NextRequest) {
       .filter(e => e.id)
       .map(e => e.id as string);
 
+    // Use service client for all DB operations (bypasses RLS - we already verified permissions)
+    // This is important because managers might not have direct RLS permission to insert/update events
+
     // Najdeme události v DB, které mají google_event_id a jsou v daném časovém rozmezí
-    const { data: existingEvents } = await supabase
+    const { data: existingEvents } = await serviceClient
       .from('events')
       .select('id, google_event_id, title')
       .not('google_event_id', 'is', null)
@@ -108,20 +133,20 @@ export async function POST(request: NextRequest) {
         if (dbEvent.google_event_id && !googleEventIds.includes(dbEvent.google_event_id)) {
           // Událost byla smazána z Google Calendar - smažeme ji i z DB
           // Nejdřív smažeme assignments a positions (kvůli foreign keys)
-          const { data: positions } = await supabase
+          const { data: positions } = await serviceClient
             .from('positions')
             .select('id')
             .eq('event_id', dbEvent.id);
 
           if (positions) {
             for (const pos of positions) {
-              await supabase.from('assignments').delete().eq('position_id', pos.id);
+              await serviceClient.from('assignments').delete().eq('position_id', pos.id);
             }
-            await supabase.from('positions').delete().eq('event_id', dbEvent.id);
+            await serviceClient.from('positions').delete().eq('event_id', dbEvent.id);
           }
 
           // Pak smažeme samotnou událost
-          const { error: deleteError } = await supabase
+          const { error: deleteError } = await serviceClient
             .from('events')
             .delete()
             .eq('id', dbEvent.id);
@@ -154,8 +179,8 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // Upsert do databáze
-        const { error } = await supabase.from('events').upsert(
+        // Upsert do databáze (using service client to bypass RLS)
+        const { error } = await serviceClient.from('events').upsert(
           {
             google_event_id: calEvent.id,
             google_calendar_id: process.env.GOOGLE_CALENDAR_ID || 'primary',
@@ -188,8 +213,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Uložení sync logu
-    await supabase.from('sync_logs').insert({
+    // Uložení sync logu (using service client)
+    await serviceClient.from('sync_logs').insert({
       sync_type: 'calendar_ingest',
       status: errorCount === 0 ? 'success' : errorCount === successCount ? 'failed' : 'partial',
       events_processed: successCount,

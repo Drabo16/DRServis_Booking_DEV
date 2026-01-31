@@ -1,5 +1,16 @@
 /* Custom styles for react-big-calendar */
 
+/* Container for proper height handling */
+.calendar-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.calendar-container > .rbc-calendar {
+  flex: 1;
+  min-height: 0;
+}
+
 .rbc-calendar {
   font-family: inherit;
   font-size: 14px;

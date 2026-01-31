@@ -11,6 +11,12 @@ import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import './calendar.css';
 
+// Czech month names in nominative case (1st case) - for headers
+const CZECH_MONTHS_NOMINATIVE = [
+  'Leden', 'Únor', 'Březen', 'Duben', 'Květen', 'Červen',
+  'Červenec', 'Srpen', 'Září', 'Říjen', 'Listopad', 'Prosinec'
+];
+
 const locales = {
   cs: cs,
 };
@@ -18,7 +24,7 @@ const locales = {
 const localizer = dateFnsLocalizer({
   format,
   parse,
-  startOfWeek,
+  startOfWeek: (date: Date) => startOfWeek(date, { weekStartsOn: 1 }), // Monday start
   getDay,
   locales,
 });
@@ -178,8 +184,13 @@ export default function CalendarView({ events, onEventClick }: CalendarViewProps
     showMore: (total: number) => `+ další (${total})`,
   }), []);
 
-  // Vlastní toolbar pouze s navigací měsíců
-  const CustomToolbar = useCallback(({ label, onNavigate }: ToolbarProps) => {
+  // Vlastní toolbar pouze s navigací měsíců - používá 1. pád pro měsíce
+  const CustomToolbar = useCallback(({ date, onNavigate }: ToolbarProps) => {
+    // Format month in nominative case (1st case in Czech)
+    const month = CZECH_MONTHS_NOMINATIVE[date.getMonth()];
+    const year = date.getFullYear();
+    const label = `${month} ${year}`;
+
     return (
       <div className="flex items-center justify-between mb-4 pb-4 border-b">
         <Button
@@ -225,7 +236,7 @@ export default function CalendarView({ events, onEventClick }: CalendarViewProps
   return (
     <div
       className="bg-white p-2 sm:p-4 rounded-lg shadow-sm calendar-container"
-      style={{ minHeight: `${dynamicHeight}px` }}
+      style={{ height: `${dynamicHeight}px` }}
     >
       <Calendar
         localizer={localizer}
@@ -242,6 +253,7 @@ export default function CalendarView({ events, onEventClick }: CalendarViewProps
         defaultView="month"
         popup
         components={components}
+        style={{ height: '100%' }}
       />
     </div>
   );
