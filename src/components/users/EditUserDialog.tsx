@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Pencil, Package, Calendar, FileText, Loader2, ChevronDown, Shield, Check, Crown, UserCog, User, Users } from 'lucide-react';
+import { Pencil, Package, Calendar, FileText, Loader2, ChevronDown, Shield, Check, Crown, UserCog, User, Users, AlertTriangle } from 'lucide-react';
 import { ROLE_TYPES } from '@/lib/constants';
 import {
   Profile,
@@ -68,19 +68,45 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
   const updateUser = useUpdateUser();
   const deleteUser = useDeleteUser();
 
-  // Current user permissions (to check if supervisor)
+  // Current user permissions (to check if supervisor/admin)
   const { data: myPermissions } = useMyPermissions();
   const isSupervisor = myPermissions?.is_supervisor ?? false;
   const isMyAdmin = myPermissions?.is_admin ?? false;
 
-  // Target user permissions
-  const { data: userPermissions, refetch: refetchPermissions } = useUserPermissions(open ? user.id : null);
+  // SECURITY: Only admins and supervisors can manage permissions
+  // Managers can ONLY edit basic info of technicians
+  const canManagePermissions = isSupervisor || isMyAdmin;
+
+  // SECURITY: Check if current user can edit this target user
+  // Managers can only edit technicians (not admins, not managers, not themselves)
+  const isTargetTechnician = user.role === 'technician';
+  const isTargetAdmin = user.role === 'admin';
+  const isTargetManager = user.role === 'manager';
+  const isEditingSelf = myPermissions?.id === user.id;
+
+  // Manager restrictions
+  const isManager = !isMyAdmin && !isSupervisor;
+  const managerCanEdit = isManager && isTargetTechnician && !isEditingSelf;
+
+  // Overall can edit check
+  const canEdit = canManagePermissions || managerCanEdit;
+
+  // SECURITY: Only admins/supervisors can delete users
+  const canDelete = canManagePermissions;
+
+  // SECURITY: Only admins/supervisors can change roles
+  const canChangeRole = canManagePermissions;
+
+  // Target user permissions (only fetch if we can manage permissions)
+  const { data: userPermissions, refetch: refetchPermissions } = useUserPermissions(
+    open && canManagePermissions ? user.id : null
+  );
   const updatePermissions = useUpdateUserPermissions();
 
   // Combined loading state
   const loading = updateUser.isPending || deleteUser.isPending;
 
-  // Local state for permissions and modules
+  // Local state for permissions and modules (only used by admins/supervisors)
   const [localModules, setLocalModules] = useState<Set<ModuleCode>>(new Set());
   const [localPermissions, setLocalPermissions] = useState<Set<PermissionCode>>(new Set());
   const [expandedModules, setExpandedModules] = useState<Set<ModuleCode>>(new Set(['booking']));
@@ -88,7 +114,7 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
 
   // Initialize local state from fetched data
   useEffect(() => {
-    if (userPermissions) {
+    if (userPermissions && canManagePermissions) {
       const modules = new Set<ModuleCode>();
       const permissions = new Set<PermissionCode>();
 
@@ -102,12 +128,14 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
       setLocalModules(modules);
       setLocalPermissions(permissions);
     }
-  }, [userPermissions]);
+  }, [userPermissions, canManagePermissions]);
 
   // Refetch when dialog opens
   useEffect(() => {
     if (open) {
-      refetchPermissions();
+      if (canManagePermissions) {
+        refetchPermissions();
+      }
       setFormData({
         full_name: user.full_name,
         phone: user.phone || '',
@@ -116,10 +144,12 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
         is_active: user.is_active,
       });
     }
-  }, [open, refetchPermissions, user]);
+  }, [open, refetchPermissions, user, canManagePermissions]);
 
-  // Handle role change - apply preset
+  // Handle role change - apply preset (only for admins/supervisors)
   const handleRoleChange = (newRole: UserRole) => {
+    if (!canChangeRole) return;
+
     setFormData({ ...formData, role: newRole });
 
     // Apply preset for non-admin roles
@@ -133,6 +163,8 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
   };
 
   const handleModuleToggle = (moduleCode: ModuleCode) => {
+    if (!canManagePermissions) return;
+
     setLocalModules((prev) => {
       const next = new Set(prev);
       if (next.has(moduleCode)) {
@@ -156,6 +188,8 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
   };
 
   const handlePermissionToggle = (permission: PermissionCode) => {
+    if (!canManagePermissions) return;
+
     setLocalPermissions((prev) => {
       const next = new Set(prev);
       if (next.has(permission)) {
@@ -168,6 +202,8 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
   };
 
   const savePermissions = async () => {
+    if (!canManagePermissions) return;
+
     setPermissionsLoading(true);
     try {
       await updatePermissions.mutateAsync({
@@ -187,18 +223,32 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!canEdit) return;
+
     try {
+      // For managers, only update basic info (not role)
+      const updateData = isManager
+        ? {
+            full_name: formData.full_name,
+            phone: formData.phone || null,
+            specialization: formData.specialization.length > 0 ? formData.specialization : null,
+            is_active: formData.is_active,
+          }
+        : {
+            ...formData,
+            specialization: formData.specialization.length > 0 ? formData.specialization : null,
+          };
+
       // Update user via mutation hook
       await updateUser.mutateAsync({
         id: user.id,
-        data: {
-          ...formData,
-          specialization: formData.specialization.length > 0 ? formData.specialization : null,
-        },
+        data: updateData,
       });
 
-      // Save permissions if changed
-      await savePermissions();
+      // Save permissions if admin/supervisor and changed
+      if (canManagePermissions) {
+        await savePermissions();
+      }
 
       setOpen(false);
     } catch (error) {
@@ -207,6 +257,8 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
   };
 
   const handleDelete = async () => {
+    if (!canDelete) return;
+
     if (!confirm(`Opravdu chcete smazat uživatele ${user.full_name}? Tato akce je nevratná.`)) {
       return;
     }
@@ -242,10 +294,13 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
     });
   };
 
-  // Can current user edit this user's permissions?
-  const canEditPermissions = isSupervisor || (isMyAdmin && user.role !== 'admin');
-  const isTargetAdmin = formData.role === 'admin';
+  const isTargetAdminRole = formData.role === 'admin';
   const isTargetSupervisor = userPermissions?.is_supervisor ?? false;
+
+  // SECURITY: Don't show edit button if manager can't edit this user
+  if (isManager && (!isTargetTechnician || isEditingSelf)) {
+    return null;
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -262,6 +317,17 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
             {user.email}
           </DialogDescription>
         </DialogHeader>
+
+        {/* Warning for managers */}
+        {isManager && (
+          <div className="p-3 bg-blue-50 rounded-lg border border-blue-200 flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+            <p className="text-sm text-blue-800">
+              Jako správce můžete upravit pouze základní informace technika (jméno, telefon, specializace, stav účtu).
+            </p>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Basic Info Section */}
           <div className="grid grid-cols-2 gap-4">
@@ -311,171 +377,177 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
             </div>
           </div>
 
-          {/* Role Selection - Card style */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label className="flex items-center gap-2">
-                <Shield className="w-4 h-4" />
-                Role a oprávnění
-              </Label>
-              {isTargetSupervisor && (
-                <Badge variant="secondary" className="bg-purple-100 text-purple-700">
-                  Supervisor
-                </Badge>
-              )}
-            </div>
-
-            {/* Role Cards */}
-            <div className="grid grid-cols-3 gap-2">
-              {(['admin', 'manager', 'technician'] as UserRole[]).map((role) => {
-                const isSelected = formData.role === role;
-                const canSelect = role !== 'admin' || isSupervisor || (isMyAdmin && user.role === 'admin');
-
-                return (
-                  <button
-                    key={role}
-                    type="button"
-                    onClick={() => canSelect && handleRoleChange(role)}
-                    disabled={loading || !canSelect}
-                    className={`p-3 rounded-lg border-2 text-left transition-all ${
-                      isSelected
-                        ? 'border-blue-500 bg-blue-50'
-                        : canSelect
-                        ? 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
-                        : 'border-slate-100 bg-slate-50 opacity-50 cursor-not-allowed'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={isSelected ? 'text-blue-600' : 'text-slate-500'}>
-                        {ROLE_ICONS[role]}
-                      </span>
-                      <span className={`font-medium text-sm ${isSelected ? 'text-blue-900' : 'text-slate-900'}`}>
-                        {ROLE_LABELS[role]}
-                      </span>
-                      {isSelected && <Check className="w-4 h-4 text-blue-600 ml-auto" />}
-                    </div>
-                    <p className="text-xs text-slate-500 line-clamp-2">
-                      {ROLE_DESCRIPTIONS[role]}
-                    </p>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Permissions Section */}
-          {isTargetAdmin ? (
-            <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
-              <p className="text-sm text-amber-800 flex items-center gap-2">
-                <Crown className="w-4 h-4" />
-                Administrátor má automaticky plný přístup ke všem modulům a oprávněním.
-              </p>
-            </div>
-          ) : (
+          {/* Role Selection - Only for admins/supervisors */}
+          {canChangeRole && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <p className="text-sm text-slate-600">
-                  Upravte přístup k modulům a jednotlivá oprávnění
-                </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    if (formData.role !== 'admin') {
-                      const preset = ROLE_PRESETS[formData.role];
-                      if (preset) {
-                        setLocalModules(new Set(preset.modules));
-                        setLocalPermissions(new Set(preset.permissions));
-                      }
-                    }
-                  }}
-                  className="text-xs"
-                >
-                  Obnovit výchozí
-                </Button>
+                <Label className="flex items-center gap-2">
+                  <Shield className="w-4 h-4" />
+                  Role a oprávnění
+                </Label>
+                {isTargetSupervisor && (
+                  <Badge variant="secondary" className="bg-purple-100 text-purple-700">
+                    Supervisor
+                  </Badge>
+                )}
               </div>
 
-              {/* Modules with permissions */}
-              <div className="space-y-2">
-                {(['booking', 'warehouse', 'offers', 'users_settings'] as ModuleCode[]).map((moduleCode) => {
-                  const hasAccess = localModules.has(moduleCode);
-                  const isExpanded = expandedModules.has(moduleCode);
-                  const modulePermissions = PERMISSIONS_BY_MODULE[moduleCode];
-                  const activePermCount = modulePermissions.filter(p => localPermissions.has(p)).length;
+              {/* Role Cards */}
+              <div className="grid grid-cols-3 gap-2">
+                {(['admin', 'manager', 'technician'] as UserRole[]).map((role) => {
+                  const isSelected = formData.role === role;
+                  const canSelect = role !== 'admin' || isSupervisor || (isMyAdmin && user.role === 'admin');
 
                   return (
-                    <div
-                      key={moduleCode}
-                      className={`border rounded-lg overflow-hidden transition-colors ${
-                        hasAccess ? 'border-blue-200 bg-blue-50/30' : 'border-slate-200'
+                    <button
+                      key={role}
+                      type="button"
+                      onClick={() => canSelect && handleRoleChange(role)}
+                      disabled={loading || !canSelect}
+                      className={`p-3 rounded-lg border-2 text-left transition-all ${
+                        isSelected
+                          ? 'border-blue-500 bg-blue-50'
+                          : canSelect
+                          ? 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                          : 'border-slate-100 bg-slate-50 opacity-50 cursor-not-allowed'
                       }`}
                     >
-                      {/* Module header */}
-                      <div className="flex items-center justify-between p-3 bg-white">
-                        <button
-                          type="button"
-                          onClick={() => toggleModuleExpansion(moduleCode)}
-                          className="flex items-center gap-2 flex-1 text-left"
-                        >
-                          <ChevronDown
-                            className={`w-4 h-4 text-slate-400 transition-transform ${
-                              isExpanded ? 'rotate-180' : ''
-                            }`}
-                          />
-                          <span className={hasAccess ? 'text-blue-600' : 'text-slate-500'}>
-                            {MODULE_ICONS[moduleCode]}
-                          </span>
-                          <span className="font-medium">{MODULE_NAMES[moduleCode]}</span>
-                          {hasAccess && (
-                            <Badge variant="secondary" className="ml-2 text-xs">
-                              {activePermCount}/{modulePermissions.length} oprávnění
-                            </Badge>
-                          )}
-                        </button>
-                        <Switch
-                          checked={hasAccess}
-                          onCheckedChange={() => handleModuleToggle(moduleCode)}
-                          disabled={loading || permissionsLoading}
-                        />
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={isSelected ? 'text-blue-600' : 'text-slate-500'}>
+                          {ROLE_ICONS[role]}
+                        </span>
+                        <span className={`font-medium text-sm ${isSelected ? 'text-blue-900' : 'text-slate-900'}`}>
+                          {ROLE_LABELS[role]}
+                        </span>
+                        {isSelected && <Check className="w-4 h-4 text-blue-600 ml-auto" />}
                       </div>
-
-                      {/* Permissions */}
-                      {isExpanded && (
-                        <div className="px-3 pb-3 pt-1 border-t bg-slate-50/50">
-                          <div className="grid grid-cols-2 gap-1">
-                            {modulePermissions.map((permission) => {
-                              const hasPerm = localPermissions.has(permission);
-                              return (
-                                <label
-                                  key={permission}
-                                  className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-colors ${
-                                    hasAccess
-                                      ? hasPerm
-                                        ? 'bg-blue-100 text-blue-900'
-                                        : 'hover:bg-slate-100'
-                                      : 'opacity-50 cursor-not-allowed'
-                                  }`}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={hasPerm}
-                                    onChange={() => handlePermissionToggle(permission)}
-                                    disabled={loading || permissionsLoading || !hasAccess}
-                                    className="rounded border-slate-300"
-                                  />
-                                  <span className="text-sm">{PERMISSION_LABELS[permission]}</span>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                      <p className="text-xs text-slate-500 line-clamp-2">
+                        {ROLE_DESCRIPTIONS[role]}
+                      </p>
+                    </button>
                   );
                 })}
               </div>
             </div>
+          )}
+
+          {/* Permissions Section - Only for admins/supervisors */}
+          {canManagePermissions && (
+            <>
+              {isTargetAdminRole ? (
+                <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+                  <p className="text-sm text-amber-800 flex items-center gap-2">
+                    <Crown className="w-4 h-4" />
+                    Administrátor má automaticky plný přístup ke všem modulům a oprávněním.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-slate-600">
+                      Upravte přístup k modulům a jednotlivá oprávnění
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (formData.role !== 'admin') {
+                          const preset = ROLE_PRESETS[formData.role];
+                          if (preset) {
+                            setLocalModules(new Set(preset.modules));
+                            setLocalPermissions(new Set(preset.permissions));
+                          }
+                        }
+                      }}
+                      className="text-xs"
+                    >
+                      Obnovit výchozí
+                    </Button>
+                  </div>
+
+                  {/* Modules with permissions */}
+                  <div className="space-y-2">
+                    {(['booking', 'warehouse', 'offers', 'users_settings'] as ModuleCode[]).map((moduleCode) => {
+                      const hasAccess = localModules.has(moduleCode);
+                      const isExpanded = expandedModules.has(moduleCode);
+                      const modulePermissions = PERMISSIONS_BY_MODULE[moduleCode];
+                      const activePermCount = modulePermissions.filter(p => localPermissions.has(p)).length;
+
+                      return (
+                        <div
+                          key={moduleCode}
+                          className={`border rounded-lg overflow-hidden transition-colors ${
+                            hasAccess ? 'border-blue-200 bg-blue-50/30' : 'border-slate-200'
+                          }`}
+                        >
+                          {/* Module header */}
+                          <div className="flex items-center justify-between p-3 bg-white">
+                            <button
+                              type="button"
+                              onClick={() => toggleModuleExpansion(moduleCode)}
+                              className="flex items-center gap-2 flex-1 text-left"
+                            >
+                              <ChevronDown
+                                className={`w-4 h-4 text-slate-400 transition-transform ${
+                                  isExpanded ? 'rotate-180' : ''
+                                }`}
+                              />
+                              <span className={hasAccess ? 'text-blue-600' : 'text-slate-500'}>
+                                {MODULE_ICONS[moduleCode]}
+                              </span>
+                              <span className="font-medium">{MODULE_NAMES[moduleCode]}</span>
+                              {hasAccess && (
+                                <Badge variant="secondary" className="ml-2 text-xs">
+                                  {activePermCount}/{modulePermissions.length} oprávnění
+                                </Badge>
+                              )}
+                            </button>
+                            <Switch
+                              checked={hasAccess}
+                              onCheckedChange={() => handleModuleToggle(moduleCode)}
+                              disabled={loading || permissionsLoading}
+                            />
+                          </div>
+
+                          {/* Permissions */}
+                          {isExpanded && (
+                            <div className="px-3 pb-3 pt-1 border-t bg-slate-50/50">
+                              <div className="grid grid-cols-2 gap-1">
+                                {modulePermissions.map((permission) => {
+                                  const hasPerm = localPermissions.has(permission);
+                                  return (
+                                    <label
+                                      key={permission}
+                                      className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-colors ${
+                                        hasAccess
+                                          ? hasPerm
+                                            ? 'bg-blue-100 text-blue-900'
+                                            : 'hover:bg-slate-100'
+                                          : 'opacity-50 cursor-not-allowed'
+                                      }`}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={hasPerm}
+                                        onChange={() => handlePermissionToggle(permission)}
+                                        disabled={loading || permissionsLoading || !hasAccess}
+                                        className="rounded border-slate-300"
+                                      />
+                                      <span className="text-sm">{PERMISSION_LABELS[permission]}</span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           {/* Status */}
@@ -518,17 +590,20 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
             </Button>
           </div>
 
-          <div className="pt-2">
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={handleDelete}
-              disabled={loading}
-              className="w-full"
-            >
-              Smazat uživatele
-            </Button>
-          </div>
+          {/* Delete button - only for admins/supervisors */}
+          {canDelete && (
+            <div className="pt-2">
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={handleDelete}
+                disabled={loading}
+                className="w-full"
+              >
+                Smazat uživatele
+              </Button>
+            </div>
+          )}
         </form>
       </DialogContent>
     </Dialog>

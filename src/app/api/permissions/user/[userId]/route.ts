@@ -114,6 +114,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
 }
 
 // PATCH /api/permissions/user/[userId] - Update user's permissions
+// SECURITY: Only admins and supervisors can update permissions
+// Managers CANNOT update any permissions (including their own)
 export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
     const { userId } = await context.params;
@@ -132,8 +134,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       .eq('auth_user_id', user.id)
       .single();
 
-    if (!currentProfile || currentProfile.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!currentProfile) {
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
     // Check if current user is supervisor
@@ -144,6 +146,15 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       .single();
 
     const currentIsSupervisor = !!currentSupervisor;
+    const currentIsAdmin = currentProfile.role === 'admin';
+
+    // SECURITY: Only admins and supervisors can modify permissions
+    if (!currentIsAdmin && !currentIsSupervisor) {
+      return NextResponse.json(
+        { error: 'Forbidden - pouze administrátoři a supervizoři mohou měnit oprávnění' },
+        { status: 403 }
+      );
+    }
 
     // Get target user
     const { data: targetUser } = await supabase

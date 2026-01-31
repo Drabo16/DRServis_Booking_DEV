@@ -4,6 +4,13 @@ import { createClient, getProfileWithFallback, hasPermission, createServiceRoleC
 /**
  * PATCH /api/users/[id]
  * Aktualizace uživatele (pro uživatele s oprávněním users_settings_manage_users)
+ *
+ * SECURITY RULES:
+ * - Admins/Supervisors: Can edit any user, change roles, edit everything
+ * - Managers: Can ONLY edit basic info (name, phone, specialization, is_active) of TECHNICIANS
+ *   - Cannot change roles
+ *   - Cannot edit admins or other managers
+ *   - Cannot edit themselves
  */
 export async function PATCH(
   request: NextRequest,
@@ -36,23 +43,74 @@ export async function PATCH(
       return NextResponse.json({ error: 'Forbidden - nemáte oprávnění spravovat uživatele' }, { status: 403 });
     }
 
+    // SECURITY: Determine if current user is admin or supervisor
+    const isAdmin = profile.role === 'admin';
+    const serviceClientForSupervisorCheck = createServiceRoleClient();
+    const { data: supervisorCheck } = await serviceClientForSupervisorCheck
+      .from('supervisor_emails')
+      .select('email')
+      .ilike('email', profile.email)
+      .single();
+    const isSupervisor = !!supervisorCheck;
+    const isPrivileged = isAdmin || isSupervisor;
+
+    // Get target user info
+    const serviceClient = createServiceRoleClient();
+    const { data: targetUser, error: targetError } = await serviceClient
+      .from('profiles')
+      .select('id, role, email')
+      .eq('id', userId)
+      .single();
+
+    if (targetError || !targetUser) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
     const body = await request.json();
     const { full_name, phone, role, specialization, is_active } = body;
+
+    // SECURITY: Manager restrictions
+    if (!isPrivileged) {
+      // Managers cannot edit themselves
+      if (userId === profile.id) {
+        return NextResponse.json(
+          { error: 'Forbidden - nemůžete editovat svůj vlastní účet' },
+          { status: 403 }
+        );
+      }
+
+      // Managers can only edit technicians
+      if (targetUser.role !== 'technician') {
+        return NextResponse.json(
+          { error: 'Forbidden - můžete editovat pouze techniky' },
+          { status: 403 }
+        );
+      }
+
+      // Managers cannot change roles
+      if (role !== undefined && role !== targetUser.role) {
+        return NextResponse.json(
+          { error: 'Forbidden - nemáte oprávnění měnit role uživatelů' },
+          { status: 403 }
+        );
+      }
+    }
 
     // Sestavit update objekt pouze s poskytnutými poli
     const updates: Record<string, unknown> = {};
     if (full_name !== undefined) updates.full_name = full_name;
     if (phone !== undefined) updates.phone = phone;
-    if (role !== undefined) updates.role = role;
     if (specialization !== undefined) updates.specialization = specialization;
     if (is_active !== undefined) updates.is_active = is_active;
+
+    // Only privileged users can change role
+    if (role !== undefined && isPrivileged) {
+      updates.role = role;
+    }
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
     }
-
-    // Use service client to bypass RLS
-    const serviceClient = createServiceRoleClient();
 
     // Aktualizace uživatele
     const { data: updatedUser, error } = await serviceClient
@@ -81,7 +139,9 @@ export async function PATCH(
 
 /**
  * DELETE /api/users/[id]
- * Smazání uživatele (pro uživatele s oprávněním users_settings_manage_users)
+ * Smazání uživatele (POUZE pro adminy a supervisory)
+ *
+ * SECURITY: Managers CANNOT delete users - only admins and supervisors can
  */
 export async function DELETE(
   request: NextRequest,
@@ -107,11 +167,21 @@ export async function DELETE(
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
-    // Check permission to manage users
-    const canManageUsers = await hasPermission(profile, 'users_settings_manage_users');
+    // SECURITY: Only admins and supervisors can delete users
+    const isAdmin = profile.role === 'admin';
+    const serviceClient = createServiceRoleClient();
+    const { data: supervisorCheck } = await serviceClient
+      .from('supervisor_emails')
+      .select('email')
+      .ilike('email', profile.email)
+      .single();
+    const isSupervisor = !!supervisorCheck;
 
-    if (!canManageUsers) {
-      return NextResponse.json({ error: 'Forbidden - nemáte oprávnění spravovat uživatele' }, { status: 403 });
+    if (!isAdmin && !isSupervisor) {
+      return NextResponse.json(
+        { error: 'Forbidden - pouze administrátoři mohou mazat uživatele' },
+        { status: 403 }
+      );
     }
 
     // Zabránit smazání vlastního účtu
@@ -121,9 +191,6 @@ export async function DELETE(
         { status: 400 }
       );
     }
-
-    // Use service client to bypass RLS
-    const serviceClient = createServiceRoleClient();
 
     // Smazání uživatele (cascade smaže i všechny assignments)
     const { error } = await serviceClient.from('profiles').delete().eq('id', userId);

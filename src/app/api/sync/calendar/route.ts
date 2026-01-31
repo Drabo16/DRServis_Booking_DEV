@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, getProfileWithFallback } from '@/lib/supabase/server';
+import { createClient, getProfileWithFallback, hasPermission } from '@/lib/supabase/server';
 import { fetchCalendarEvents } from '@/lib/google/calendar';
 
 /**
  * POST /api/sync/calendar
  * Synchronizace událostí z Google Calendar do Supabase
+ * Vyžaduje oprávnění booking_manage_events
  */
 export async function POST(request: NextRequest) {
   try {
@@ -26,31 +27,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
-    // Admin has full access
-    const isAdmin = profile.role === 'admin';
+    // Check booking_manage_events permission using helper function
+    // This handles admin, supervisor, and explicit permission checks
+    const canManageEvents = await hasPermission(profile, 'booking_manage_events');
 
-    // Check if supervisor
-    const { data: supervisorCheck } = await supabase
-      .from('supervisor_emails')
-      .select('email')
-      .ilike('email', profile.email)
-      .single();
-    const isSupervisor = !!supervisorCheck;
-
-    // Check booking_manage_events permission if not admin/supervisor
-    let hasPermission = isAdmin || isSupervisor;
-    if (!hasPermission) {
-      const { data: permission } = await supabase
-        .from('user_permissions')
-        .select('id')
-        .eq('user_id', profile.id)
-        .eq('permission_code', 'booking_manage_events')
-        .single();
-      hasPermission = !!permission;
-    }
-
-    if (!hasPermission) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!canManageEvents) {
+      return NextResponse.json({
+        error: 'Forbidden - nemáte oprávnění spravovat akce (booking_manage_events)'
+      }, { status: 403 });
     }
 
     // Parsování parametrů s validací
@@ -80,7 +64,7 @@ export async function POST(request: NextRequest) {
     let successCount = 0;
     let errorCount = 0;
     let deletedCount = 0;
-    const errors: any[] = [];
+    const errors: { eventId: string | null | undefined; error: string }[] = [];
 
     // Získáme ID všech událostí z Google Calendar
     const googleEventIds = calendarEvents
@@ -157,7 +141,7 @@ export async function POST(request: NextRequest) {
             location: calEvent.location || null,
             start_time: new Date(startTime).toISOString(),
             end_time: new Date(endTime).toISOString(),
-            status: (calEvent.status as any) || 'confirmed',
+            status: (calEvent.status as 'confirmed' | 'tentative' | 'cancelled') || 'confirmed',
             html_link: calEvent.htmlLink || null,
             last_synced_at: new Date().toISOString(),
           },

@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getProfileWithFallback, hasPermission } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,15 +16,17 @@ export default async function SettingsPage() {
     redirect('/login');
   }
 
-  // Načti profil
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single();
+  // Get profile with fallback (handles auth_user_id linking)
+  const profile = await getProfileWithFallback(supabase, user);
 
-  // Kontrola admin role
-  if (profile?.role !== 'admin') {
+  if (!profile) {
+    redirect('/login');
+  }
+
+  // Check permission - allow admins OR users with users_settings_manage_roles permission
+  const canManageRoles = await hasPermission(profile, 'users_settings_manage_roles');
+
+  if (!canManageRoles) {
     redirect('/');
   }
 

@@ -104,6 +104,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid email format' }, { status: 400 });
     }
 
+    // SECURITY: Non-admins (managers with users_settings permission) can only create technicians
+    const isAdmin = profile.role === 'admin';
+    const serviceClientForSupervisorCheck = createServiceRoleClient();
+    const { data: supervisorCheck } = await serviceClientForSupervisorCheck
+      .from('supervisor_emails')
+      .select('email')
+      .ilike('email', profile.email)
+      .single();
+    const isSupervisor = !!supervisorCheck;
+
+    // Only admins and supervisors can create admin or manager roles
+    if (!isAdmin && !isSupervisor && (role === 'admin' || role === 'manager')) {
+      return NextResponse.json(
+        { error: 'Forbidden - nemáte oprávnění vytvářet uživatele s rolí admin nebo správce' },
+        { status: 403 }
+      );
+    }
+
     // Use service client to bypass RLS
     const serviceClient = createServiceRoleClient();
 
