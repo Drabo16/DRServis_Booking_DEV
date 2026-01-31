@@ -66,28 +66,54 @@ export default function CalendarView({ events, onEventClick }: CalendarViewProps
     return events.map((event) => {
       const fillRate = getEventFillRate(event);
 
-      const startDate = new Date(event.start_time);
-      let endDate = new Date(event.end_time);
+      // Parse dates - Google Calendar uses exclusive end dates for all-day events
+      // e.g., single-day event on Jan 15 has end_time at Jan 16 00:00:00
+      const startDateUTC = new Date(event.start_time);
+      const endDateUTC = new Date(event.end_time);
 
-      // For all-day events from Google Calendar (end time is midnight UTC of next day)
-      // Google Calendar sets end to midnight of the day AFTER the event ends
-      // So a 2-day event (Jan 1-2) has end_time at Jan 3 00:00:00
-      // We need to subtract 1ms to get the actual last day (Jan 2 23:59:59)
-      if (endDate.getUTCHours() === 0 && endDate.getUTCMinutes() === 0 && endDate.getUTCSeconds() === 0) {
-        // Subtract 1 millisecond to get the end of the actual last day
-        endDate = new Date(endDate.getTime() - 1);
-      }
+      // Check if this is an all-day event (midnight UTC times)
+      const isAllDayEvent =
+        startDateUTC.getUTCHours() === 0 &&
+        startDateUTC.getUTCMinutes() === 0 &&
+        endDateUTC.getUTCHours() === 0 &&
+        endDateUTC.getUTCMinutes() === 0;
 
-      // Make sure end date is at least the same as start date
-      if (endDate < startDate) {
-        endDate = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), 23, 59, 59);
+      let startDate: Date;
+      let endDate: Date;
+
+      if (isAllDayEvent) {
+        // For all-day events, create LOCAL dates to avoid timezone issues
+        // Use the UTC date components directly to create local dates
+        startDate = new Date(
+          startDateUTC.getUTCFullYear(),
+          startDateUTC.getUTCMonth(),
+          startDateUTC.getUTCDate()
+        );
+
+        // Google uses exclusive end date, so we need to subtract 1 day
+        // e.g., event on Jan 15 only: start=Jan 15, end=Jan 16 -> we want end=Jan 15
+        const endMinusOneDay = new Date(endDateUTC.getTime() - 24 * 60 * 60 * 1000);
+        endDate = new Date(
+          endMinusOneDay.getUTCFullYear(),
+          endMinusOneDay.getUTCMonth(),
+          endMinusOneDay.getUTCDate()
+        );
+
+        // Make sure end date is at least the same as start date
+        if (endDate < startDate) {
+          endDate = new Date(startDate);
+        }
+      } else {
+        // For timed events, use the dates as-is
+        startDate = startDateUTC;
+        endDate = endDateUTC;
       }
 
       return {
         title: `${event.title} (${fillRate.filled}/${fillRate.total})`,
         start: startDate,
         end: endDate,
-        allDay: true, // Treat all events as all-day for proper multi-day spanning
+        allDay: isAllDayEvent,
         resource: { event, fillRate },
       };
     });
@@ -221,22 +247,36 @@ export default function CalendarView({ events, onEventClick }: CalendarViewProps
     toolbar: CustomToolbar,
   }), [CustomToolbar]);
 
-  // Dynamic height based on max events per day (each event ~24px + header ~40px + padding)
-  const dynamicHeight = useMemo(() => {
-    const baseRowHeight = 40; // Header row
-    const eventHeight = 26; // Height per event
+  // Dynamic height based on max events per day
+  const { dynamicHeight, rowHeight } = useMemo(() => {
+    const dateHeaderHeight = 28; // Date number in each cell
+    const eventHeight = 24; // Height per event
+    const eventGap = 2; // Gap between events
     const rows = 6; // Max rows in month view
-    const headerHeight = 80; // Toolbar + day headers
+    const toolbarHeight = 80; // Toolbar + day headers
     const minHeight = 500;
 
-    const calculatedHeight = headerHeight + (rows * (baseRowHeight + (maxEventsPerDay * eventHeight)));
-    return Math.max(minHeight, Math.min(calculatedHeight, 1200)); // Cap at 1200px
+    // Calculate row height to fit all events + date header + some padding
+    const calculatedRowHeight = dateHeaderHeight + (maxEventsPerDay * (eventHeight + eventGap)) + 10;
+    const minRowHeight = 100; // Minimum row height
+    const finalRowHeight = Math.max(minRowHeight, calculatedRowHeight);
+
+    // Total height = toolbar + day headers (40px) + (rows * rowHeight)
+    const calculatedHeight = toolbarHeight + 40 + (rows * finalRowHeight);
+    const finalHeight = Math.max(minHeight, Math.min(calculatedHeight, 1500)); // Cap at 1500px
+
+    return { dynamicHeight: finalHeight, rowHeight: finalRowHeight };
   }, [maxEventsPerDay]);
+
+  // CSS custom property for dynamic row height
+  const calendarStyle = useMemo(() => ({
+    '--rbc-row-height': `${rowHeight}px`,
+  } as React.CSSProperties), [rowHeight]);
 
   return (
     <div
       className="bg-white p-2 sm:p-4 rounded-lg shadow-sm calendar-container"
-      style={{ height: `${dynamicHeight}px` }}
+      style={{ height: `${dynamicHeight}px`, ...calendarStyle }}
     >
       <Calendar
         localizer={localizer}

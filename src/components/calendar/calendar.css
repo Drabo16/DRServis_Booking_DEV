@@ -131,17 +131,31 @@
 
 .rbc-month-row {
   border-top: 1px solid #e2e8f0;
-  min-height: 100px;
+  /* Use CSS variable for dynamic height based on events count */
+  min-height: var(--rbc-row-height, 100px);
+}
+
+/* Override the row content to show all events */
+.rbc-row-content {
+  position: relative;
+  z-index: 4;
+  overflow: visible;
+}
+
+/* Ensure events container can grow */
+.rbc-row-content .rbc-row {
+  min-height: auto;
+}
+
+/* Event segments should stack properly */
+.rbc-row-segment {
+  padding: 1px 2px;
 }
 
 @media (min-width: 640px) {
   .rbc-month-row {
-    min-height: 120px;
+    min-height: var(--rbc-row-height, 120px);
   }
-}
-
-.rbc-row-segment {
-  padding: 1px 2px;
 }
 
 /* Style for "show more" link */
