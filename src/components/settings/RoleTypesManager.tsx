@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,7 +25,6 @@ interface RoleTypesManagerProps {
 }
 
 export default function RoleTypesManager({ initialRoleTypes }: RoleTypesManagerProps) {
-  const router = useRouter();
   const [roleTypes, setRoleTypes] = useState<RoleType[]>(initialRoleTypes);
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -53,9 +51,11 @@ export default function RoleTypesManager({ initialRoleTypes }: RoleTypesManagerP
         throw new Error(data.error || 'Failed to create role type');
       }
 
+      const data = await response.json();
+      // Immediately update local state with new role
+      setRoleTypes(prev => [...prev, data.roleType]);
       setNewRole({ value: '', label: '' });
       setIsAdding(false);
-      router.refresh();
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Chyba při vytváření role');
     } finally {
@@ -79,8 +79,10 @@ export default function RoleTypesManager({ initialRoleTypes }: RoleTypesManagerP
 
       if (!response.ok) throw new Error('Failed to update role type');
 
+      const data = await response.json();
+      // Immediately update local state with edited role
+      setRoleTypes(prev => prev.map(rt => rt.id === id ? data.roleType : rt));
       setEditingId(null);
-      router.refresh();
     } catch (error) {
       alert('Chyba při aktualizaci role');
     } finally {
@@ -101,7 +103,8 @@ export default function RoleTypesManager({ initialRoleTypes }: RoleTypesManagerP
 
       if (!response.ok) throw new Error('Failed to delete role type');
 
-      router.refresh();
+      // Immediately update local state by removing deleted role
+      setRoleTypes(prev => prev.filter(rt => rt.id !== id));
     } catch (error) {
       alert('Chyba při mazání role');
     } finally {

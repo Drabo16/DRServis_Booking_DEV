@@ -1,4 +1,4 @@
-import { createClient, getProfileWithFallback, hasPermission } from '@/lib/supabase/server';
+import { createClient, getProfileWithFallback, hasPermission, createServiceRoleClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -29,6 +29,15 @@ export default async function SettingsPage() {
   if (!canManageRoles) {
     redirect('/');
   }
+
+  // Check if user is supervisor (only supervisors see system info)
+  const serviceClient = createServiceRoleClient();
+  const { data: supervisorCheck } = await serviceClient
+    .from('supervisor_emails')
+    .select('email')
+    .ilike('email', profile.email)
+    .single();
+  const isSupervisor = !!supervisorCheck;
 
   // Statistiky
   const { count: eventsCount } = await supabase
@@ -201,30 +210,32 @@ export default async function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Informace o systému */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Informace o systému</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <div className="flex items-center justify-between py-2 border-b">
-            <span className="text-sm text-slate-600">Verze aplikace</span>
-            <span className="font-medium">1.0.0</span>
-          </div>
-          <div className="flex items-center justify-between py-2 border-b">
-            <span className="text-sm text-slate-600">Databáze</span>
-            <span className="font-medium">Supabase PostgreSQL</span>
-          </div>
-          <div className="flex items-center justify-between py-2 border-b">
-            <span className="text-sm text-slate-600">Framework</span>
-            <span className="font-medium">Next.js 14</span>
-          </div>
-          <div className="flex items-center justify-between py-2">
-            <span className="text-sm text-slate-600">Tvůj email</span>
-            <span className="font-medium">{user.email}</span>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Informace o systému - pouze pro supervisory */}
+      {isSupervisor && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Informace o systému</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="flex items-center justify-between py-2 border-b">
+              <span className="text-sm text-slate-600">Verze aplikace</span>
+              <span className="font-medium">1.0.0</span>
+            </div>
+            <div className="flex items-center justify-between py-2 border-b">
+              <span className="text-sm text-slate-600">Databáze</span>
+              <span className="font-medium">Supabase PostgreSQL</span>
+            </div>
+            <div className="flex items-center justify-between py-2 border-b">
+              <span className="text-sm text-slate-600">Framework</span>
+              <span className="font-medium">Next.js 14</span>
+            </div>
+            <div className="flex items-center justify-between py-2">
+              <span className="text-sm text-slate-600">Tvůj email</span>
+              <span className="font-medium">{user.email}</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Poznámka */}
       <Card className="border-blue-200 bg-blue-50">
