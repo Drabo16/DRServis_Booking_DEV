@@ -50,43 +50,69 @@ export async function GET(request: NextRequest) {
 
     // Calculate date range based on showPast flag
     const now = new Date();
-    let startDate: Date;
-    let endDate: Date;
+    // Start of today (midnight) for filtering - events should show on their day
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+    // Yesterday midnight - to show events until second day after end
+    const yesterdayMidnight = new Date(startOfToday.getTime() - 24 * 60 * 60 * 1000);
+
+    let query;
 
     if (showPast) {
-      // Past events: from X days ago until now
-      startDate = new Date(now.getTime() - daysBack * 24 * 60 * 60 * 1000);
-      endDate = now;
-    } else {
-      // Upcoming events: from now until X days ahead
-      startDate = now;
-      endDate = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
-    }
+      // Past events: events that ended before yesterday (truly past)
+      const startDate = new Date(now.getTime() - daysBack * 24 * 60 * 60 * 1000);
 
-    // Fetch events based on role
-    const query = supabase
-      .from('events')
-      .select(`
-        *,
-        positions (
-          id,
-          title,
-          role_type,
-          shift_start,
-          shift_end,
-          requirements,
-          assignments (
+      query = supabase
+        .from('events')
+        .select(`
+          *,
+          positions (
             id,
-            attendance_status,
-            technician_id,
-            technician:profiles!assignments_technician_id_fkey(*)
+            title,
+            role_type,
+            shift_start,
+            shift_end,
+            requirements,
+            assignments (
+              id,
+              attendance_status,
+              technician_id,
+              technician:profiles!assignments_technician_id_fkey(*)
+            )
           )
-        )
-      `)
-      .gte('start_time', startDate.toISOString())
-      .lte('start_time', endDate.toISOString())
-      .order('start_time', { ascending: !showPast }) // Past events: newest first
-      .limit(100);
+        `)
+        .gte('start_time', startDate.toISOString())
+        .lt('end_time', yesterdayMidnight.toISOString())
+        .order('start_time', { ascending: false })
+        .limit(100);
+    } else {
+      // Upcoming/current events: events that haven't ended yet (end_time >= yesterday midnight)
+      // This means events are shown until the SECOND day after they end
+      const endDate = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
+
+      query = supabase
+        .from('events')
+        .select(`
+          *,
+          positions (
+            id,
+            title,
+            role_type,
+            shift_start,
+            shift_end,
+            requirements,
+            assignments (
+              id,
+              attendance_status,
+              technician_id,
+              technician:profiles!assignments_technician_id_fkey(*)
+            )
+          )
+        `)
+        .gte('end_time', yesterdayMidnight.toISOString())
+        .lte('start_time', endDate.toISOString())
+        .order('start_time', { ascending: true })
+        .limit(100);
+    }
 
     const { data: events, error } = await query;
 

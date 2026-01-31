@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, getProfileWithFallback, hasPermission } from '@/lib/supabase/server';
+import { createClient, getProfileWithFallback, hasPermission, createServiceRoleClient } from '@/lib/supabase/server';
 import { fetchCalendarEvents } from '@/lib/google/calendar';
 
 /**
  * POST /api/sync/calendar
  * Synchronizace událostí z Google Calendar do Supabase
- * Vyžaduje oprávnění booking_manage_events
+ *
+ * Access rules (same as main booking page):
+ * - Admins: always allowed
+ * - Supervisors: always allowed
+ * - Managers (správce): always allowed - they have FULL booking access
+ * - Others: need explicit booking_manage_events permission
  */
 export async function POST(request: NextRequest) {
   try {
@@ -27,9 +32,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
-    // Check booking_manage_events permission using helper function
-    // This handles admin, supervisor, and explicit permission checks
-    const canManageEvents = await hasPermission(profile, 'booking_manage_events');
+    // Check access - same logic as main booking page
+    const isAdmin = profile.role === 'admin';
+    const isManager = profile.role === 'manager';
+
+    // Check supervisor status
+    const serviceClient = createServiceRoleClient();
+    const { data: supervisorCheck } = await serviceClient
+      .from('supervisor_emails')
+      .select('email')
+      .ilike('email', profile.email)
+      .single();
+    const isSupervisor = !!supervisorCheck;
+
+    // Managers have FULL booking access (same as admin for booking module)
+    const hasFullBookingAccess = isAdmin || isManager || isSupervisor;
+
+    // Check explicit permission only if not admin/manager/supervisor
+    let canManageEvents = hasFullBookingAccess;
+    if (!canManageEvents) {
+      canManageEvents = await hasPermission(profile, 'booking_manage_events');
+    }
 
     if (!canManageEvents) {
       return NextResponse.json({

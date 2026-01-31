@@ -27,8 +27,10 @@ export default function Header({ user, profile }: HeaderProps) {
   const { isSaving, savingMessage } = useSaveStatus();
   const { data: permissions } = useMyPermissions();
 
-  // Can sync = admin/supervisor OR has booking_manage_events permission
-  const canSync = canPerformAction(permissions, 'booking_manage_events');
+  // Can sync = admin/supervisor/manager OR has booking_manage_events permission
+  // Managers have FULL booking access (same as backend logic)
+  const isManager = permissions?.role === 'manager';
+  const canSync = isManager || canPerformAction(permissions, 'booking_manage_events');
 
   const handleLogout = async () => {
     await supabase.auth.signOut();

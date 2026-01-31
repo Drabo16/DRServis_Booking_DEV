@@ -120,13 +120,38 @@
 
 .rbc-month-row {
   border-top: 1px solid #e2e8f0;
-  min-height: 60px;
+  min-height: 80px;
+  overflow: visible;
 }
 
 @media (min-width: 640px) {
   .rbc-month-row {
-    min-height: 90px;
+    min-height: 100px;
   }
+}
+
+/* Show all events - no limit */
+.rbc-row-content {
+  z-index: 4;
+  position: relative;
+}
+
+.rbc-row-segment {
+  padding: 1px 2px;
+}
+
+.rbc-show-more {
+  display: none !important;
+}
+
+/* Make sure event rows don't get cut off */
+.rbc-month-row .rbc-row-bg {
+  z-index: 1;
+}
+
+.rbc-month-row .rbc-row-content {
+  z-index: 2;
+  min-height: auto;
 }
 
 .rbc-date-cell {

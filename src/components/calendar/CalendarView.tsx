@@ -60,32 +60,49 @@ export default function CalendarView({ events, onEventClick }: CalendarViewProps
     return events.map((event) => {
       const fillRate = getEventFillRate(event);
 
-      // Fix for Google Calendar all-day events: end time is midnight UTC of next day
+      const startDate = new Date(event.start_time);
       let endDate = new Date(event.end_time);
-      if (endDate.getUTCHours() === 0 && endDate.getUTCMinutes() === 0 && endDate.getUTCSeconds() === 0) {
-        // For calendar display, we need to keep the end at midnight for proper rendering
-        // but react-big-calendar treats end date as exclusive, so this is correct
-        // However, we need to check if start and end are on consecutive days (single-day event)
-        const startDate = new Date(event.start_time);
-        const startDay = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
-        const endDay = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
 
-        // If end is exactly one day after start (all-day single-day event), adjust
-        const diffDays = (endDay.getTime() - startDay.getTime()) / (1000 * 60 * 60 * 24);
-        if (diffDays === 1) {
-          // Single day event - set end to end of the same day
-          endDate = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), 23, 59, 59);
-        }
+      // For all-day events from Google Calendar (end time is midnight UTC of next day)
+      // Google Calendar sets end to midnight of the day AFTER the event ends
+      // So a 2-day event (Jan 1-2) has end_time at Jan 3 00:00:00
+      // We need to subtract 1ms to get the actual last day (Jan 2 23:59:59)
+      if (endDate.getUTCHours() === 0 && endDate.getUTCMinutes() === 0 && endDate.getUTCSeconds() === 0) {
+        // Subtract 1 millisecond to get the end of the actual last day
+        endDate = new Date(endDate.getTime() - 1);
+      }
+
+      // Make sure end date is at least the same as start date
+      if (endDate < startDate) {
+        endDate = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), 23, 59, 59);
       }
 
       return {
         title: `${event.title} (${fillRate.filled}/${fillRate.total})`,
-        start: new Date(event.start_time),
+        start: startDate,
         end: endDate,
+        allDay: true, // Treat all events as all-day for proper multi-day spanning
         resource: { event, fillRate },
       };
     });
   }, [events, getEventFillRate]);
+
+  // Calculate max events per day for dynamic height
+  const maxEventsPerDay = useMemo(() => {
+    const eventsByDay: Record<string, number> = {};
+    calendarEvents.forEach(event => {
+      // Count events for each day they span
+      const start = new Date(event.start as Date);
+      const end = new Date(event.end as Date);
+      const current = new Date(start);
+      while (current <= end) {
+        const dayKey = current.toISOString().split('T')[0];
+        eventsByDay[dayKey] = (eventsByDay[dayKey] || 0) + 1;
+        current.setDate(current.getDate() + 1);
+      }
+    });
+    return Math.max(3, ...Object.values(eventsByDay)); // Minimum 3 events per row
+  }, [calendarEvents]);
 
   // Memoizovaný handler
   const handleSelectEvent = useCallback((event: BigCalendarEvent) => {
@@ -183,8 +200,23 @@ export default function CalendarView({ events, onEventClick }: CalendarViewProps
     toolbar: CustomToolbar,
   }), [CustomToolbar]);
 
+  // Dynamic height based on max events per day (each event ~24px + header ~40px + padding)
+  const dynamicHeight = useMemo(() => {
+    const baseRowHeight = 40; // Header row
+    const eventHeight = 26; // Height per event
+    const rows = 6; // Max rows in month view
+    const headerHeight = 80; // Toolbar + day headers
+    const minHeight = 500;
+
+    const calculatedHeight = headerHeight + (rows * (baseRowHeight + (maxEventsPerDay * eventHeight)));
+    return Math.max(minHeight, Math.min(calculatedHeight, 1200)); // Cap at 1200px
+  }, [maxEventsPerDay]);
+
   return (
-    <div className="bg-white p-2 sm:p-4 rounded-lg shadow-sm h-[500px] sm:h-[600px] md:h-[800px]">
+    <div
+      className="bg-white p-2 sm:p-4 rounded-lg shadow-sm"
+      style={{ minHeight: `${dynamicHeight}px` }}
+    >
       <Calendar
         localizer={localizer}
         events={calendarEvents}
@@ -198,8 +230,13 @@ export default function CalendarView({ events, onEventClick }: CalendarViewProps
         culture="cs"
         views={['month']}
         defaultView="month"
-        popup
+        popup={false}
         components={components}
+        dayPropGetter={() => ({
+          style: {
+            minHeight: `${40 + maxEventsPerDay * 26}px`,
+          },
+        })}
       />
     </div>
   );
