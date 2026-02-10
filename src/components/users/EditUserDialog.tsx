@@ -234,10 +234,11 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
     if (!canEdit) return;
 
     try {
-      // For managers, only update basic info (not role, not email)
+      // For managers, only update basic info (not role)
       const updateData = isManager
         ? {
             full_name: formData.full_name,
+            email: formData.email,
             phone: formData.phone || null,
             specialization: formData.specialization.length > 0 ? formData.specialization : null,
             is_active: formData.is_active,
@@ -368,8 +369,7 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 required
-                disabled={loading || isManager}
-                title={isManager ? 'Pouze admin může měnit email' : undefined}
+                disabled={loading}
               />
             </div>
           </div>

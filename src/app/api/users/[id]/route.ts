@@ -106,11 +106,12 @@ export async function PATCH(
     if (company !== undefined) updates.company = company;
     if (note !== undefined) updates.note = note;
 
-    // Only privileged users can change role and email
+    // Only privileged users can change role
     if (role !== undefined && isPrivileged) {
       updates.role = role;
     }
-    if (email !== undefined && isPrivileged) {
+    // Email can be changed by anyone with edit permission
+    if (email !== undefined) {
       updates.email = email;
     }
 
