@@ -59,15 +59,6 @@ interface PositionsManagerProps {
   eventEndDate?: string;
 }
 
-interface AssignDialogState {
-  open: boolean;
-  positionId: string;
-  technicianId: string;
-  technicianName: string;
-  startDate: Date | undefined;
-  endDate: Date | undefined;
-}
-
 interface EditDatesDialogState {
   open: boolean;
   assignmentId: string;
@@ -91,16 +82,6 @@ export default function PositionsManager({
   const [loading, setLoading] = useState(false);
   const [selectedTechnician, setSelectedTechnician] = useState<{ [key: string]: string }>({});
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
-
-  // Dialog for assigning technician with optional date range
-  const [assignDialog, setAssignDialog] = useState<AssignDialogState>({
-    open: false,
-    positionId: '',
-    technicianId: '',
-    technicianName: '',
-    startDate: undefined,
-    endDate: undefined,
-  });
 
   // Dialog for editing assignment dates
   const [editDatesDialog, setEditDatesDialog] = useState<EditDatesDialogState>({
@@ -218,99 +199,6 @@ export default function PositionsManager({
     }
   };
 
-  // Open the assign dialog when a technician is selected
-  const openAssignDialog = (positionId: string, technicianId: string) => {
-    const tech = allTechnicians.find(t => t.id === technicianId);
-    if (!tech) return;
-
-    setAssignDialog({
-      open: true,
-      positionId,
-      technicianId,
-      technicianName: tech.full_name,
-      startDate: undefined,
-      endDate: undefined,
-    });
-    setSelectedTechnician({ ...selectedTechnician, [positionId]: '' });
-  };
-
-  // Confirm assignment from dialog
-  const confirmAssignment = async () => {
-    const { positionId, technicianId, startDate, endDate } = assignDialog;
-    const tech = allTechnicians.find(t => t.id === technicianId);
-    if (!tech) return;
-
-    // Close dialog immediately
-    setAssignDialog(prev => ({ ...prev, open: false }));
-
-    // OPTIMISTIC UPDATE - okamžitě aktualizuj UI s temporary ID
-    const tempAssignment = {
-      id: `temp-${Date.now()}`,
-      position_id: positionId,
-      technician_id: technicianId,
-      attendance_status: 'pending' as const,
-      start_date: startDate ? format(startDate, 'yyyy-MM-dd') : null,
-      end_date: endDate ? format(endDate, 'yyyy-MM-dd') : null,
-      technician: tech,
-    };
-
-    setPositions(prev => prev.map(pos => {
-      if (pos.id === positionId) {
-        return {
-          ...pos,
-          assignments: [...(pos.assignments || []), tempAssignment as any]
-        };
-      }
-      return pos;
-    }));
-
-    // Server call na pozadí
-    try {
-      const response = await fetch('/api/assignments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          position_id: positionId,
-          technician_id: technicianId,
-          start_date: startDate ? format(startDate, 'yyyy-MM-dd') : null,
-          end_date: endDate ? format(endDate, 'yyyy-MM-dd') : null,
-        }),
-      });
-
-      if (!response.ok) throw new Error('Failed to assign technician');
-
-      const { assignment } = await response.json();
-
-      // Nahraď temporary assignment skutečným - POUŽIJ PREV!
-      setPositions(prev => prev.map(pos => {
-        if (pos.id === positionId) {
-          return {
-            ...pos,
-            assignments: (pos.assignments || []).map(a =>
-              a.id === tempAssignment.id ? { ...assignment, technician: tech } : a
-            )
-          };
-        }
-        return pos;
-      }));
-
-      // Invalidate cache to sync all views
-      await queryClient.invalidateQueries({ queryKey: eventKeys.all });
-    } catch (error) {
-      // ROLLBACK - odeber temporary assignment při chybě - POUŽIJ PREV!
-      setPositions(prev => prev.map(pos => {
-        if (pos.id === positionId) {
-          return {
-            ...pos,
-            assignments: (pos.assignments || []).filter(a => a.id !== tempAssignment.id)
-          };
-        }
-        return pos;
-      }));
-      alert('Chyba při přiřazování technika');
-    }
-  };
-
   // Open edit dates dialog for existing assignment
   const openEditDatesDialog = (assignment: Assignment & { technician: Profile }) => {
     setEditDatesDialog({
@@ -361,9 +249,77 @@ export default function PositionsManager({
     }
   };
 
+  // Direct assignment for the full event (no dialog needed)
   const handleAssignTechnician = async (positionId: string, technicianId: string) => {
-    // Open dialog instead of directly assigning
-    openAssignDialog(positionId, technicianId);
+    const tech = allTechnicians.find(t => t.id === technicianId);
+    if (!tech) return;
+
+    // OPTIMISTIC UPDATE - okamžitě aktualizuj UI s temporary ID
+    const tempAssignment = {
+      id: `temp-${Date.now()}`,
+      position_id: positionId,
+      technician_id: technicianId,
+      attendance_status: 'pending' as const,
+      start_date: null, // Full event by default
+      end_date: null,
+      technician: tech,
+    };
+
+    setPositions(prev => prev.map(pos => {
+      if (pos.id === positionId) {
+        return {
+          ...pos,
+          assignments: [...(pos.assignments || []), tempAssignment as any]
+        };
+      }
+      return pos;
+    }));
+    setSelectedTechnician({ ...selectedTechnician, [positionId]: '' });
+
+    // Server call na pozadí
+    try {
+      const response = await fetch('/api/assignments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          position_id: positionId,
+          technician_id: technicianId,
+          // No dates = full event
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to assign technician');
+
+      const { assignment } = await response.json();
+
+      // Nahraď temporary assignment skutečným
+      setPositions(prev => prev.map(pos => {
+        if (pos.id === positionId) {
+          return {
+            ...pos,
+            assignments: (pos.assignments || []).map(a =>
+              a.id === tempAssignment.id ? { ...assignment, technician: tech } : a
+            )
+          };
+        }
+        return pos;
+      }));
+
+      // Invalidate cache to sync all views
+      await queryClient.invalidateQueries({ queryKey: eventKeys.all });
+    } catch (error) {
+      // ROLLBACK - odeber temporary assignment při chybě
+      setPositions(prev => prev.map(pos => {
+        if (pos.id === positionId) {
+          return {
+            ...pos,
+            assignments: (pos.assignments || []).filter(a => a.id !== tempAssignment.id)
+          };
+        }
+        return pos;
+      }));
+      alert('Chyba při přiřazování technika');
+    }
   };
 
   const handleRemoveAssignment = async (assignmentId: string) => {
@@ -825,104 +781,6 @@ export default function PositionsManager({
           </div>
         )}
       </CardContent>
-
-      {/* Dialog for assigning technician with optional dates */}
-      <Dialog open={assignDialog.open} onOpenChange={(open) => setAssignDialog(prev => ({ ...prev, open }))}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Přiřadit technika</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <p className="text-sm text-slate-600">
-              Přiřazujete: <strong>{assignDialog.technicianName}</strong>
-            </p>
-
-            <div className="space-y-3">
-              <Label className="text-sm font-medium">Období účasti (volitelné)</Label>
-              <p className="text-xs text-slate-500">
-                Ponechte prázdné pro celou akci, nebo vyberte konkrétní dny.
-              </p>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-xs text-slate-500 mb-1 block">Od</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left font-normal h-9",
-                          !assignDialog.startDate && "text-slate-400"
-                        )}
-                      >
-                        <CalendarDays className="mr-2 h-4 w-4" />
-                        {assignDialog.startDate
-                          ? format(assignDialog.startDate, "d. M. yyyy", { locale: cs })
-                          : "Vybrat"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={assignDialog.startDate}
-                        onSelect={(date) => setAssignDialog(prev => ({ ...prev, startDate: date }))}
-                        disabled={eventStart && eventEnd ? { before: eventStart, after: eventEnd } : undefined}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <div>
-                  <Label className="text-xs text-slate-500 mb-1 block">Do</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left font-normal h-9",
-                          !assignDialog.endDate && "text-slate-400"
-                        )}
-                      >
-                        <CalendarDays className="mr-2 h-4 w-4" />
-                        {assignDialog.endDate
-                          ? format(assignDialog.endDate, "d. M. yyyy", { locale: cs })
-                          : "Vybrat"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={assignDialog.endDate}
-                        onSelect={(date) => setAssignDialog(prev => ({ ...prev, endDate: date }))}
-                        disabled={eventStart && eventEnd ? { before: assignDialog.startDate || eventStart, after: eventEnd } : undefined}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              </div>
-
-              {(assignDialog.startDate || assignDialog.endDate) && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setAssignDialog(prev => ({ ...prev, startDate: undefined, endDate: undefined }))}
-                  className="text-xs text-slate-500"
-                >
-                  Zrušit období (celá akce)
-                </Button>
-              )}
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAssignDialog(prev => ({ ...prev, open: false }))}>
-              Zrušit
-            </Button>
-            <Button onClick={confirmAssignment}>
-              <UserPlus className="w-4 h-4 mr-2" />
-              Přiřadit
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Dialog for editing assignment dates */}
       <Dialog open={editDatesDialog.open} onOpenChange={(open) => setEditDatesDialog(prev => ({ ...prev, open }))}>
