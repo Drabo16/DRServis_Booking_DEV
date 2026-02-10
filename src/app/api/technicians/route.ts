@@ -14,11 +14,10 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Načti všechny aktivní techniky (včetně adminů, kteří mohou být také techniky)
+    // Načti všechny aktivní uživatele (mohou být přiřazeni k akcím)
     const { data: technicians, error } = await supabase
       .from('profiles')
       .select('*')
-      .in('role', ['technician', 'admin'])
       .eq('is_active', true)
       .order('full_name');
 

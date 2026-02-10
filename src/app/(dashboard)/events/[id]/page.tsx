@@ -74,11 +74,10 @@ export default async function EventDetailPage({
 
   console.log('[EventDetailPage] Event loaded:', event.title, 'with', event.positions?.length || 0, 'positions');
 
-  // Načti všechny aktivní techniky pro dropdown
+  // Načti všechny aktivní uživatele pro dropdown (mohou být přiřazeni k akcím)
   const { data: allTechnicians } = await supabase
     .from('profiles')
     .select('*')
-    .eq('role', 'technician')
     .eq('is_active', true)
     .order('full_name');
 

@@ -90,19 +90,15 @@ export default function CalendarView({ events, onEventClick }: CalendarViewProps
           startDateUTC.getUTCDate()
         );
 
-        // Google uses exclusive end date, so we need to subtract 1 day
-        // e.g., event on Jan 15 only: start=Jan 15, end=Jan 16 -> we want end=Jan 15
-        const endMinusOneDay = new Date(endDateUTC.getTime() - 24 * 60 * 60 * 1000);
+        // React-big-calendar also uses EXCLUSIVE end dates for all-day events
+        // Google: event Feb 5-8 inclusive → end=Feb 9 00:00 UTC (exclusive)
+        // RBC: same, end should be the day AFTER the last visible day
+        // So we pass Google's end date directly (no subtraction needed)
         endDate = new Date(
-          endMinusOneDay.getUTCFullYear(),
-          endMinusOneDay.getUTCMonth(),
-          endMinusOneDay.getUTCDate()
+          endDateUTC.getUTCFullYear(),
+          endDateUTC.getUTCMonth(),
+          endDateUTC.getUTCDate()
         );
-
-        // Make sure end date is at least the same as start date
-        if (endDate < startDate) {
-          endDate = new Date(startDate);
-        }
       } else {
         // For timed events, use the dates as-is
         startDate = startDateUTC;
