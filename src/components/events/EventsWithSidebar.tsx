@@ -23,6 +23,8 @@ import { Loader2, Filter, X, FolderPlus, Link2, RefreshCw, Trash2, MoreHorizonta
 const CalendarView = lazy(() => import('@/components/calendar/CalendarView'));
 const ExcelView = lazy(() => import('./ExcelView'));
 const InviteResponsesTab = lazy(() => import('./InviteResponsesTab'));
+const TechnicianOverview = lazy(() => import('@/components/technicians/TechnicianOverview'));
+const TechnicianCalendar = lazy(() => import('@/components/technicians/TechnicianCalendar'));
 
 interface EventsWithSidebarProps {
   events: Array<Event & {
@@ -109,8 +111,8 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
     });
   }, [events, showIncompleteOnly]);
 
-  // Excel view a Odpovědi skrývají pravý panel, ale levý panel má stále stejnou šířku
-  const hideRightPanel = activeTab === 'excel' || activeTab === 'responses';
+  // Excel view, Odpovědi, Přehled techniků a Kalendář technika skrývají pravý panel
+  const hideRightPanel = activeTab === 'excel' || activeTab === 'responses' || activeTab === 'technicians' || activeTab === 'tech-calendar';
 
   // Toggle select all (Seznam view)
   const toggleSelectAll = () => {
@@ -400,11 +402,13 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
 
         <Tabs defaultValue="list" className="w-full" onValueChange={setActiveTab}>
           {/* Fixed width TabsList to prevent layout shift when switching tabs */}
-          <TabsList className={`grid h-10 max-w-md ${isAdmin ? 'grid-cols-4' : 'grid-cols-3'}`}>
+          <TabsList className={`grid h-10 ${isAdmin ? 'grid-cols-6 max-w-2xl' : 'grid-cols-3 max-w-md'}`}>
             <TabsTrigger value="list" className="text-xs sm:text-sm">Seznam</TabsTrigger>
             <TabsTrigger value="calendar" className="text-xs sm:text-sm">Kalendář</TabsTrigger>
             <TabsTrigger value="excel" className="text-xs sm:text-sm">Excel</TabsTrigger>
             {isAdmin && <TabsTrigger value="responses" className="text-xs sm:text-sm">Odpovědi</TabsTrigger>}
+            {isAdmin && <TabsTrigger value="technicians" className="text-xs sm:text-sm">Přehled</TabsTrigger>}
+            {isAdmin && <TabsTrigger value="tech-calendar" className="text-xs sm:text-sm">Technik</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="list" className="mt-4">
@@ -481,6 +485,30 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
                   allTechnicians={allTechnicians}
                   onEventClick={handleOpenEvent}
                 />
+              </Suspense>
+            </TabsContent>
+          )}
+
+          {isAdmin && (
+            <TabsContent value="technicians" className="mt-4">
+              <Suspense fallback={
+                <div className="flex items-center justify-center min-h-[300px] md:min-h-[400px]">
+                  <Loader2 className="w-8 h-8 animate-spin text-slate-600" />
+                </div>
+              }>
+                <TechnicianOverview daysAhead={60} />
+              </Suspense>
+            </TabsContent>
+          )}
+
+          {isAdmin && (
+            <TabsContent value="tech-calendar" className="mt-4">
+              <Suspense fallback={
+                <div className="flex items-center justify-center min-h-[300px] md:min-h-[400px]">
+                  <Loader2 className="w-8 h-8 animate-spin text-slate-600" />
+                </div>
+              }>
+                <TechnicianCalendar allTechnicians={allTechnicians} />
               </Suspense>
             </TabsContent>
           )}
