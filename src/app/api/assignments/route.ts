@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     const serviceClient = createServiceRoleClient();
 
     const body = await request.json();
-    const { position_id, technician_id, notes } = body;
+    const { position_id, technician_id, notes, start_date, end_date } = body;
 
     if (!position_id || !technician_id) {
       return NextResponse.json(
@@ -130,6 +130,8 @@ export async function POST(request: NextRequest) {
         event_id: position.event_id,
         technician_id,
         notes,
+        start_date: start_date || null,
+        end_date: end_date || null,
         attendance_status: 'pending',
         assigned_by: profile?.id,
       })

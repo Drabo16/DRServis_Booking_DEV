@@ -16,7 +16,16 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Calendar } from '@/components/ui/calendar';
+import { Label } from '@/components/ui/label';
 import {
   Table,
   TableBody,
@@ -25,8 +34,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, Trash2, X, Mail, UserPlus, Loader2, Check } from 'lucide-react';
-import { getRoleTypeLabel, getAttendanceStatusLabel, getAttendanceStatusColor } from '@/lib/utils';
+import { Plus, Trash2, X, Mail, UserPlus, Loader2, Check, CalendarDays } from 'lucide-react';
+import { getRoleTypeLabel, getAttendanceStatusLabel, getAttendanceStatusColor, cn } from '@/lib/utils';
+import { format } from 'date-fns';
+import { cs } from 'date-fns/locale';
 import type { Position, Assignment, Profile, RoleType, AttendanceStatus } from '@/types';
 import { useQueryClient } from '@tanstack/react-query';
 import { eventKeys } from '@/hooks/useEvents';
@@ -44,6 +55,25 @@ interface PositionsManagerProps {
   eventId: string;
   isAdmin: boolean;
   allTechnicians?: Profile[];
+  eventStartDate?: string;
+  eventEndDate?: string;
+}
+
+interface AssignDialogState {
+  open: boolean;
+  positionId: string;
+  technicianId: string;
+  technicianName: string;
+  startDate: Date | undefined;
+  endDate: Date | undefined;
+}
+
+interface EditDatesDialogState {
+  open: boolean;
+  assignmentId: string;
+  technicianName: string;
+  startDate: Date | undefined;
+  endDate: Date | undefined;
 }
 
 export default function PositionsManager({
@@ -51,6 +81,8 @@ export default function PositionsManager({
   eventId,
   isAdmin,
   allTechnicians = [],
+  eventStartDate,
+  eventEndDate,
 }: PositionsManagerProps) {
   const queryClient = useQueryClient();
   const [positions, setPositions] = useState(initialPositions);
@@ -59,6 +91,29 @@ export default function PositionsManager({
   const [loading, setLoading] = useState(false);
   const [selectedTechnician, setSelectedTechnician] = useState<{ [key: string]: string }>({});
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
+
+  // Dialog for assigning technician with optional date range
+  const [assignDialog, setAssignDialog] = useState<AssignDialogState>({
+    open: false,
+    positionId: '',
+    technicianId: '',
+    technicianName: '',
+    startDate: undefined,
+    endDate: undefined,
+  });
+
+  // Dialog for editing assignment dates
+  const [editDatesDialog, setEditDatesDialog] = useState<EditDatesDialogState>({
+    open: false,
+    assignmentId: '',
+    technicianName: '',
+    startDate: undefined,
+    endDate: undefined,
+  });
+
+  // Parse event dates for calendar constraints
+  const eventStart = eventStartDate ? new Date(eventStartDate) : undefined;
+  const eventEnd = eventEndDate ? new Date(eventEndDate) : undefined;
 
   // Dynamic role types from database
   const [roleTypes, setRoleTypes] = useState<RoleTypeDB[]>([]);
@@ -163,9 +218,30 @@ export default function PositionsManager({
     }
   };
 
-  const handleAssignTechnician = async (positionId: string, technicianId: string) => {
+  // Open the assign dialog when a technician is selected
+  const openAssignDialog = (positionId: string, technicianId: string) => {
     const tech = allTechnicians.find(t => t.id === technicianId);
     if (!tech) return;
+
+    setAssignDialog({
+      open: true,
+      positionId,
+      technicianId,
+      technicianName: tech.full_name,
+      startDate: undefined,
+      endDate: undefined,
+    });
+    setSelectedTechnician({ ...selectedTechnician, [positionId]: '' });
+  };
+
+  // Confirm assignment from dialog
+  const confirmAssignment = async () => {
+    const { positionId, technicianId, startDate, endDate } = assignDialog;
+    const tech = allTechnicians.find(t => t.id === technicianId);
+    if (!tech) return;
+
+    // Close dialog immediately
+    setAssignDialog(prev => ({ ...prev, open: false }));
 
     // OPTIMISTIC UPDATE - okamžitě aktualizuj UI s temporary ID
     const tempAssignment = {
@@ -173,6 +249,8 @@ export default function PositionsManager({
       position_id: positionId,
       technician_id: technicianId,
       attendance_status: 'pending' as const,
+      start_date: startDate ? format(startDate, 'yyyy-MM-dd') : null,
+      end_date: endDate ? format(endDate, 'yyyy-MM-dd') : null,
       technician: tech,
     };
 
@@ -185,7 +263,6 @@ export default function PositionsManager({
       }
       return pos;
     }));
-    setSelectedTechnician({ ...selectedTechnician, [positionId]: '' });
 
     // Server call na pozadí
     try {
@@ -195,6 +272,8 @@ export default function PositionsManager({
         body: JSON.stringify({
           position_id: positionId,
           technician_id: technicianId,
+          start_date: startDate ? format(startDate, 'yyyy-MM-dd') : null,
+          end_date: endDate ? format(endDate, 'yyyy-MM-dd') : null,
         }),
       });
 
@@ -230,6 +309,61 @@ export default function PositionsManager({
       }));
       alert('Chyba při přiřazování technika');
     }
+  };
+
+  // Open edit dates dialog for existing assignment
+  const openEditDatesDialog = (assignment: Assignment & { technician: Profile }) => {
+    setEditDatesDialog({
+      open: true,
+      assignmentId: assignment.id,
+      technicianName: assignment.technician.full_name,
+      startDate: assignment.start_date ? new Date(assignment.start_date) : undefined,
+      endDate: assignment.end_date ? new Date(assignment.end_date) : undefined,
+    });
+  };
+
+  // Save updated dates
+  const saveAssignmentDates = async () => {
+    const { assignmentId, startDate, endDate } = editDatesDialog;
+
+    setEditDatesDialog(prev => ({ ...prev, open: false }));
+
+    try {
+      const response = await fetch(`/api/assignments/${assignmentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          start_date: startDate ? format(startDate, 'yyyy-MM-dd') : null,
+          end_date: endDate ? format(endDate, 'yyyy-MM-dd') : null,
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to update dates');
+
+      // Update local state
+      setPositions(prev => prev.map(pos => ({
+        ...pos,
+        assignments: (pos.assignments || []).map(a =>
+          a.id === assignmentId
+            ? {
+                ...a,
+                start_date: startDate ? format(startDate, 'yyyy-MM-dd') : null,
+                end_date: endDate ? format(endDate, 'yyyy-MM-dd') : null,
+              }
+            : a
+        )
+      })));
+
+      // Invalidate cache to sync all views
+      await queryClient.invalidateQueries({ queryKey: eventKeys.all });
+    } catch (error) {
+      alert('Chyba při aktualizaci dat');
+    }
+  };
+
+  const handleAssignTechnician = async (positionId: string, technicianId: string) => {
+    // Open dialog instead of directly assigning
+    openAssignDialog(positionId, technicianId);
   };
 
   const handleRemoveAssignment = async (assignmentId: string) => {
@@ -426,9 +560,26 @@ export default function PositionsManager({
                         <p className="text-sm font-medium text-slate-900 truncate">
                           {assignment.technician.full_name}
                         </p>
+                        {(assignment.start_date || assignment.end_date) && (
+                          <Badge variant="outline" className="text-xs gap-1 mt-1">
+                            <CalendarDays className="w-3 h-3" />
+                            {assignment.start_date && format(new Date(assignment.start_date), 'd.M.', { locale: cs })}
+                            {assignment.start_date && assignment.end_date && ' - '}
+                            {assignment.end_date && format(new Date(assignment.end_date), 'd.M.', { locale: cs })}
+                          </Badge>
+                        )}
                       </div>
                       {isAdmin && (
                         <div className="flex items-center gap-1 ml-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => openEditDatesDialog(assignment)}
+                            className="h-7 w-7 p-0"
+                            title="Upravit období"
+                          >
+                            <CalendarDays className="w-4 h-4" />
+                          </Button>
                           {assignment.attendance_status === 'pending' && (
                             <Button
                               size="sm"
@@ -545,9 +696,19 @@ export default function PositionsManager({
                             <p className="text-sm font-medium text-slate-900">
                               {assignment.technician.full_name}
                             </p>
-                            <p className="text-xs text-slate-500 truncate">
-                              {assignment.technician.email}
-                            </p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-xs text-slate-500 truncate">
+                                {assignment.technician.email}
+                              </p>
+                              {(assignment.start_date || assignment.end_date) && (
+                                <Badge variant="outline" className="text-xs gap-1">
+                                  <CalendarDays className="w-3 h-3" />
+                                  {assignment.start_date && format(new Date(assignment.start_date), 'd.M.', { locale: cs })}
+                                  {assignment.start_date && assignment.end_date && ' - '}
+                                  {assignment.end_date && format(new Date(assignment.end_date), 'd.M.', { locale: cs })}
+                                </Badge>
+                              )}
+                            </div>
                           </div>
                           <div className="flex items-center gap-2 flex-shrink-0">
                             {isAdmin ? (
@@ -569,6 +730,14 @@ export default function PositionsManager({
                                     <SelectItem value="tentative">Předběžně</SelectItem>
                                   </SelectContent>
                                 </Select>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => openEditDatesDialog(assignment)}
+                                  title="Upravit období"
+                                >
+                                  <CalendarDays className="w-4 h-4" />
+                                </Button>
                                 {assignment.attendance_status === 'pending' && (
                                   <Button
                                     size="sm"
@@ -656,6 +825,196 @@ export default function PositionsManager({
           </div>
         )}
       </CardContent>
+
+      {/* Dialog for assigning technician with optional dates */}
+      <Dialog open={assignDialog.open} onOpenChange={(open) => setAssignDialog(prev => ({ ...prev, open }))}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Přiřadit technika</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-slate-600">
+              Přiřazujete: <strong>{assignDialog.technicianName}</strong>
+            </p>
+
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Období účasti (volitelné)</Label>
+              <p className="text-xs text-slate-500">
+                Ponechte prázdné pro celou akci, nebo vyberte konkrétní dny.
+              </p>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-xs text-slate-500 mb-1 block">Od</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal h-9",
+                          !assignDialog.startDate && "text-slate-400"
+                        )}
+                      >
+                        <CalendarDays className="mr-2 h-4 w-4" />
+                        {assignDialog.startDate
+                          ? format(assignDialog.startDate, "d. M. yyyy", { locale: cs })
+                          : "Vybrat"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={assignDialog.startDate}
+                        onSelect={(date) => setAssignDialog(prev => ({ ...prev, startDate: date }))}
+                        disabled={eventStart && eventEnd ? { before: eventStart, after: eventEnd } : undefined}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div>
+                  <Label className="text-xs text-slate-500 mb-1 block">Do</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal h-9",
+                          !assignDialog.endDate && "text-slate-400"
+                        )}
+                      >
+                        <CalendarDays className="mr-2 h-4 w-4" />
+                        {assignDialog.endDate
+                          ? format(assignDialog.endDate, "d. M. yyyy", { locale: cs })
+                          : "Vybrat"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={assignDialog.endDate}
+                        onSelect={(date) => setAssignDialog(prev => ({ ...prev, endDate: date }))}
+                        disabled={eventStart && eventEnd ? { before: assignDialog.startDate || eventStart, after: eventEnd } : undefined}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+
+              {(assignDialog.startDate || assignDialog.endDate) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setAssignDialog(prev => ({ ...prev, startDate: undefined, endDate: undefined }))}
+                  className="text-xs text-slate-500"
+                >
+                  Zrušit období (celá akce)
+                </Button>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAssignDialog(prev => ({ ...prev, open: false }))}>
+              Zrušit
+            </Button>
+            <Button onClick={confirmAssignment}>
+              <UserPlus className="w-4 h-4 mr-2" />
+              Přiřadit
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog for editing assignment dates */}
+      <Dialog open={editDatesDialog.open} onOpenChange={(open) => setEditDatesDialog(prev => ({ ...prev, open }))}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Upravit období účasti</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-slate-600">
+              Technik: <strong>{editDatesDialog.technicianName}</strong>
+            </p>
+
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-xs text-slate-500 mb-1 block">Od</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal h-9",
+                          !editDatesDialog.startDate && "text-slate-400"
+                        )}
+                      >
+                        <CalendarDays className="mr-2 h-4 w-4" />
+                        {editDatesDialog.startDate
+                          ? format(editDatesDialog.startDate, "d. M. yyyy", { locale: cs })
+                          : "Celá akce"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={editDatesDialog.startDate}
+                        onSelect={(date) => setEditDatesDialog(prev => ({ ...prev, startDate: date }))}
+                        disabled={eventStart && eventEnd ? { before: eventStart, after: eventEnd } : undefined}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div>
+                  <Label className="text-xs text-slate-500 mb-1 block">Do</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal h-9",
+                          !editDatesDialog.endDate && "text-slate-400"
+                        )}
+                      >
+                        <CalendarDays className="mr-2 h-4 w-4" />
+                        {editDatesDialog.endDate
+                          ? format(editDatesDialog.endDate, "d. M. yyyy", { locale: cs })
+                          : "Celá akce"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={editDatesDialog.endDate}
+                        onSelect={(date) => setEditDatesDialog(prev => ({ ...prev, endDate: date }))}
+                        disabled={eventStart && eventEnd ? { before: editDatesDialog.startDate || eventStart, after: eventEnd } : undefined}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+
+              {(editDatesDialog.startDate || editDatesDialog.endDate) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setEditDatesDialog(prev => ({ ...prev, startDate: undefined, endDate: undefined }))}
+                  className="text-xs text-slate-500"
+                >
+                  Zrušit období (celá akce)
+                </Button>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDatesDialog(prev => ({ ...prev, open: false }))}>
+              Zrušit
+            </Button>
+            <Button onClick={saveAssignmentDates}>
+              Uložit
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

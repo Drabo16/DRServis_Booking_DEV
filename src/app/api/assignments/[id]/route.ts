@@ -33,27 +33,41 @@ export async function PATCH(
     const serviceClient = createServiceRoleClient();
 
     const body = await request.json();
-    const { attendance_status } = body;
+    const { attendance_status, start_date, end_date } = body;
 
-    if (!attendance_status) {
-      return NextResponse.json(
-        { error: 'attendance_status is required' },
-        { status: 400 }
-      );
+    // Build update object with provided fields
+    const updates: Record<string, any> = {};
+
+    if (attendance_status !== undefined) {
+      // Validate attendance_status
+      const validStatuses = ['pending', 'accepted', 'declined', 'tentative'];
+      if (!validStatuses.includes(attendance_status)) {
+        return NextResponse.json(
+          { error: 'Invalid attendance_status' },
+          { status: 400 }
+        );
+      }
+      updates.attendance_status = attendance_status;
     }
 
-    // Validate attendance_status
-    const validStatuses = ['pending', 'accepted', 'declined', 'tentative'];
-    if (!validStatuses.includes(attendance_status)) {
+    // Allow updating dates for partial assignments
+    if (start_date !== undefined) {
+      updates.start_date = start_date;
+    }
+    if (end_date !== undefined) {
+      updates.end_date = end_date;
+    }
+
+    if (Object.keys(updates).length === 0) {
       return NextResponse.json(
-        { error: 'Invalid attendance_status' },
+        { error: 'No valid fields to update' },
         { status: 400 }
       );
     }
 
     const { data, error } = await serviceClient
       .from('assignments')
-      .update({ attendance_status })
+      .update(updates)
       .eq('id', assignmentId)
       .select()
       .single();

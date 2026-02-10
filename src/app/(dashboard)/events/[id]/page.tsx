@@ -155,6 +155,8 @@ export default async function EventDetailPage({
         eventId={event.id}
         isAdmin={isAdmin}
         allTechnicians={allTechnicians || []}
+        eventStartDate={event.start_time}
+        eventEndDate={event.end_time}
       />
 
       {/* Drive Files Section */}

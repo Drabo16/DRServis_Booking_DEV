@@ -334,6 +334,8 @@ export default function EventDetailPanel({ eventId, onClose, isAdmin }: EventDet
         eventId={event.id}
         isAdmin={isAdmin}
         allTechnicians={technicians}
+        eventStartDate={event.start_time}
+        eventEndDate={event.end_time}
       />
     </div>
   );
