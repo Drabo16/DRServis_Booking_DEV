@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { email, full_name, phone, role, specialization } = body;
+    const { email, full_name, phone, role, specialization, is_drservis, company, note } = body;
 
     // Validace povinných polí
     if (!email || !full_name || !role) {
@@ -152,6 +152,9 @@ export async function POST(request: NextRequest) {
         role,
         specialization: specialization || null,
         is_active: true,
+        is_drservis: is_drservis ?? true,
+        company: company || null,
+        note: note || null,
       })
       .select()
       .single();

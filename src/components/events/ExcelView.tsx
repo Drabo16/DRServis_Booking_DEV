@@ -360,6 +360,8 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                   assigned_by: null,
                   assigned_at: new Date().toISOString(),
                   updated_at: new Date().toISOString(),
+                  start_date: null,
+                  end_date: null,
                   technician: tech
                 }]
               };
@@ -390,6 +392,8 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
             assigned_by: null,
             assigned_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
+            start_date: null,
+            end_date: null,
             technician: tech
           }]
         };

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import CreateUserDialog from '@/components/users/CreateUserDialog';
 import EditUserDialog from '@/components/users/EditUserDialog';
+import ImportUsersDialog from '@/components/users/ImportUsersDialog';
 import { Loader2, Crown, UserCog, User, ShieldAlert } from 'lucide-react';
 import { ROLE_LABELS } from '@/types/modules';
 
@@ -58,7 +59,12 @@ export default function UsersPage() {
           <h1 className="text-3xl font-bold text-slate-900">Uživatelé</h1>
           <p className="text-slate-600 mt-1">Správa uživatelských účtů a oprávnění</p>
         </div>
-        <CreateUserDialog />
+        <div className="flex gap-2">
+          {(permissions?.is_admin || permissions?.is_supervisor) && (
+            <ImportUsersDialog />
+          )}
+          <CreateUserDialog />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -91,6 +97,12 @@ export default function UsersPage() {
                   <span className="text-slate-900">{user.phone}</span>
                 </div>
               )}
+              {!user.is_drservis && user.company && (
+                <div className="text-sm">
+                  <span className="text-slate-500">Firma:</span>{' '}
+                  <span className="text-slate-900">{user.company}</span>
+                </div>
+              )}
               {user.specialization && user.specialization.length > 0 && (
                 <div className="text-sm">
                   <span className="text-slate-500">Specializace:</span>
@@ -103,10 +115,23 @@ export default function UsersPage() {
                   </div>
                 </div>
               )}
+              {user.note && (
+                <div className="text-sm">
+                  <span className="text-slate-500">Poznámka:</span>{' '}
+                  <span className="text-slate-900 italic">{user.note}</span>
+                </div>
+              )}
               <div className="pt-2 flex items-center justify-between">
-                <Badge variant={user.is_active ? 'default' : 'destructive'} className="text-xs">
-                  {user.is_active ? 'Aktivní' : 'Neaktivní'}
-                </Badge>
+                <div className="flex gap-1">
+                  <Badge variant={user.is_active ? 'default' : 'destructive'} className="text-xs">
+                    {user.is_active ? 'Aktivní' : 'Neaktivní'}
+                  </Badge>
+                  {user.is_drservis === false && (
+                    <Badge variant="outline" className="text-xs">
+                      Externí
+                    </Badge>
+                  )}
+                </div>
                 <EditUserDialog user={user} />
               </div>
             </CardContent>

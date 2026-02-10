@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { UserPlus, Crown, UserCog, User, Check, AlertTriangle } from 'lucide-react';
 import { ROLE_TYPES } from '@/lib/constants';
 import { UserRole, ROLE_LABELS, ROLE_DESCRIPTIONS } from '@/types';
@@ -32,6 +33,9 @@ export default function CreateUserDialog() {
     phone: '',
     role: 'technician' as UserRole,
     specialization: [] as string[],
+    is_drservis: true,
+    company: '',
+    note: '',
   });
 
   const createUser = useCreateUser();
@@ -61,7 +65,10 @@ export default function CreateUserDialog() {
       {
         ...formData,
         role: roleToCreate,
+        phone: formData.phone || null,
         specialization: formData.specialization.length > 0 ? formData.specialization : null,
+        company: formData.company || null,
+        note: formData.note || null,
       },
       {
         onSuccess: () => {
@@ -72,6 +79,9 @@ export default function CreateUserDialog() {
             phone: '',
             role: 'technician',
             specialization: [],
+            is_drservis: true,
+            company: '',
+            note: '',
           });
           setOpen(false);
         },
@@ -146,14 +156,58 @@ export default function CreateUserDialog() {
             />
           </div>
 
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="phone">Telefon</Label>
+              <Input
+                id="phone"
+                type="tel"
+                placeholder="722929473"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                disabled={loading}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="company">Firma</Label>
+              <Input
+                id="company"
+                type="text"
+                placeholder="Externí firma"
+                value={formData.company}
+                onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+                disabled={loading || formData.is_drservis}
+              />
+            </div>
+          </div>
+
+          {/* DRServis membership */}
+          <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+            <div>
+              <Label>Člen DRServis</Label>
+              <p className="text-xs text-slate-500">Je členem firmy DRServis</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`text-sm ${formData.is_drservis ? 'text-green-600' : 'text-slate-500'}`}>
+                {formData.is_drservis ? 'Ano' : 'Ne'}
+              </span>
+              <Switch
+                checked={formData.is_drservis}
+                onCheckedChange={(checked) => setFormData({ ...formData, is_drservis: checked, company: checked ? '' : formData.company })}
+                disabled={loading}
+              />
+            </div>
+          </div>
+
+          {/* Note field */}
           <div className="space-y-2">
-            <Label htmlFor="phone">Telefon</Label>
+            <Label htmlFor="note">Poznámka</Label>
             <Input
-              id="phone"
-              type="tel"
-              placeholder="+420 123 456 789"
-              value={formData.phone}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              id="note"
+              type="text"
+              placeholder="Rychlá poznámka..."
+              value={formData.note}
+              onChange={(e) => setFormData({ ...formData, note: e.target.value })}
               disabled={loading}
             />
           </div>

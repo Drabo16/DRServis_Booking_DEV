@@ -58,10 +58,14 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({
     full_name: user.full_name,
+    email: user.email,
     phone: user.phone || '',
     role: user.role as UserRole,
     specialization: user.specialization || [],
     is_active: user.is_active,
+    is_drservis: user.is_drservis ?? true,
+    company: user.company || '',
+    note: user.note || '',
   });
 
   // Mutation hooks for user CRUD
@@ -138,10 +142,14 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
       }
       setFormData({
         full_name: user.full_name,
+        email: user.email,
         phone: user.phone || '',
         role: user.role as UserRole,
         specialization: user.specialization || [],
         is_active: user.is_active,
+        is_drservis: user.is_drservis ?? true,
+        company: user.company || '',
+        note: user.note || '',
       });
     }
   }, [open, refetchPermissions, user, canManagePermissions]);
@@ -226,17 +234,27 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
     if (!canEdit) return;
 
     try {
-      // For managers, only update basic info (not role)
+      // For managers, only update basic info (not role, not email)
       const updateData = isManager
         ? {
             full_name: formData.full_name,
             phone: formData.phone || null,
             specialization: formData.specialization.length > 0 ? formData.specialization : null,
             is_active: formData.is_active,
+            is_drservis: formData.is_drservis,
+            company: formData.company || null,
+            note: formData.note || null,
           }
         : {
-            ...formData,
+            full_name: formData.full_name,
+            email: formData.email,
+            phone: formData.phone || null,
+            role: formData.role,
             specialization: formData.specialization.length > 0 ? formData.specialization : null,
+            is_active: formData.is_active,
+            is_drservis: formData.is_drservis,
+            company: formData.company || null,
+            note: formData.note || null,
           };
 
       // Update user via mutation hook
@@ -343,16 +361,73 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
               />
             </div>
             <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                required
+                disabled={loading || isManager}
+                title={isManager ? 'Pouze admin může měnit email' : undefined}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
               <Label htmlFor="phone">Telefon</Label>
               <Input
                 id="phone"
                 type="tel"
-                placeholder="+420 123 456 789"
+                placeholder="722929473"
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 disabled={loading}
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="company">Firma</Label>
+              <Input
+                id="company"
+                type="text"
+                placeholder="Název externí firmy"
+                value={formData.company}
+                onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+                disabled={loading || formData.is_drservis}
+              />
+            </div>
+          </div>
+
+          {/* DRServis membership toggle */}
+          <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+            <div>
+              <Label>Člen DRServis</Label>
+              <p className="text-xs text-slate-500">Je členem firmy DRServis</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`text-sm ${formData.is_drservis ? 'text-green-600' : 'text-slate-500'}`}>
+                {formData.is_drservis ? 'Ano' : 'Ne'}
+              </span>
+              <Switch
+                checked={formData.is_drservis}
+                onCheckedChange={(checked) => setFormData({ ...formData, is_drservis: checked, company: checked ? '' : formData.company })}
+                disabled={loading}
+              />
+            </div>
+          </div>
+
+          {/* Note field */}
+          <div className="space-y-2">
+            <Label htmlFor="note">Poznámka</Label>
+            <Input
+              id="note"
+              type="text"
+              placeholder="Rychlá poznámka k uživateli..."
+              value={formData.note}
+              onChange={(e) => setFormData({ ...formData, note: e.target.value })}
+              disabled={loading}
+            />
           </div>
 
           {/* Specialization */}

@@ -67,7 +67,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { full_name, phone, role, specialization, is_active } = body;
+    const { full_name, email, phone, role, specialization, is_active, is_drservis, company, note } = body;
 
     // SECURITY: Manager restrictions
     if (!isPrivileged) {
@@ -102,10 +102,16 @@ export async function PATCH(
     if (phone !== undefined) updates.phone = phone;
     if (specialization !== undefined) updates.specialization = specialization;
     if (is_active !== undefined) updates.is_active = is_active;
+    if (is_drservis !== undefined) updates.is_drservis = is_drservis;
+    if (company !== undefined) updates.company = company;
+    if (note !== undefined) updates.note = note;
 
-    // Only privileged users can change role
+    // Only privileged users can change role and email
     if (role !== undefined && isPrivileged) {
       updates.role = role;
+    }
+    if (email !== undefined && isPrivileged) {
+      updates.email = email;
     }
 
     if (Object.keys(updates).length === 0) {

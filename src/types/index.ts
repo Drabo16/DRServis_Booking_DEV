@@ -29,6 +29,9 @@ export interface Profile {
   avatar_url: string | null;
   is_active: boolean;
   has_warehouse_access: boolean; // Access to warehouse module
+  is_drservis: boolean; // Whether user is a member of DRServis company
+  company: string | null; // External company name (for non-DRServis members)
+  note: string | null; // Quick note about the user
   created_at: string;
   updated_at: string;
 }
@@ -76,6 +79,8 @@ export interface Assignment {
   assigned_by: string | null;
   assigned_at: string;
   updated_at: string;
+  start_date: string | null; // Start date for partial day assignment (NULL = entire event)
+  end_date: string | null; // End date for partial day assignment (NULL = entire event)
 }
 
 export interface SyncLog {

@@ -23,15 +23,30 @@ export function formatDateRange(startDate: string | Date, endDate: string | Date
   const start = typeof startDate === 'string' ? new Date(startDate) : startDate
   let end = typeof endDate === 'string' ? new Date(endDate) : endDate
 
-  // Google Calendar sets end_time to midnight UTC of the NEXT day for all-day events
-  // Check for midnight in UTC (not local time!) and subtract 1 day
-  if (end.getUTCHours() === 0 && end.getUTCMinutes() === 0 && end.getUTCSeconds() === 0) {
-    // Subtract 1 day (86400000 ms) to get the actual end date
-    end = new Date(end.getTime() - 86400000)
-  }
+  // Check if this is an all-day event (midnight UTC times)
+  const isAllDayEvent =
+    start.getUTCHours() === 0 &&
+    start.getUTCMinutes() === 0 &&
+    end.getUTCHours() === 0 &&
+    end.getUTCMinutes() === 0
 
-  const startStr = format(start, 'd. M. yyyy', { locale: cs })
-  const endStr = format(end, 'd. M. yyyy', { locale: cs })
+  let startStr: string
+  let endStr: string
+
+  if (isAllDayEvent) {
+    // For all-day events, use UTC date components to avoid timezone issues
+    // Google Calendar sets end_time to midnight UTC of the NEXT day (exclusive)
+    // So we subtract 1 day to get the actual end date
+    const endMinusOneDay = new Date(end.getTime() - 86400000)
+
+    // Format using UTC components directly
+    startStr = `${start.getUTCDate()}. ${start.getUTCMonth() + 1}. ${start.getUTCFullYear()}`
+    endStr = `${endMinusOneDay.getUTCDate()}. ${endMinusOneDay.getUTCMonth() + 1}. ${endMinusOneDay.getUTCFullYear()}`
+  } else {
+    // For timed events, use local time formatting
+    startStr = format(start, 'd. M. yyyy', { locale: cs })
+    endStr = format(end, 'd. M. yyyy', { locale: cs })
+  }
 
   if (startStr === endStr) {
     return startStr
