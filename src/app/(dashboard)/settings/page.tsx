@@ -1,4 +1,4 @@
-import { createClient, getProfileWithFallback, hasPermission, createServiceRoleClient } from '@/lib/supabase/server';
+import { createClient, getAuthContext, hasPermission } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,62 +8,37 @@ import { Briefcase } from 'lucide-react';
 export default async function SettingsPage() {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user, profile, isSupervisor } = await getAuthContext(supabase);
 
   if (!user) {
     redirect('/login');
   }
-
-  // Get profile with fallback (handles auth_user_id linking)
-  const profile = await getProfileWithFallback(supabase, user);
 
   if (!profile) {
     redirect('/login');
   }
 
   // Check permission - allow admins OR users with users_settings_manage_roles permission
-  const canManageRoles = await hasPermission(profile, 'users_settings_manage_roles');
+  const canManageRoles = await hasPermission(profile, 'users_settings_manage_roles', isSupervisor);
 
   if (!canManageRoles) {
     redirect('/');
   }
 
-  // Check if user is supervisor (only supervisors see system info)
-  const serviceClient = createServiceRoleClient();
-  const { data: supervisorCheck } = await serviceClient
-    .from('supervisor_emails')
-    .select('email')
-    .ilike('email', profile.email)
-    .single();
-  const isSupervisor = !!supervisorCheck;
-
-  // Statistiky
-  const { count: eventsCount } = await supabase
-    .from('events')
-    .select('*', { count: 'exact', head: true });
-
-  const { count: techniciansCount } = await supabase
-    .from('profiles')
-    .select('*', { count: 'exact', head: true })
-    .eq('is_active', true);
-
-  const { count: positionsCount } = await supabase
-    .from('positions')
-    .select('*', { count: 'exact', head: true });
-
-  const { count: assignmentsCount } = await supabase
-    .from('assignments')
-    .select('*', { count: 'exact', head: true });
-
-  // Poslední synchronizace
-  const { data: lastSync } = await supabase
-    .from('sync_logs')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single();
+  // Parallel fetch: all statistics + last sync
+  const [
+    { count: eventsCount },
+    { count: techniciansCount },
+    { count: positionsCount },
+    { count: assignmentsCount },
+    { data: lastSync },
+  ] = await Promise.all([
+    supabase.from('events').select('*', { count: 'exact', head: true }),
+    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_active', true),
+    supabase.from('positions').select('*', { count: 'exact', head: true }),
+    supabase.from('assignments').select('*', { count: 'exact', head: true }),
+    supabase.from('sync_logs').select('status, sync_type, events_processed, errors_count, created_at').order('created_at', { ascending: false }).limit(1).single(),
+  ]);
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">

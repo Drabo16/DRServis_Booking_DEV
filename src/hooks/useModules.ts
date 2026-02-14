@@ -26,6 +26,7 @@ export function useModules() {
       const data = await response.json();
       return data.modules as AppModule[];
     },
+    staleTime: 10 * 60 * 1000, // 10 minutes - modules rarely change
   });
 }
 

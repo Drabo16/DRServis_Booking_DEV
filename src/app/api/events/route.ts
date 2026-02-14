@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, getProfileWithFallback } from '@/lib/supabase/server';
+import { createClient, getAuthContext } from '@/lib/supabase/server';
 
 /**
  * GET /api/events
@@ -19,30 +19,14 @@ export async function GET(request: NextRequest) {
     const daysBack = Math.min(Math.max(parseInt(searchParams.get('daysBack') || '30'), 1), 365);
     const daysAhead = Math.min(Math.max(parseInt(searchParams.get('daysAhead') || '90'), 1), 365);
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { user, profile, isSupervisor } = await getAuthContext(supabase);
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Načti profil s fallbackem na email lookup
-    const profile = await getProfileWithFallback(supabase, user);
-
     const isAdmin = profile?.role === 'admin';
     const isManager = profile?.role === 'manager';
-
-    // Check if supervisor
-    let isSupervisor = false;
-    if (profile?.email) {
-      const { data: supervisorCheck } = await supabase
-        .from('supervisor_emails')
-        .select('email')
-        .ilike('email', profile.email)
-        .single();
-      isSupervisor = !!supervisorCheck;
-    }
 
     // Manager (Správce) has full booking access - sees all events
     // Admin and Supervisor also see all events

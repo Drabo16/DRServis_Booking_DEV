@@ -17,7 +17,7 @@ export async function GET() {
     // Načti všechny aktivní uživatele (mohou být přiřazeni k akcím)
     const { data: technicians, error } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id, full_name, email, phone, specialization, is_active, is_drservis, company, note')
       .eq('is_active', true)
       .order('full_name');
 

@@ -1,61 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, getProfileWithFallback } from '@/lib/supabase/server';
+import { createClient, getAuthContext } from '@/lib/supabase/server';
 
 // GET /api/permissions/me - Get current user's permissions
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const { user, profile, isSupervisor } = await getAuthContext(supabase);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    // Get current user profile with fallback to email lookup
-    const profile = await getProfileWithFallback(supabase, user);
 
     if (!profile) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
-    // Check if supervisor
-    const { data: supervisorCheck } = await supabase
-      .from('supervisor_emails')
-      .select('email')
-      .ilike('email', profile.email)
-      .single();
-
-    const isSupervisor = !!supervisorCheck;
-
-    // Get all permission types
-    const { data: allPermissions } = await supabase
-      .from('permission_types')
-      .select('*')
-      .order('module_code')
-      .order('sort_order');
-
-    // Get user's granted permissions
-    const { data: userPermissions } = await supabase
-      .from('user_permissions')
-      .select('permission_code')
-      .eq('user_id', profile.id);
+    // Parallel fetch: 4 independent queries
+    const [
+      { data: allPermissions },
+      { data: userPermissions },
+      { data: moduleAccess },
+      { data: allModules },
+    ] = await Promise.all([
+      supabase
+        .from('permission_types')
+        .select('code, name, module_code, sort_order')
+        .order('module_code')
+        .order('sort_order'),
+      supabase
+        .from('user_permissions')
+        .select('permission_code')
+        .eq('user_id', profile.id),
+      supabase
+        .from('user_module_access')
+        .select('module_code')
+        .eq('user_id', profile.id),
+      supabase
+        .from('app_modules')
+        .select('code, name')
+        .eq('is_active', true)
+        .order('sort_order'),
+    ]);
 
     const grantedCodes = new Set(userPermissions?.map(p => p.permission_code) || []);
-
-    // Get user's module access
-    const { data: moduleAccess } = await supabase
-      .from('user_module_access')
-      .select('module_code')
-      .eq('user_id', profile.id);
-
     const accessedModules = new Set(moduleAccess?.map(m => m.module_code) || []);
-
-    // Get all modules
-    const { data: allModules } = await supabase
-      .from('app_modules')
-      .select('code, name')
-      .eq('is_active', true)
-      .order('sort_order');
 
     // Build response
     const response = {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, checkIsSupervisor } from '@/lib/supabase/server';
 
 interface RouteContext {
   params: Promise<{ userId: string }>;
@@ -47,44 +47,37 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Check if target is supervisor
-    const { data: supervisorCheck } = await supabase
-      .from('supervisor_emails')
-      .select('email')
-      .ilike('email', targetUser.email)
-      .single();
-
-    const isSupervisor = !!supervisorCheck;
-
-    // Get all permission types
-    const { data: allPermissions } = await supabase
-      .from('permission_types')
-      .select('*')
-      .order('module_code')
-      .order('sort_order');
-
-    // Get user's granted permissions
-    const { data: userPermissions } = await supabase
-      .from('user_permissions')
-      .select('permission_code')
-      .eq('user_id', userId);
+    // Parallel fetch: supervisor check + all permission data
+    const [
+      isSupervisor,
+      { data: allPermissions },
+      { data: userPermissions },
+      { data: moduleAccess },
+      { data: allModules },
+    ] = await Promise.all([
+      checkIsSupervisor(targetUser.email),
+      supabase
+        .from('permission_types')
+        .select('code, name, module_code, sort_order')
+        .order('module_code')
+        .order('sort_order'),
+      supabase
+        .from('user_permissions')
+        .select('permission_code')
+        .eq('user_id', userId),
+      supabase
+        .from('user_module_access')
+        .select('module_code')
+        .eq('user_id', userId),
+      supabase
+        .from('app_modules')
+        .select('code, name')
+        .eq('is_active', true)
+        .order('sort_order'),
+    ]);
 
     const grantedCodes = new Set(userPermissions?.map(p => p.permission_code) || []);
-
-    // Get user's module access
-    const { data: moduleAccess } = await supabase
-      .from('user_module_access')
-      .select('module_code')
-      .eq('user_id', userId);
-
     const accessedModules = new Set(moduleAccess?.map(m => m.module_code) || []);
-
-    // Get all modules
-    const { data: allModules } = await supabase
-      .from('app_modules')
-      .select('code, name')
-      .eq('is_active', true)
-      .order('sort_order');
 
     // Build response
     const response = {
@@ -139,13 +132,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     }
 
     // Check if current user is supervisor
-    const { data: currentSupervisor } = await supabase
-      .from('supervisor_emails')
-      .select('email')
-      .ilike('email', currentProfile.email)
-      .single();
-
-    const currentIsSupervisor = !!currentSupervisor;
+    const currentIsSupervisor = await checkIsSupervisor(currentProfile.email);
     const currentIsAdmin = currentProfile.role === 'admin';
 
     // SECURITY: Only admins and supervisors can modify permissions

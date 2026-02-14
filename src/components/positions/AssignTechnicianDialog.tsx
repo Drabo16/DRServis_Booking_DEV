@@ -50,7 +50,7 @@ export default function AssignTechnicianDialog({
   const loadTechnicians = async () => {
     const { data } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id, full_name, email, phone, specialization, is_active, is_drservis, company, note, role, auth_user_id, avatar_url, has_warehouse_access, created_at, updated_at')
       .eq('is_active', true)
       .order('full_name');
 

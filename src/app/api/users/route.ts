@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, getProfileWithFallback, hasPermission, createServiceRoleClient } from '@/lib/supabase/server';
+import { createClient, getAuthContext, hasPermission, createServiceRoleClient } from '@/lib/supabase/server';
 
 /**
  * GET /api/users
@@ -9,23 +9,18 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { user, profile, isSupervisor } = await getAuthContext(supabase);
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    // Get profile with fallback
-    const profile = await getProfileWithFallback(supabase, user);
 
     if (!profile) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
     // Check permission to manage users
-    const canManageUsers = await hasPermission(profile, 'users_settings_manage_users');
+    const canManageUsers = await hasPermission(profile, 'users_settings_manage_users', isSupervisor);
 
     if (!canManageUsers) {
       return NextResponse.json({ error: 'Forbidden - nemáte oprávnění spravovat uživatele' }, { status: 403 });
@@ -37,7 +32,7 @@ export async function GET(request: NextRequest) {
     // Načtení všech uživatelů
     const { data: users, error } = await serviceClient
       .from('profiles')
-      .select('*')
+      .select('id, auth_user_id, email, full_name, phone, role, specialization, avatar_url, is_active, has_warehouse_access, is_drservis, company, note, created_at, updated_at')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -65,23 +60,18 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { user, profile, isSupervisor } = await getAuthContext(supabase);
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    // Get profile with fallback
-    const profile = await getProfileWithFallback(supabase, user);
 
     if (!profile) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
     // Check permission to manage users
-    const canManageUsers = await hasPermission(profile, 'users_settings_manage_users');
+    const canManageUsers = await hasPermission(profile, 'users_settings_manage_users', isSupervisor);
 
     if (!canManageUsers) {
       return NextResponse.json({ error: 'Forbidden - nemáte oprávnění spravovat uživatele' }, { status: 403 });
@@ -106,13 +96,6 @@ export async function POST(request: NextRequest) {
 
     // SECURITY: Non-admins (managers with users_settings permission) can only create technicians
     const isAdmin = profile.role === 'admin';
-    const serviceClientForSupervisorCheck = createServiceRoleClient();
-    const { data: supervisorCheck } = await serviceClientForSupervisorCheck
-      .from('supervisor_emails')
-      .select('email')
-      .ilike('email', profile.email)
-      .single();
-    const isSupervisor = !!supervisorCheck;
 
     // Only admins and supervisors can create admin or manager roles
     if (!isAdmin && !isSupervisor && (role === 'admin' || role === 'manager')) {

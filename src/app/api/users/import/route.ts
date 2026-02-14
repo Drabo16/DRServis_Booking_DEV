@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, getProfileWithFallback, hasPermission, createServiceRoleClient } from '@/lib/supabase/server';
+import { createClient, getAuthContext, createServiceRoleClient } from '@/lib/supabase/server';
 import * as XLSX from 'xlsx';
 
 interface ImportedUser {
@@ -79,16 +79,11 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { user, profile, isSupervisor } = await getAuthContext(supabase);
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    // Get profile with fallback
-    const profile = await getProfileWithFallback(supabase, user);
 
     if (!profile) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
@@ -96,13 +91,6 @@ export async function POST(request: NextRequest) {
 
     // Check permission to manage users - only admins/supervisors can import
     const isAdmin = profile.role === 'admin';
-    const serviceClientForSupervisorCheck = createServiceRoleClient();
-    const { data: supervisorCheck } = await serviceClientForSupervisorCheck
-      .from('supervisor_emails')
-      .select('email')
-      .ilike('email', profile.email)
-      .single();
-    const isSupervisor = !!supervisorCheck;
 
     if (!isAdmin && !isSupervisor) {
       return NextResponse.json(

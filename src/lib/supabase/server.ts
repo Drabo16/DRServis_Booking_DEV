@@ -44,6 +44,24 @@ export function createServiceRoleClient() {
 
 import type { Profile } from '@/types';
 
+// Explicit column list for profiles table - avoids SELECT * overhead
+const PROFILE_COLUMNS = 'id, auth_user_id, email, full_name, phone, role, specialization, avatar_url, is_active, has_warehouse_access, is_drservis, company, note, created_at, updated_at';
+
+/**
+ * Check if an email belongs to a supervisor.
+ * Single query replacing 15+ duplicate supervisor lookups across API routes.
+ */
+export async function checkIsSupervisor(email: string | null | undefined): Promise<boolean> {
+  if (!email) return false;
+  const serviceClient = createServiceRoleClient();
+  const { data } = await serviceClient
+    .from('supervisor_emails')
+    .select('email')
+    .ilike('email', email)
+    .single();
+  return !!data;
+}
+
 /**
  * Get user profile with fallback to email lookup.
  * Uses SERVICE ROLE client to bypass RLS restrictions.
@@ -62,7 +80,7 @@ export async function getProfileWithFallback(
   // First try to find profile by auth_user_id
   const { data: profile, error: profileError } = await serviceClient
     .from('profiles')
-    .select('*')
+    .select(PROFILE_COLUMNS)
     .eq('auth_user_id', user.id)
     .single();
 
@@ -80,7 +98,7 @@ export async function getProfileWithFallback(
   if (user.email) {
     const { data: profileByEmail, error: emailError } = await serviceClient
       .from('profiles')
-      .select('*')
+      .select(PROFILE_COLUMNS)
       .eq('email', user.email)
       .single();
 
@@ -145,18 +163,11 @@ export async function hasBookingAccess(
     return false;
   }
 
-  // Check supervisor - use service role client to bypass RLS
-  if (profile.email) {
-    const serviceClient = createServiceRoleClient();
-    const { data: supervisorCheck } = await serviceClient
-      .from('supervisor_emails')
-      .select('email')
-      .ilike('email', profile.email)
-      .single();
-    if (supervisorCheck) {
-      console.log('[hasBookingAccess] User is supervisor, granting access');
-      return true;
-    }
+  // Check supervisor - single query via helper
+  const isSupervisor = await checkIsSupervisor(profile.email);
+  if (isSupervisor) {
+    console.log('[hasBookingAccess] User is supervisor, granting access');
+    return true;
   }
 
   console.log('[hasBookingAccess] No access granted, denying');
@@ -168,10 +179,12 @@ import type { PermissionCode } from '@/types/modules';
 /**
  * Check if user has a specific permission.
  * Returns true if user is admin, supervisor, or has the permission granted.
+ * Accepts optional isSupervisor flag to avoid re-checking when already known.
  */
 export async function hasPermission(
   profile: Profile | null,
-  permissionCode: PermissionCode
+  permissionCode: PermissionCode,
+  isSupervisor?: boolean
 ): Promise<boolean> {
   if (!profile?.id) {
     return false;
@@ -182,17 +195,10 @@ export async function hasPermission(
     return true;
   }
 
-  // Check supervisor
-  if (profile.email) {
-    const serviceClient = createServiceRoleClient();
-    const { data: supervisorCheck } = await serviceClient
-      .from('supervisor_emails')
-      .select('email')
-      .ilike('email', profile.email)
-      .single();
-    if (supervisorCheck) {
-      return true;
-    }
+  // Check supervisor (use provided value or query)
+  const supervisorStatus = isSupervisor ?? await checkIsSupervisor(profile.email);
+  if (supervisorStatus) {
+    return true;
   }
 
   // Check specific permission in database
@@ -208,31 +214,74 @@ export async function hasPermission(
 }
 
 /**
+ * Batch check permissions - single query instead of N+1.
+ * Returns the set of permission codes the user actually has.
+ */
+async function getGrantedPermissions(
+  profile: Profile,
+  permissionCodes: PermissionCode[]
+): Promise<Set<string>> {
+  const serviceClient = createServiceRoleClient();
+  const { data } = await serviceClient
+    .from('user_permissions')
+    .select('permission_code')
+    .eq('user_id', profile.id)
+    .in('permission_code', permissionCodes);
+
+  return new Set((data || []).map((row: { permission_code: string }) => row.permission_code));
+}
+
+/**
  * Check multiple permissions - returns true if user has ALL specified permissions.
+ * Uses single batch query instead of N+1 sequential queries.
  */
 export async function hasAllPermissions(
   profile: Profile | null,
   permissionCodes: PermissionCode[]
 ): Promise<boolean> {
-  for (const code of permissionCodes) {
-    if (!(await hasPermission(profile, code))) {
-      return false;
-    }
-  }
-  return true;
+  if (!profile?.id || permissionCodes.length === 0) return permissionCodes.length === 0;
+
+  if (profile.role === 'admin') return true;
+
+  const isSupervisor = await checkIsSupervisor(profile.email);
+  if (isSupervisor) return true;
+
+  const granted = await getGrantedPermissions(profile, permissionCodes);
+  return permissionCodes.every(code => granted.has(code));
 }
 
 /**
  * Check multiple permissions - returns true if user has ANY of the specified permissions.
+ * Uses single batch query instead of N+1 sequential queries.
  */
 export async function hasAnyPermission(
   profile: Profile | null,
   permissionCodes: PermissionCode[]
 ): Promise<boolean> {
-  for (const code of permissionCodes) {
-    if (await hasPermission(profile, code)) {
-      return true;
-    }
-  }
-  return false;
+  if (!profile?.id || permissionCodes.length === 0) return false;
+
+  if (profile.role === 'admin') return true;
+
+  const isSupervisor = await checkIsSupervisor(profile.email);
+  if (isSupervisor) return true;
+
+  const granted = await getGrantedPermissions(profile, permissionCodes);
+  return permissionCodes.some(code => granted.has(code));
+}
+
+/**
+ * Combined auth context helper.
+ * Replaces the repeated 3-step pattern: getUser() + getProfileWithFallback() + supervisorCheck
+ * used in ~20 API routes.
+ */
+export async function getAuthContext(supabase: Awaited<ReturnType<typeof createClient>>) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { user: null, profile: null, isSupervisor: false };
+
+  const profile = await getProfileWithFallback(supabase, user);
+  if (!profile) return { user, profile: null, isSupervisor: false };
+
+  const isSupervisor = await checkIsSupervisor(profile.email);
+
+  return { user, profile, isSupervisor };
 }

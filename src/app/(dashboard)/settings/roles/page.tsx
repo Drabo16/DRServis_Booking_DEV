@@ -1,28 +1,22 @@
-import { createClient, getProfileWithFallback, hasPermission } from '@/lib/supabase/server';
+import { createClient, getAuthContext, hasPermission } from '@/lib/supabase/server';
 import { notFound, redirect } from 'next/navigation';
 import RoleTypesManager from '@/components/settings/RoleTypesManager';
 
 export default async function RoleSettingsPage() {
   const supabase = await createClient();
 
-  // Kontrola autentizace
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user, profile, isSupervisor } = await getAuthContext(supabase);
 
   if (!user) {
     redirect('/login');
   }
-
-  // Get profile with fallback
-  const profile = await getProfileWithFallback(supabase, user);
 
   if (!profile) {
     notFound();
   }
 
   // Check permission to manage roles
-  const canManageRoles = await hasPermission(profile, 'users_settings_manage_roles');
+  const canManageRoles = await hasPermission(profile, 'users_settings_manage_roles', isSupervisor);
 
   if (!canManageRoles) {
     notFound();
@@ -31,7 +25,7 @@ export default async function RoleSettingsPage() {
   // Načtení role types
   const { data: roleTypes } = await supabase
     .from('role_types')
-    .select('*')
+    .select('id, value, label, created_at')
     .order('label');
 
   return (

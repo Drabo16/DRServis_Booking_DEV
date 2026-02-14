@@ -4,7 +4,7 @@
 // To remove: delete this file
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getAuthContext } from '@/lib/supabase/server';
 
 /**
  * GET /api/modules/accessible
@@ -17,33 +17,15 @@ export async function GET() {
   try {
     const supabase = await createClient();
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { user, profile, isSupervisor } = await getAuthContext(supabase);
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get current user's profile
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id, role, email')
-      .eq('auth_user_id', user.id)
-      .single();
-
     if (!profile) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
-
-    // Check if user is supervisor (has all access)
-    const { data: supervisorCheck } = await supabase
-      .from('supervisor_emails')
-      .select('email')
-      .ilike('email', profile.email)
-      .maybeSingle();
-
-    const isSupervisor = !!supervisorCheck;
 
     // Supervisors have access to all active modules
     if (isSupervisor) {
@@ -61,32 +43,33 @@ export async function GET() {
     }
 
     // For everyone else (including admins), get modules they have access to
-    const { data: accessibleModules, error } = await supabase
-      .from('user_module_access')
-      .select(
+    // Parallel fetch: user modules + core modules
+    const [{ data: accessibleModules, error }, { data: coreModules }] = await Promise.all([
+      supabase
+        .from('user_module_access')
+        .select(
+          `
+          module_code,
+          app_modules!inner (
+            code,
+            name,
+            icon,
+            route,
+            is_core,
+            sort_order,
+            is_active
+          )
         `
-        module_code,
-        app_modules!inner (
-          code,
-          name,
-          icon,
-          route,
-          is_core,
-          sort_order,
-          is_active
         )
-      `
-      )
-      .eq('user_id', profile.id);
+        .eq('user_id', profile.id),
+      supabase
+        .from('app_modules')
+        .select('code, name, icon, route, is_core, sort_order')
+        .eq('is_core', true)
+        .eq('is_active', true),
+    ]);
 
     if (error) throw error;
-
-    // Also include core modules that everyone has access to
-    const { data: coreModules } = await supabase
-      .from('app_modules')
-      .select('code, name, icon, route, is_core, sort_order')
-      .eq('is_core', true)
-      .eq('is_active', true);
 
     // Combine and deduplicate
     const moduleMap = new Map();

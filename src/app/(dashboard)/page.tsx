@@ -1,4 +1,4 @@
-import { createClient, getProfileWithFallback } from '@/lib/supabase/server';
+import { createClient, getAuthContext } from '@/lib/supabase/server';
 import EventsClientWrapper from '@/components/events/EventsClientWrapper';
 
 // Disable SSR caching - let React Query handle it
@@ -7,10 +7,7 @@ export const dynamic = 'force-dynamic';
 export default async function HomePage() {
   const supabase = await createClient();
 
-  // Zjisti aktuálního uživatele a jeho roli
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user, profile, isSupervisor } = await getAuthContext(supabase);
 
   if (!user) {
     return (
@@ -22,22 +19,8 @@ export default async function HomePage() {
     );
   }
 
-  // Načti profil s fallbackem na email lookup
-  const profile = await getProfileWithFallback(supabase, user);
-
   const isAdmin = profile?.role === 'admin';
   const isManager = profile?.role === 'manager';
-
-  // Check if supervisor
-  let isSupervisor = false;
-  if (profile?.email) {
-    const { data: supervisorCheck } = await supabase
-      .from('supervisor_emails')
-      .select('email')
-      .ilike('email', profile.email)
-      .single();
-    isSupervisor = !!supervisorCheck;
-  }
 
   // Manager (Správce) has FULL booking access - same as admin for booking module
   const canSeeAllEvents = isAdmin || isManager || isSupervisor;

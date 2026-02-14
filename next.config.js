@@ -39,6 +39,23 @@ const nextConfig = {
   poweredByHeader: false,
   // Generate ETags for caching
   generateEtags: true,
+  // Cache static assets
+  async headers() {
+    return [
+      {
+        source: '/images/:path*',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ],
+      },
+      {
+        source: '/fonts/:path*',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ],
+      },
+    ];
+  },
 }
 
 module.exports = withBundleAnalyzer(nextConfig)

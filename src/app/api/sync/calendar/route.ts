@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, getProfileWithFallback, hasPermission, createServiceRoleClient } from '@/lib/supabase/server';
+import { createClient, getAuthContext, hasPermission, createServiceRoleClient } from '@/lib/supabase/server';
 import { fetchCalendarEvents } from '@/lib/google/calendar';
 
 /**
@@ -16,17 +16,11 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
 
-    // Ověření autentizace
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { user, profile, isSupervisor } = await getAuthContext(supabase);
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    // Get profile with fallback to email lookup
-    const profile = await getProfileWithFallback(supabase, user);
 
     if (!profile) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
@@ -36,14 +30,8 @@ export async function POST(request: NextRequest) {
     const isAdmin = profile.role === 'admin';
     const isManager = profile.role === 'manager';
 
-    // Check supervisor status
+    // Use service client for DB operations (bypasses RLS)
     const serviceClient = createServiceRoleClient();
-    const { data: supervisorCheck } = await serviceClient
-      .from('supervisor_emails')
-      .select('email')
-      .ilike('email', profile.email)
-      .single();
-    const isSupervisor = !!supervisorCheck;
 
     // Managers have FULL booking access (same as admin for booking module)
     const hasFullBookingAccess = isAdmin || isManager || isSupervisor;
@@ -51,7 +39,7 @@ export async function POST(request: NextRequest) {
     // Check explicit permission only if not admin/manager/supervisor
     let canManageEvents = hasFullBookingAccess;
     if (!canManageEvents) {
-      canManageEvents = await hasPermission(profile, 'booking_manage_events');
+      canManageEvents = await hasPermission(profile, 'booking_manage_events', isSupervisor);
     }
 
     console.log('[Sync] Permission check:', {

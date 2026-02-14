@@ -8,7 +8,7 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from('role_types')
-      .select('*')
+      .select('id, value, label, created_at')
       .order('label');
 
     if (error) throw error;

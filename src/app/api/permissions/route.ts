@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
 
     const { data: permissions, error } = await supabase
       .from('permission_types')
-      .select('*')
+      .select('code, name, description, module_code, sort_order')
       .order('module_code')
       .order('sort_order');
 

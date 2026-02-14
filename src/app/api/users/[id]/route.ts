@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, getProfileWithFallback, hasPermission, createServiceRoleClient } from '@/lib/supabase/server';
+import { createClient, getAuthContext, hasPermission, createServiceRoleClient } from '@/lib/supabase/server';
 
 /**
  * PATCH /api/users/[id]
@@ -21,23 +21,18 @@ export async function PATCH(
 
     const supabase = await createClient();
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { user, profile, isSupervisor } = await getAuthContext(supabase);
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    // Get profile with fallback
-    const profile = await getProfileWithFallback(supabase, user);
 
     if (!profile) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
     // Check permission to manage users
-    const canManageUsers = await hasPermission(profile, 'users_settings_manage_users');
+    const canManageUsers = await hasPermission(profile, 'users_settings_manage_users', isSupervisor);
 
     if (!canManageUsers) {
       return NextResponse.json({ error: 'Forbidden - nemáte oprávnění spravovat uživatele' }, { status: 403 });
@@ -45,13 +40,6 @@ export async function PATCH(
 
     // SECURITY: Determine if current user is admin or supervisor
     const isAdmin = profile.role === 'admin';
-    const serviceClientForSupervisorCheck = createServiceRoleClient();
-    const { data: supervisorCheck } = await serviceClientForSupervisorCheck
-      .from('supervisor_emails')
-      .select('email')
-      .ilike('email', profile.email)
-      .single();
-    const isSupervisor = !!supervisorCheck;
     const isPrivileged = isAdmin || isSupervisor;
 
     // Get target user info
@@ -159,16 +147,11 @@ export async function DELETE(
 
     const supabase = await createClient();
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { user, profile, isSupervisor } = await getAuthContext(supabase);
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    // Get profile with fallback
-    const profile = await getProfileWithFallback(supabase, user);
 
     if (!profile) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
@@ -177,12 +160,6 @@ export async function DELETE(
     // SECURITY: Only admins and supervisors can delete users
     const isAdmin = profile.role === 'admin';
     const serviceClient = createServiceRoleClient();
-    const { data: supervisorCheck } = await serviceClient
-      .from('supervisor_emails')
-      .select('email')
-      .ilike('email', profile.email)
-      .single();
-    const isSupervisor = !!supervisorCheck;
 
     if (!isAdmin && !isSupervisor) {
       return NextResponse.json(
