@@ -1013,11 +1013,20 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
               <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground w-[180px] sticky left-0 bg-white z-30">Akce</th>
               <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground w-[90px]">Datum</th>
               <th className="h-12 px-4 text-center align-middle font-medium text-muted-foreground w-[60px]">Status</th>
-              {roleTypes.map(role => (
-                <th key={role.id} className="h-12 px-4 text-left align-middle font-medium text-muted-foreground min-w-[150px]">
-                  {role.label}
-                </th>
-              ))}
+              {loadingRoles ? (
+                // Skeleton columns while role types load
+                Array.from({ length: 4 }).map((_, i) => (
+                  <th key={`skel-${i}`} className="h-12 px-4 text-left align-middle font-medium text-muted-foreground min-w-[150px]">
+                    <div className="h-4 w-16 bg-slate-200 rounded animate-pulse" />
+                  </th>
+                ))
+              ) : (
+                roleTypes.map(role => (
+                  <th key={role.id} className="h-12 px-4 text-left align-middle font-medium text-muted-foreground min-w-[150px]">
+                    {role.label}
+                  </th>
+                ))
+              )}
             </tr>
           </thead>
           <tbody className="[&_tr:last-child]:border-0">
@@ -1084,7 +1093,13 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                     </div>
                   </td>
 
-                  {roleTypes.map(role => {
+                  {loadingRoles ? (
+                    Array.from({ length: 4 }).map((_, i) => (
+                      <td key={`skel-${i}`} className="p-2 align-middle">
+                        <div className="h-6 w-20 bg-slate-100 rounded animate-pulse" />
+                      </td>
+                    ))
+                  ) : roleTypes.map(role => {
                     const assignments = getAssignmentsForRole(event, role.value);
                     const emptyPositions = getEmptyPositionsForRole(event, role.value);
 
