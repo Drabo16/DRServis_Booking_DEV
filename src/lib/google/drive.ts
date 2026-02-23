@@ -267,7 +267,7 @@ export async function updateInfoFile(
   try {
     // Najdeme existující info soubor
     const response = await drive.files.list({
-      q: `name='info_akce.txt' and '${escapeDriveQuery(folderId)}' in parents and trashed=false`,
+      q: `name='info_akce' and '${escapeDriveQuery(folderId)}' in parents and trashed=false`,
       fields: 'files(id)',
       supportsAllDrives: true,
       includeItemsFromAllDrives: true,

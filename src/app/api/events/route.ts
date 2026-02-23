@@ -16,8 +16,8 @@ export async function GET(request: NextRequest) {
 
     // Parse query parameters
     const showPast = searchParams.get('showPast') === 'true';
-    const daysBack = Math.min(Math.max(parseInt(searchParams.get('daysBack') || '30'), 1), 365);
-    const daysAhead = Math.min(Math.max(parseInt(searchParams.get('daysAhead') || '365'), 1), 365);
+    const daysBack = Math.min(Math.max(parseInt(searchParams.get('daysBack') || '30') || 30, 1), 365);
+    const daysAhead = Math.min(Math.max(parseInt(searchParams.get('daysAhead') || '365') || 365, 1), 365);
 
     const { user, profile, isSupervisor } = await getAuthContext(supabase);
 

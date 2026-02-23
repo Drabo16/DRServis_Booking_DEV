@@ -17,6 +17,7 @@ export const ATTENDANCE_STATUSES: { value: AttendanceStatus; label: string }[] =
 
 export const USER_ROLES: { value: UserRole; label: string }[] = [
   { value: 'admin', label: 'Administrátor' },
+  { value: 'manager', label: 'Správce' },
   { value: 'technician', label: 'Technik' },
 ];
 

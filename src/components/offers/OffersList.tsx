@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useOffers, useDeleteOffer, useDuplicateOffer } from '@/hooks/useOffers';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -43,13 +43,24 @@ interface OffersListProps {
 
 export default function OffersList({ onOfferSelect, isAdmin }: OffersListProps) {
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [yearFilter, setYearFilter] = useState<string>('all');
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Debounce search input - wait 400ms after user stops typing
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 400);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [search]);
 
   const { data: offers = [], isLoading } = useOffers({
     status: statusFilter !== 'all' ? (statusFilter as OfferStatus) : undefined,
     year: yearFilter !== 'all' ? parseInt(yearFilter) : undefined,
-    search: search || undefined,
+    search: debouncedSearch || undefined,
   });
 
   const deleteOffer = useDeleteOffer();

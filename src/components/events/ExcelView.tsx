@@ -1011,6 +1011,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                   />
                 </TableHead>
               )}
+              <TableHead className="w-[70px] text-center">Obsaz.</TableHead>
               <TableHead className="w-[180px] sticky left-0 bg-white z-30">Akce</TableHead>
               <TableHead className="w-[90px]">Datum</TableHead>
               <TableHead className="w-[60px] text-center">Status</TableHead>
@@ -1019,7 +1020,6 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                   {role.label}
                 </TableHead>
               ))}
-              <TableHead className="w-[70px] text-center">Obsaz.</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -1036,6 +1036,30 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                       />
                     </TableCell>
                   )}
+
+                  <TableCell className="text-center">
+                    {stats.total > 0 ? (
+                      <div className="flex flex-col items-center">
+                        <span className={`text-xs font-semibold ${
+                          stats.percentage === 100 ? 'text-green-600' :
+                          stats.percentage >= 50 ? 'text-amber-600' : 'text-red-600'
+                        }`}>
+                          {stats.filled}/{stats.total}
+                        </span>
+                        <div className="w-8 h-1 bg-slate-200 rounded-full mt-0.5">
+                          <div
+                            className={`h-full rounded-full ${
+                              stats.percentage === 100 ? 'bg-green-600' :
+                              stats.percentage >= 50 ? 'bg-amber-500' : 'bg-red-500'
+                            }`}
+                            style={{ width: `${stats.percentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-slate-400">-</span>
+                    )}
+                  </TableCell>
 
                   <TableCell className="font-medium sticky left-0 bg-white">
                     <div className="line-clamp-2 text-sm">{event.title}</div>
@@ -1168,29 +1192,6 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                     );
                   })}
 
-                  <TableCell className="text-center">
-                    {stats.total > 0 ? (
-                      <div className="flex flex-col items-center">
-                        <span className={`text-xs font-semibold ${
-                          stats.percentage === 100 ? 'text-green-600' :
-                          stats.percentage >= 50 ? 'text-amber-600' : 'text-red-600'
-                        }`}>
-                          {stats.filled}/{stats.total}
-                        </span>
-                        <div className="w-8 h-1 bg-slate-200 rounded-full mt-0.5">
-                          <div
-                            className={`h-full rounded-full ${
-                              stats.percentage === 100 ? 'bg-green-600' :
-                              stats.percentage >= 50 ? 'bg-amber-500' : 'bg-red-500'
-                            }`}
-                            style={{ width: `${stats.percentage}%` }}
-                          />
-                        </div>
-                      </div>
-                    ) : (
-                      <span className="text-xs text-slate-400">-</span>
-                    )}
-                  </TableCell>
                 </TableRow>
               );
             })}

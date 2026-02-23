@@ -160,14 +160,6 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
     };
   }, [loadData, projectId]);
 
-  const markDirty = useCallback(() => {
-    setIsDirty(true);
-    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
-    autoSaveTimer.current = setTimeout(() => {
-      saveChanges();
-    }, AUTOSAVE_DELAY);
-  }, []);
-
   const saveChanges = useCallback(async () => {
     if (isSaving) return;
     setIsSaving(true);
@@ -192,7 +184,15 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
       setIsSaving(false);
       stopSaving();
     }
-  }, [projectId, localStatus, localDiscount, isSaving, queryClient, startSaving, stopSaving]);
+  }, [projectId, localStatus, localDiscount, localIsVatPayer, isSaving, queryClient, startSaving, stopSaving]);
+
+  const markDirty = useCallback(() => {
+    setIsDirty(true);
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(() => {
+      saveChanges();
+    }, AUTOSAVE_DELAY);
+  }, [saveChanges]);
 
   // CTRL+S handler
   useEffect(() => {

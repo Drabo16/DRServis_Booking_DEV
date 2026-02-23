@@ -46,6 +46,7 @@ export default function CreatePositionDialog({ eventId }: CreatePositionDialogPr
         event_id: eventId,
         title: formData.title,
         role_type: formData.role_type,
+        ...(formData.description && { requirements: formData.description }),
       },
       {
         onSuccess: () => {

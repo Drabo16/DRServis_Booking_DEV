@@ -78,7 +78,8 @@ export async function GET(request: NextRequest) {
     }
 
     if (search) {
-      query = query.ilike('title', `%${search}%`);
+      const sanitizedSearch = search.replace(/[%_\\]/g, '\\$&');
+      query = query.ilike('title', `%${sanitizedSearch}%`);
     }
 
     const { data, error } = await query;

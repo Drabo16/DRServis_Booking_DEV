@@ -8,7 +8,7 @@ import { createClient } from '@/lib/supabase/server';
 import { renderToBuffer } from '@react-pdf/renderer';
 import { OfferPdfDocument } from '@/components/offers/OfferPdfDocument';
 import { formatOfferNumber } from '@/types/offers';
-import fs from 'fs';
+import fs from 'fs/promises';
 import path from 'path';
 
 interface RouteParams {
@@ -83,7 +83,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     let logoBase64 = '';
     try {
       const logoPath = path.join(process.cwd(), 'public', 'logo-offers.png');
-      const logoBuffer = fs.readFileSync(logoPath);
+      const logoBuffer = await fs.readFile(logoPath);
       logoBase64 = `data:image/png;base64,${logoBuffer.toString('base64')}`;
     } catch (e) {
       console.warn('Logo not found, using placeholder');

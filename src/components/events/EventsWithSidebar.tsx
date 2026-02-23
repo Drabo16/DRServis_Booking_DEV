@@ -17,7 +17,8 @@ import EventCard from './EventCard';
 import EventDetailPanel from './EventDetailPanel';
 import type { Event, Profile } from '@/types';
 import { eventKeys } from '@/hooks/useEvents';
-import { Loader2, Filter, X, FolderPlus, Link2, RefreshCw, Trash2, MoreHorizontal, History, CalendarDays } from 'lucide-react';
+import { Loader2, Filter, X, FolderPlus, Link2, RefreshCw, Trash2, MoreHorizontal, History, CalendarDays, Search } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 
 // Lazy load heavy components for better initial load time
 const CalendarView = lazy(() => import('@/components/calendar/CalendarView'));
@@ -48,6 +49,7 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
   const [selectedEventId, setSelectedEventId] = useState<string | null>(eventId);
   const [activeTab, setActiveTab] = useState('list');
   const [showIncompleteOnly, setShowIncompleteOnly] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
@@ -94,22 +96,49 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
     router.push(`/?${params.toString()}`, { scroll: false });
   };
 
-  // Filter events - show only incomplete if filter is active
-  // A position is "filled" only if it has an ACCEPTED assignment
+  // Filter events - search + incomplete filter
   const filteredEvents = useMemo(() => {
-    if (!showIncompleteOnly) return events;
+    let result = events;
 
-    return events.filter(event => {
-      const totalPositions = event.positions?.length || 0;
-      if (totalPositions === 0) return true; // Show events with no positions
+    // Fulltext search across name, location, date, assigned technicians
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      result = result.filter(event => {
+        // Search in event title
+        if (event.title?.toLowerCase().includes(query)) return true;
+        // Search in location
+        if ((event as any).location?.toLowerCase().includes(query)) return true;
+        // Search in date (formatted)
+        const startDate = new Date(event.start_time);
+        const dateStr = startDate.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long', year: 'numeric' });
+        if (dateStr.toLowerCase().includes(query)) return true;
+        // Also match short date format like "15.3.2025"
+        const shortDate = `${startDate.getDate()}.${startDate.getMonth() + 1}.${startDate.getFullYear()}`;
+        if (shortDate.includes(query)) return true;
+        // Search in assigned technician names
+        const techNames = event.positions
+          ?.flatMap(p => p.assignments?.map(a => a.technician?.full_name?.toLowerCase()) || [])
+          .filter(Boolean) || [];
+        if (techNames.some(name => name?.includes(query))) return true;
+        return false;
+      });
+    }
 
-      const filledPositions = event.positions?.filter(pos =>
-        pos.assignments && pos.assignments.some(a => a.attendance_status === 'accepted')
-      ).length || 0;
+    // Show only incomplete if filter is active
+    // A position is "filled" only if it has an ACCEPTED assignment
+    if (showIncompleteOnly) {
+      result = result.filter(event => {
+        const totalPositions = event.positions?.length || 0;
+        if (totalPositions === 0) return true;
+        const filledPositions = event.positions?.filter(pos =>
+          pos.assignments && pos.assignments.some(a => a.attendance_status === 'accepted')
+        ).length || 0;
+        return filledPositions < totalPositions;
+      });
+    }
 
-      return filledPositions < totalPositions; // Show if not all positions have accepted assignment
-    });
-  }, [events, showIncompleteOnly]);
+    return result;
+  }, [events, showIncompleteOnly, searchQuery]);
 
   // Excel view, Odpovědi, Přehled techniků a Kalendář technika skrývají pravý panel
   const hideRightPanel = activeTab === 'excel' || activeTab === 'responses' || activeTab === 'technicians' || activeTab === 'tech-calendar';
@@ -355,7 +384,26 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
             {showPast ? 'Uplynulé akce' : (isAdmin ? 'Akce' : 'Moje akce')}
           </h1>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Search input */}
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <Input
+                placeholder="Hledat akci..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-8 h-8 w-36 sm:w-48 text-sm"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+
             {/* Past/Upcoming toggle */}
             {onTogglePast && (
               <Button

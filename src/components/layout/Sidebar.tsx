@@ -177,7 +177,7 @@ export default function Sidebar({ user, profile }: SidebarProps) {
                 {profile?.full_name || 'User'}
               </p>
               <p className="text-xs text-slate-500 truncate">
-                {profile?.role === 'admin' ? 'Administrátor' : 'Technik'}
+                {profile?.role === 'admin' ? 'Administrátor' : profile?.role === 'manager' ? 'Správce' : 'Technik'}
               </p>
             </div>
           )}

@@ -979,7 +979,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
 
       {/* Instructions */}
       <div className="text-[10px] text-slate-400 text-center">
-        ↑↓←→ navigace | Enter další řádek | Ctrl+S uložit | Auto-save 2s
+        ↑↓←→ navigace | Enter další řádek | Ctrl+S uložit | Auto-save 4s
       </div>
     </div>
   );
@@ -1033,7 +1033,7 @@ const CategoryBlock = memo(function CategoryBlock({
       </tr>
       {items.map(({ item, index }, idx) => (
         <ItemRow
-          key={item.templateId}
+          key={item.dbItemId || `${item.templateId}-${index}`}
           item={item}
           index={index}
           odd={idx % 2 === 1}

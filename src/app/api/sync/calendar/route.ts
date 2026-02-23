@@ -204,7 +204,7 @@ export async function POST(request: NextRequest) {
     // Uložení sync logu (using service client)
     await serviceClient.from('sync_logs').insert({
       sync_type: 'calendar_ingest',
-      status: errorCount === 0 ? 'success' : errorCount === successCount ? 'failed' : 'partial',
+      status: errorCount === 0 ? 'success' : successCount === 0 ? 'failed' : 'partial',
       events_processed: successCount,
       errors_count: errorCount,
       error_details: errors.length > 0 ? errors : null,
@@ -225,7 +225,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error: 'Failed to sync calendar',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        message: 'Internal server error',
       },
       { status: 500 }
     );

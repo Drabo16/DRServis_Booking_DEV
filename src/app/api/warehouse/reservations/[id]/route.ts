@@ -107,7 +107,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const { quantity, start_date, end_date, notes } = body;
 
     const updateData: Record<string, unknown> = {};
-    if (quantity !== undefined) updateData.quantity = quantity;
+    if (quantity !== undefined) {
+      if (typeof quantity !== 'number' || quantity < 1 || !Number.isInteger(quantity)) {
+        return NextResponse.json({ error: 'Quantity must be a positive integer' }, { status: 400 });
+      }
+      updateData.quantity = quantity;
+    }
     if (start_date !== undefined) updateData.start_date = start_date;
     if (end_date !== undefined) updateData.end_date = end_date;
     if (notes !== undefined) updateData.notes = notes;

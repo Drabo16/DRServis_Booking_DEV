@@ -174,16 +174,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     return NextResponse.json({ error: 'Invalid request - name and category required' }, { status: 400 });
-  } catch (error: any) {
-    console.error('❌ Create set item error:', error);
-    // Return detailed error for debugging
+  } catch (error) {
+    console.error('Create set item error:', error);
     return NextResponse.json(
-      {
-        error: 'Failed to create item',
-        details: error.message || String(error),
-        hint: error.hint || null,
-        code: error.code || null,
-      },
+      { error: 'Failed to create item' },
       { status: 500 }
     );
   }
@@ -242,15 +236,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (error) throw error;
 
     return NextResponse.json({ success: true, item: data });
-  } catch (error: any) {
-    console.error('❌ Update set item error:', error);
+  } catch (error) {
+    console.error('Update set item error:', error);
     return NextResponse.json(
-      {
-        error: 'Failed to update item',
-        details: error.message || String(error),
-        hint: error.hint || null,
-        code: error.code || null,
-      },
+      { error: 'Failed to update item' },
       { status: 500 }
     );
   }
@@ -302,15 +291,10 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     if (error) throw error;
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error('❌ Delete set item error:', error);
+  } catch (error) {
+    console.error('Delete set item error:', error);
     return NextResponse.json(
-      {
-        error: 'Failed to delete item',
-        details: error.message || String(error),
-        hint: error.hint || null,
-        code: error.code || null,
-      },
+      { error: 'Failed to delete item' },
       { status: 500 }
     );
   }

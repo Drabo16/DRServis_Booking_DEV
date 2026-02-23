@@ -100,21 +100,21 @@ export async function DELETE(
       .eq('id', id)
       .single();
 
-    // Smazání role type
-    const { error } = await serviceClient
-      .from('role_types')
-      .delete()
-      .eq('id', id);
-
-    if (error) throw error;
-
-    // Aktualizace pozic které měly tuto roli - nastavit na 'other'
+    // Aktualizace pozic které měly tuto roli - nastavit na 'other' (PŘED smazáním role type)
     if (roleType?.value) {
       await serviceClient
         .from('positions')
         .update({ role_type: 'other' })
         .eq('role_type', roleType.value);
     }
+
+    // Smazání role type (po aktualizaci pozic)
+    const { error } = await serviceClient
+      .from('role_types')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
 
     return NextResponse.json({ success: true });
   } catch (error) {
