@@ -101,26 +101,24 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
     let result = events;
 
     // Fulltext search across name, location, date, assigned technicians
+    // Supports space-separated multi-term search (each term must match at least one field)
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim();
+      const terms = searchQuery.toLowerCase().trim().split(/\s+/);
       result = result.filter(event => {
-        // Search in event title
-        if (event.title?.toLowerCase().includes(query)) return true;
-        // Search in location
-        if ((event as any).location?.toLowerCase().includes(query)) return true;
-        // Search in date (formatted)
         const startDate = new Date(event.start_time);
         const dateStr = startDate.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long', year: 'numeric' });
-        if (dateStr.toLowerCase().includes(query)) return true;
-        // Also match short date format like "15.3.2025"
         const shortDate = `${startDate.getDate()}.${startDate.getMonth() + 1}.${startDate.getFullYear()}`;
-        if (shortDate.includes(query)) return true;
-        // Search in assigned technician names
         const techNames = event.positions
-          ?.flatMap(p => p.assignments?.map(a => a.technician?.full_name?.toLowerCase()) || [])
+          ?.flatMap(p => p.assignments?.map(a => a.technician?.full_name) || [])
           .filter(Boolean) || [];
-        if (techNames.some(name => name?.includes(query))) return true;
-        return false;
+        const searchable = [
+          event.title,
+          (event as any).location,
+          dateStr,
+          shortDate,
+          ...techNames,
+        ].filter(Boolean).join(' ').toLowerCase();
+        return terms.every(term => searchable.includes(term));
       });
     }
 

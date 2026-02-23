@@ -57,11 +57,32 @@ export default function OffersList({ onOfferSelect, isAdmin }: OffersListProps) 
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [search]);
 
-  const { data: offers = [], isLoading } = useOffers({
+  const { data: allOffers = [], isLoading } = useOffers({
     status: statusFilter !== 'all' ? (statusFilter as OfferStatus) : undefined,
     year: yearFilter !== 'all' ? parseInt(yearFilter) : undefined,
-    search: debouncedSearch || undefined,
   });
+
+  // Client-side multi-term fulltext search across title, offer number, event, date, status
+  const offers = useMemo(() => {
+    if (!debouncedSearch.trim()) return allOffers;
+    const terms = debouncedSearch.toLowerCase().trim().split(/\s+/);
+    return allOffers.filter(offer => {
+      const offerNumber = `${offer.offer_number}/${offer.year}`;
+      const dateStr = new Date(offer.created_at).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long', year: 'numeric' });
+      const shortDate = (() => { const d = new Date(offer.created_at); return `${d.getDate()}.${d.getMonth()+1}.${d.getFullYear()}`; })();
+      const statusLabel = OFFER_STATUS_LABELS[offer.status] || '';
+      const searchable = [
+        offer.title,
+        offerNumber,
+        offer.event?.title,
+        offer.event?.location,
+        dateStr,
+        shortDate,
+        statusLabel,
+      ].filter(Boolean).join(' ').toLowerCase();
+      return terms.every(term => searchable.includes(term));
+    });
+  }, [allOffers, debouncedSearch]);
 
   const deleteOffer = useDeleteOffer();
   const duplicateOffer = useDuplicateOffer();
