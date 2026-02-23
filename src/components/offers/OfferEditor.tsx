@@ -110,6 +110,12 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
   const [presetsList, setPresetsList] = useState<OfferPresetWithCount[]>([]);
   const [loadingPresets, setLoadingPresets] = useState(false);
 
+  // Save as preset dialog
+  const [showSaveAsPreset, setShowSaveAsPreset] = useState(false);
+  const [presetName, setPresetName] = useState('');
+  const [presetDescription, setPresetDescription] = useState('');
+  const [savingPreset, setSavingPreset] = useState(false);
+
   // Refs for auto-save (to avoid stale closures)
   const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
   const localItemsRef = useRef<LocalItem[]>([]);
@@ -655,6 +661,58 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     }
   }, [markDirty]);
 
+  // Save current offer as a preset
+  const saveAsPreset = useCallback(async () => {
+    if (!presetName.trim() || savingPreset) return;
+    setSavingPreset(true);
+
+    try {
+      // 1. Create the preset
+      const createRes = await fetch('/api/offers/presets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: presetName, description: presetDescription || null }),
+      });
+      if (!createRes.ok) throw new Error('Failed to create preset');
+      const { preset } = await createRes.json();
+
+      // 2. Save items (only those with qty > 0)
+      const itemsToSave = localItemsRef.current
+        .filter(item => item.qty > 0)
+        .map((item, index) => ({
+          template_item_id: item.templateId || null,
+          name: item.name,
+          category: item.category,
+          subcategory: item.subcategory,
+          unit: item.unit,
+          unit_price: item.unitPrice,
+          days_hours: item.days,
+          quantity: item.qty,
+          sort_order: index,
+        }));
+
+      await fetch(`/api/offers/presets/${preset.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          discount_percent: localDiscountRef.current,
+          is_vat_payer: localIsVatPayerRef.current,
+          items: itemsToSave,
+        }),
+      });
+
+      setShowSaveAsPreset(false);
+      setPresetName('');
+      setPresetDescription('');
+      alert('Šablona byla úspěšně uložena.');
+    } catch (e) {
+      console.error('Failed to save as preset:', e);
+      alert('Nepodařilo se uložit šablonu.');
+    } finally {
+      setSavingPreset(false);
+    }
+  }, [presetName, presetDescription, savingPreset]);
+
   // Keyboard navigation
   const handleKeyDown = useCallback((e: React.KeyboardEvent, index: number, field: 'days' | 'qty' | 'price') => {
     const totalItems = localItems.length;
@@ -905,7 +963,16 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
             className="h-7 px-3 text-xs bg-indigo-500 hover:bg-indigo-600 text-white rounded flex items-center gap-1"
           >
             <BookTemplate className="w-3.5 h-3.5" />
-            <span>Načíst šablonu</span>
+            <span className="hidden sm:inline">Načíst šablonu</span>
+            <span className="sm:hidden">Šablona</span>
+          </button>
+          <button
+            onClick={() => { setPresetName(localTitle || offer?.title || ''); setShowSaveAsPreset(true); }}
+            className="h-7 px-3 text-xs border border-indigo-300 text-indigo-600 hover:bg-indigo-50 rounded flex items-center gap-1"
+          >
+            <Save className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Uložit jako šablonu</span>
+            <span className="sm:hidden">Uložit š.</span>
           </button>
           <button
             onClick={() => setShowAddCustomItem(!showAddCustomItem)}
@@ -1100,6 +1167,61 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
                 className="w-full h-8 text-sm border rounded hover:bg-slate-50"
               >
                 Zrušit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Save as Preset Dialog */}
+      {showSaveAsPreset && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowSaveAsPreset(false)}>
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+            <div className="p-4 border-b">
+              <h3 className="font-bold text-lg">Uložit jako šablonu</h3>
+              <p className="text-sm text-slate-500 mt-1">Uloží aktuální položky nabídky jako novou vzorovou šablonu</p>
+            </div>
+            <div className="p-4 space-y-3">
+              <div>
+                <label className="text-sm font-medium text-slate-700">Název šablony *</label>
+                <input
+                  type="text"
+                  value={presetName}
+                  onChange={(e) => setPresetName(e.target.value)}
+                  placeholder="např. Malý festival, Konference 200 lidí..."
+                  className="w-full h-9 mt-1 border rounded px-3 text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                  autoFocus
+                  onKeyDown={(e) => { if (e.key === 'Enter' && presetName.trim()) saveAsPreset(); }}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-slate-700">Popis</label>
+                <input
+                  type="text"
+                  value={presetDescription}
+                  onChange={(e) => setPresetDescription(e.target.value)}
+                  placeholder="Krátký popis šablony..."
+                  className="w-full h-9 mt-1 border rounded px-3 text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                />
+              </div>
+              <div className="text-xs text-slate-500">
+                Bude uloženo {localItems.filter(i => i.qty > 0).length} položek s aktuálními hodnotami.
+              </div>
+            </div>
+            <div className="p-4 border-t flex justify-end gap-2">
+              <button
+                onClick={() => setShowSaveAsPreset(false)}
+                className="h-8 px-4 text-sm border rounded hover:bg-slate-50"
+              >
+                Zrušit
+              </button>
+              <button
+                onClick={saveAsPreset}
+                disabled={!presetName.trim() || savingPreset}
+                className="h-8 px-4 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1"
+              >
+                {savingPreset && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                Uložit šablonu
               </button>
             </div>
           </div>
