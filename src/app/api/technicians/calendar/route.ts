@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getProfileWithFallback, hasBookingAccess } from '@/lib/supabase/server';
 
 export async function GET(request: Request) {
   try {
@@ -21,6 +21,20 @@ export async function GET(request: Request) {
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Authorization: users can view own calendar, admins/managers/supervisors can view any
+    const profile = await getProfileWithFallback(supabase, user);
+    if (!profile) {
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+    }
+
+    const isOwnCalendar = profile.id === technician_id;
+    if (!isOwnCalendar) {
+      const canViewOthers = await hasBookingAccess(supabase, profile, ['booking_view']);
+      if (!canViewOthers) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
     }
 
     // Build query for assignments with their events and positions

@@ -7,7 +7,7 @@ import { createClient, getAuthContext } from '@/lib/supabase/server';
  * Query params:
  *   - showPast: 'true' to show past events instead of upcoming
  *   - daysBack: number of days back to show (default 30, max 365)
- *   - daysAhead: number of days ahead to show (default 90, max 365)
+ *   - daysAhead: number of days ahead to show (default 365, max 365)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     // Parse query parameters
     const showPast = searchParams.get('showPast') === 'true';
     const daysBack = Math.min(Math.max(parseInt(searchParams.get('daysBack') || '30'), 1), 365);
-    const daysAhead = Math.min(Math.max(parseInt(searchParams.get('daysAhead') || '90'), 1), 365);
+    const daysAhead = Math.min(Math.max(parseInt(searchParams.get('daysAhead') || '365'), 1), 365);
 
     const { user, profile, isSupervisor } = await getAuthContext(supabase);
 

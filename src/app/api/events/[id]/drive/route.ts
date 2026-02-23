@@ -155,6 +155,14 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Kontrola přístupu - admin, supervisor, nebo uživatel s booking_manage_folders
+    const profile = await getProfileWithFallback(supabase, user);
+    const canManageFolders = await hasBookingAccess(supabase, profile, ['booking_manage_folders']);
+
+    if (!canManageFolders) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     // Use service role client for database operations to bypass RLS
     const serviceClient = createServiceRoleClient();
 

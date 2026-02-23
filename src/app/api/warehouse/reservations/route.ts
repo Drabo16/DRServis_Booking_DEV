@@ -110,6 +110,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (typeof quantity !== 'number' || quantity <= 0 || !Number.isInteger(quantity)) {
+      return NextResponse.json(
+        { error: 'Quantity must be a positive integer' },
+        { status: 400 }
+      );
+    }
+
     // Validate dates
     const startDateTime = new Date(start_date);
     const endDateTime = new Date(end_date);

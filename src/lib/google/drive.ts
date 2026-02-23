@@ -5,6 +5,11 @@ import { cs } from 'date-fns/locale';
 
 const PARENT_FOLDER_ID = process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID || 'root';
 
+/** Escape single quotes for Google Drive API query strings */
+function escapeDriveQuery(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
 /**
  * Získání Google Drive API klienta
  */
@@ -71,7 +76,7 @@ export async function findFolderByName(folderName: string, parentFolderId?: stri
 
   try {
     const response = await drive.files.list({
-      q: `name='${folderName}' and '${parent}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+      q: `name='${escapeDriveQuery(folderName)}' and '${escapeDriveQuery(parent)}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
       fields: 'files(id, name, webViewLink)',
       supportsAllDrives: true,
       includeItemsFromAllDrives: true,
@@ -262,7 +267,7 @@ export async function updateInfoFile(
   try {
     // Najdeme existující info soubor
     const response = await drive.files.list({
-      q: `name='info_akce.txt' and '${folderId}' in parents and trashed=false`,
+      q: `name='info_akce.txt' and '${escapeDriveQuery(folderId)}' in parents and trashed=false`,
       fields: 'files(id)',
       supportsAllDrives: true,
       includeItemsFromAllDrives: true,
@@ -410,7 +415,7 @@ export async function listFilesInFolder(folderId: string) {
 
   try {
     const response = await drive.files.list({
-      q: `'${folderId}' in parents and trashed=false`,
+      q: `'${escapeDriveQuery(folderId)}' in parents and trashed=false`,
       fields: 'files(id, name, mimeType, webViewLink, createdTime, size)',
       orderBy: 'createdTime desc',
       supportsAllDrives: true,

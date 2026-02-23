@@ -48,7 +48,7 @@ export default function Header({ user, profile }: HeaderProps) {
       const response = await fetch('/api/sync/calendar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ daysAhead: 90 }),
+        body: JSON.stringify({ daysAhead: 365 }),
       });
 
       if (response.ok) {

@@ -22,6 +22,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(permissions);
   } catch (error: any) {
     console.error('Error fetching permissions:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch permissions' }, { status: 500 });
   }
 }

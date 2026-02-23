@@ -517,7 +517,7 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
 
       {/* Pravý panel - detail akce - DESKTOP only */}
       {!hideRightPanel && (
-        <div className="hidden lg:block w-1/2 border-l border-slate-200 pl-6 overflow-y-auto sticky top-0 h-screen">
+        <div className="hidden lg:block w-1/2 border-l border-slate-200 pl-6 overflow-y-auto sticky top-0 max-h-[calc(100vh-4rem)]">
           {selectedEventId ? (
             <EventDetailPanel
               eventId={selectedEventId}

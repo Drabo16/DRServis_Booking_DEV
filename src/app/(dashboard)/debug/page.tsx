@@ -1,8 +1,15 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getAuthContext } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default async function DebugPage() {
   const supabase = await createClient();
+
+  // Only admins can access debug page
+  const { profile: authProfile } = await getAuthContext(supabase);
+  if (!authProfile || authProfile.role !== 'admin') {
+    redirect('/');
+  }
 
   // Test 1: Zkontroluj připojení k Supabase
   const { data: { user } } = await supabase.auth.getUser();

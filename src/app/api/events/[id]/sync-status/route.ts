@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getProfileWithFallback, hasBookingAccess } from '@/lib/supabase/server';
 import { getAttendeeStatuses } from '@/lib/google/calendar';
 
 /**
@@ -22,6 +22,14 @@ export async function POST(
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Kontrola přístupu k bookingu
+    const profile = await getProfileWithFallback(supabase, user);
+    const canAccess = await hasBookingAccess(supabase, profile, ['booking_view']);
+
+    if (!canAccess) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     // Načtení eventu z DB

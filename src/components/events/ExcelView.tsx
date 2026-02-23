@@ -999,10 +999,10 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
       </div>
 
       {/* Desktop: Table layout */}
-      <div className="hidden md:block overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100">
+      <div className="hidden md:block overflow-auto max-h-[calc(100vh-280px)] scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100">
         <Table className="min-w-max">
-          <TableHeader>
-            <TableRow>
+          <TableHeader className="sticky top-0 bg-white z-20 shadow-[0_1px_0_0_theme(colors.slate.200)]">
+            <TableRow className="hover:bg-white">
               {isAdmin && (
                 <TableHead className="w-[40px]">
                   <Checkbox
@@ -1011,7 +1011,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                   />
                 </TableHead>
               )}
-              <TableHead className="w-[180px] sticky left-0 bg-white z-10">Akce</TableHead>
+              <TableHead className="w-[180px] sticky left-0 bg-white z-30">Akce</TableHead>
               <TableHead className="w-[90px]">Datum</TableHead>
               <TableHead className="w-[60px] text-center">Status</TableHead>
               {roleTypes.map(role => (

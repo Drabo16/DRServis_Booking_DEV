@@ -102,7 +102,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     return NextResponse.json(response);
   } catch (error: any) {
     console.error('Error fetching user permissions:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -215,6 +215,6 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Error updating user permissions:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

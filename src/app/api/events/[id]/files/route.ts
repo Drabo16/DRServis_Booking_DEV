@@ -40,7 +40,7 @@ export async function GET(
     const drive = google.drive({ version: 'v3', auth });
 
     const response = await drive.files.list({
-      q: `'${event.drive_folder_id}' in parents and trashed=false`,
+      q: `'${event.drive_folder_id.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}' in parents and trashed=false`,
       fields: 'files(id, name, mimeType, thumbnailLink, webViewLink, iconLink, createdTime, size)',
       orderBy: 'createdTime desc',
       pageSize: 50,
