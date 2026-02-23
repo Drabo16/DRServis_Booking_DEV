@@ -100,6 +100,43 @@ export interface OfferWithItems extends Offer {
 }
 
 // =====================================================
+// Offer Preset Types (Vzorové nabídky)
+// =====================================================
+
+export interface OfferPreset {
+  id: string;
+  name: string;
+  description: string | null;
+  discount_percent: number;
+  is_vat_payer: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OfferPresetWithCount extends OfferPreset {
+  items_count: number;
+}
+
+export interface OfferPresetItem {
+  id: string;
+  preset_id: string;
+  template_item_id: string | null;
+  name: string;
+  category: string;
+  subcategory: string | null;
+  unit: string;
+  unit_price: number;
+  days_hours: number;
+  quantity: number;
+  sort_order: number;
+}
+
+export interface OfferPresetWithItems extends OfferPreset {
+  items: OfferPresetItem[];
+}
+
+// =====================================================
 // Offer Set Types (Sety nabídek)
 // =====================================================
 

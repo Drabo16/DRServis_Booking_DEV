@@ -4,7 +4,7 @@ import { useState, lazy, Suspense, useCallback, useMemo, useEffect } from 'react
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Loader2, Plus, FileText, Settings, FolderKanban, Edit } from 'lucide-react';
+import { Loader2, Plus, FileText, Settings, FolderKanban, Edit, BookTemplate } from 'lucide-react';
 import OffersList from './OffersList';
 import OfferFormDialog from './OfferFormDialog';
 
@@ -12,6 +12,8 @@ const OfferEditor = lazy(() => import('./OfferEditor'));
 const TemplatesManager = lazy(() => import('./TemplatesManager'));
 const OfferSetsManager = lazy(() => import('./OfferSetsManager'));
 const ProjectEditor = lazy(() => import('./ProjectEditor'));
+const PresetsManager = lazy(() => import('./PresetsManager'));
+const PresetEditor = lazy(() => import('./PresetEditor'));
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-[200px]">
@@ -48,6 +50,9 @@ export default function OffersMain({ isAdmin }: OffersMainProps) {
       setLastOfferId(offerId);
     }
   }, [offerId]);
+
+  // Preset editing state (local, not URL-based)
+  const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState(projectId ? 'project-editor' : offerId ? 'editor' : 'list');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -102,17 +107,29 @@ export default function OffersMain({ isAdmin }: OffersMainProps) {
     setActiveTab('editor');
   }, [offerId, lastOfferId, searchParams, router]);
 
+  // Handle preset selection - opens preset editor
+  const handlePresetSelect = useCallback((id: string) => {
+    setEditingPresetId(id);
+    setActiveTab('preset-editor');
+  }, []);
+
+  const handleBackToPresets = useCallback(() => {
+    setEditingPresetId(null);
+    setActiveTab('presets');
+  }, []);
+
   // Current offer ID to display (either URL param or last used)
   const currentOfferId = offerId || lastOfferId;
 
-  // Determine grid columns based on visible tabs - Editor always visible if we have a lastOfferId
+  // Determine grid columns based on visible tabs
   const tabCount = useMemo(() => {
     let count = 2; // Nabídky + Projekty
-    if (currentOfferId) count++; // Editor - show if we have any offer to display
+    if (currentOfferId) count++; // Editor
     if (projectId) count++; // Project Editor
-    if (isAdmin) count++; // Ceník
-    return Math.min(count, 5);
-  }, [currentOfferId, projectId, isAdmin]);
+    if (isAdmin) count += 2; // Ceník + Šablony
+    if (editingPresetId) count++; // Preset Editor
+    return Math.min(count, 7);
+  }, [currentOfferId, projectId, isAdmin, editingPresetId]);
 
   const tabsGridClass = useMemo(() => {
     const colsMap: Record<number, string> = {
@@ -120,8 +137,10 @@ export default function OffersMain({ isAdmin }: OffersMainProps) {
       3: 'grid-cols-3',
       4: 'grid-cols-4',
       5: 'grid-cols-5',
+      6: 'grid-cols-6',
+      7: 'grid-cols-7',
     };
-    return `grid h-10 max-w-xl ${colsMap[tabCount] || 'grid-cols-4'}`;
+    return `grid h-10 max-w-3xl ${colsMap[tabCount] || 'grid-cols-5'}`;
   }, [tabCount]);
 
   return (
@@ -172,6 +191,18 @@ export default function OffersMain({ isAdmin }: OffersMainProps) {
               Ceník
             </TabsTrigger>
           )}
+          {isAdmin && (
+            <TabsTrigger value="presets" className="text-xs sm:text-sm">
+              <BookTemplate className="w-4 h-4 mr-1 hidden sm:block" />
+              Šablony
+            </TabsTrigger>
+          )}
+          {editingPresetId && (
+            <TabsTrigger value="preset-editor" className="text-xs sm:text-sm">
+              <Edit className="w-4 h-4 mr-1 hidden sm:block" />
+              Šablona
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="list" className="mt-4">
@@ -220,6 +251,25 @@ export default function OffersMain({ isAdmin }: OffersMainProps) {
           <TabsContent value="templates" className="mt-4">
             <Suspense fallback={<LoadingFallback />}>
               <TemplatesManager />
+            </Suspense>
+          </TabsContent>
+        )}
+
+        {isAdmin && (
+          <TabsContent value="presets" className="mt-4">
+            <Suspense fallback={<LoadingFallback />}>
+              <PresetsManager onPresetSelect={handlePresetSelect} />
+            </Suspense>
+          </TabsContent>
+        )}
+
+        {editingPresetId && (
+          <TabsContent value="preset-editor" className="mt-4">
+            <Suspense fallback={<LoadingFallback />}>
+              <PresetEditor
+                presetId={editingPresetId}
+                onBack={handleBackToPresets}
+              />
             </Suspense>
           </TabsContent>
         )}

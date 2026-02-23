@@ -3,8 +3,9 @@
 import { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ArrowLeft, FileDown, Save, FolderKanban } from 'lucide-react';
+import { Loader2, ArrowLeft, FileDown, Save, FolderKanban, BookTemplate } from 'lucide-react';
 import { offerKeys } from '@/hooks/useOffers';
+import type { OfferPresetWithCount, OfferPresetItem } from '@/types/offers';
 import { useSaveStatus } from '@/contexts/SaveStatusContext';
 import {
   formatOfferNumber,
@@ -103,6 +104,11 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
   const [customItemName, setCustomItemName] = useState('');
   const [customItemCategory, setCustomItemCategory] = useState('Ground support');
   const [customItemPrice, setCustomItemPrice] = useState(0);
+
+  // Load preset dialog
+  const [showPresetDialog, setShowPresetDialog] = useState(false);
+  const [presetsList, setPresetsList] = useState<OfferPresetWithCount[]>([]);
+  const [loadingPresets, setLoadingPresets] = useState(false);
 
   // Refs for auto-save (to avoid stale closures)
   const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
@@ -589,6 +595,66 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     }
   }, [offerId, customItemName, customItemCategory, customItemPrice, queryClient]);
 
+  // Open preset dialog
+  const openPresetDialog = useCallback(async () => {
+    setShowPresetDialog(true);
+    setLoadingPresets(true);
+    try {
+      const res = await fetch('/api/offers/presets');
+      if (res.ok) {
+        const data = await res.json();
+        setPresetsList(data);
+      }
+    } catch (e) {
+      console.error('Failed to load presets:', e);
+    } finally {
+      setLoadingPresets(false);
+    }
+  }, []);
+
+  // Load preset into current offer
+  const loadPreset = useCallback(async (presetId: string) => {
+    if (!confirm('Toto načte položky ze šablony do aktuální nabídky. Existující položky se přepíšou. Pokračovat?')) return;
+
+    try {
+      const res = await fetch(`/api/offers/presets/${presetId}`);
+      if (!res.ok) return;
+      const presetData = await res.json();
+      const presetItems: OfferPresetItem[] = presetData.items || [];
+
+      // Apply preset items to local items
+      setLocalItems(prev => {
+        const newItems = prev.map(item => {
+          const presetItem = presetItems.find(pi => pi.template_item_id === item.templateId);
+          if (presetItem) {
+            return {
+              ...item,
+              qty: presetItem.quantity,
+              days: presetItem.days_hours,
+              unitPrice: presetItem.unit_price,
+            };
+          }
+          // Reset items not in preset
+          return { ...item, qty: 0 };
+        });
+        return newItems;
+      });
+
+      // Apply preset discount and VAT settings
+      if (presetData.discount_percent !== undefined) {
+        setLocalDiscount(presetData.discount_percent);
+      }
+      if (presetData.is_vat_payer !== undefined) {
+        setLocalIsVatPayer(presetData.is_vat_payer);
+      }
+
+      markDirty();
+      setShowPresetDialog(false);
+    } catch (e) {
+      console.error('Failed to load preset:', e);
+    }
+  }, [markDirty]);
+
   // Keyboard navigation
   const handleKeyDown = useCallback((e: React.KeyboardEvent, index: number, field: 'days' | 'qty' | 'price') => {
     const totalItems = localItems.length;
@@ -822,7 +888,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
         </div>
       </div>
 
-      {/* Add custom item button + VAT payer checkbox */}
+      {/* Add custom item button + VAT payer checkbox + Load preset */}
       <div className="flex items-center justify-between">
         <label className="flex items-center gap-2 cursor-pointer bg-slate-100 px-3 py-1.5 rounded border">
           <input
@@ -833,12 +899,21 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
           />
           <span className="text-xs font-medium text-slate-700">Plátce DPH</span>
         </label>
-        <button
-          onClick={() => setShowAddCustomItem(!showAddCustomItem)}
-          className="h-7 px-3 text-xs bg-amber-500 hover:bg-amber-600 text-white rounded flex items-center gap-1"
-        >
-          <span>+ Vlastní položka</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={openPresetDialog}
+            className="h-7 px-3 text-xs bg-indigo-500 hover:bg-indigo-600 text-white rounded flex items-center gap-1"
+          >
+            <BookTemplate className="w-3.5 h-3.5" />
+            <span>Načíst šablonu</span>
+          </button>
+          <button
+            onClick={() => setShowAddCustomItem(!showAddCustomItem)}
+            className="h-7 px-3 text-xs bg-amber-500 hover:bg-amber-600 text-white rounded flex items-center gap-1"
+          >
+            <span>+ Vlastní položka</span>
+          </button>
+        </div>
       </div>
 
       {/* Custom item form */}
@@ -981,6 +1056,55 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
       <div className="text-[10px] text-slate-400 text-center">
         ↑↓←→ navigace | Enter další řádek | Ctrl+S uložit | Auto-save 4s
       </div>
+
+      {/* Load Preset Dialog */}
+      {showPresetDialog && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowPresetDialog(false)}>
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="p-4 border-b">
+              <h3 className="font-bold text-lg">Načíst šablonu</h3>
+              <p className="text-sm text-slate-500 mt-1">Vyberte šablonu pro načtení položek do nabídky</p>
+            </div>
+            <div className="overflow-y-auto max-h-[60vh] p-4">
+              {loadingPresets ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-slate-600" />
+                </div>
+              ) : presetsList.length === 0 ? (
+                <div className="text-center py-8 text-slate-500">
+                  <BookTemplate className="w-10 h-10 mx-auto mb-2 text-slate-300" />
+                  <p>Žádné šablony k dispozici</p>
+                  <p className="text-xs mt-1">Vytvořte šablonu v záložce Šablony</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {presetsList.map((preset) => (
+                    <button
+                      key={preset.id}
+                      onClick={() => loadPreset(preset.id)}
+                      className="w-full text-left p-3 border rounded-lg hover:bg-slate-50 hover:border-indigo-300 transition-colors"
+                    >
+                      <div className="font-medium">{preset.name}</div>
+                      {preset.description && (
+                        <div className="text-sm text-slate-500 mt-0.5">{preset.description}</div>
+                      )}
+                      <div className="text-xs text-slate-400 mt-1">{preset.items_count} položek</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="p-4 border-t">
+              <button
+                onClick={() => setShowPresetDialog(false)}
+                className="w-full h-8 text-sm border rounded hover:bg-slate-50"
+              >
+                Zrušit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

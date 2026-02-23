@@ -70,6 +70,10 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
     staleTime: 10 * 60 * 1000, // 10 minutes - role types rarely change
   });
 
+  // Pagination - load 10 events at a time
+  const PAGE_SIZE = 10;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
   // Multiselect state
   const [selectedEvents, setSelectedEvents] = useState<Set<string>>(new Set());
 
@@ -84,6 +88,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
   useEffect(() => {
     if (prevEventsRef.current !== events) {
       prevEventsRef.current = events;
+      setVisibleCount(PAGE_SIZE); // Reset pagination on data change
       if (pendingOperations.length === 0) {
         // No pending edits - just use the new events directly
         setLocalData(events);
@@ -104,6 +109,10 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
       }
     }
   }, [events, pendingOperations]);
+
+  // Visible (paginated) data
+  const visibleData = localData.slice(0, visibleCount);
+  const hasMore = visibleCount < localData.length;
 
   // Refs for auto-save
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -843,7 +852,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
 
       {/* Mobile: Card layout */}
       <div className="md:hidden space-y-3 p-3">
-        {localData.map((event) => {
+        {visibleData.map((event) => {
           const stats = getEventStats(event);
 
           return (
@@ -1030,7 +1039,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
             </tr>
           </thead>
           <tbody className="[&_tr:last-child]:border-0">
-            {localData.map((event) => {
+            {visibleData.map((event) => {
               const stats = getEventStats(event);
 
               return (
@@ -1211,6 +1220,19 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
           </tbody>
         </table>
       </div>
+
+      {hasMore && (
+        <div className="flex justify-center py-4">
+          <Button
+            variant="outline"
+            onClick={() => setVisibleCount(prev => prev + PAGE_SIZE)}
+            className="gap-2"
+          >
+            Zobrazit dalších {Math.min(PAGE_SIZE, localData.length - visibleCount)} akcí
+            <span className="text-slate-400">({visibleCount}/{localData.length})</span>
+          </Button>
+        </div>
+      )}
 
       {localData.length === 0 && (
         <div className="text-center py-12 text-slate-500">

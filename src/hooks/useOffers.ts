@@ -12,6 +12,8 @@ import type {
   OfferItem,
   OfferTemplateCategory,
   OfferTemplateItemWithCategory,
+  OfferPresetWithCount,
+  OfferPresetWithItems,
   OffersFilter,
   CreateOfferInput,
   UpdateOfferInput,
@@ -35,6 +37,11 @@ export const offerKeys = {
     all: ['offer-templates'] as const,
     categories: () => [...offerKeys.templates.all, 'categories'] as const,
     items: (categoryId?: string) => [...offerKeys.templates.all, 'items', categoryId] as const,
+  },
+  presets: {
+    all: ['offer-presets'] as const,
+    lists: () => [...offerKeys.presets.all, 'list'] as const,
+    detail: (id: string) => [...offerKeys.presets.all, 'detail', id] as const,
   },
 };
 
@@ -319,6 +326,89 @@ export function useDeleteOfferItem() {
       queryClient.invalidateQueries({ queryKey: offerKeys.detail(variables.offerId) });
       queryClient.invalidateQueries({ queryKey: offerKeys.items(variables.offerId) });
       queryClient.invalidateQueries({ queryKey: offerKeys.lists() });
+    },
+  });
+}
+
+// =====================================================
+// Offer Presets Hooks (Vzorové nabídky)
+// =====================================================
+
+export function useOfferPresets() {
+  return useQuery({
+    queryKey: offerKeys.presets.lists(),
+    queryFn: async () => {
+      const response = await fetch('/api/offers/presets');
+      if (!response.ok) throw new Error('Failed to fetch presets');
+      return response.json() as Promise<OfferPresetWithCount[]>;
+    },
+    staleTime: 1000 * 60 * 2,
+  });
+}
+
+export function useOfferPreset(id: string | null) {
+  return useQuery({
+    queryKey: offerKeys.presets.detail(id || ''),
+    queryFn: async () => {
+      if (!id) return null;
+      const response = await fetch(`/api/offers/presets/${id}`);
+      if (!response.ok) throw new Error('Failed to fetch preset');
+      return response.json() as Promise<OfferPresetWithItems>;
+    },
+    enabled: !!id,
+    staleTime: 1000 * 60 * 2,
+  });
+}
+
+export function useCreateOfferPreset() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: { name: string; description?: string }) => {
+      const response = await fetch('/api/offers/presets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) throw new Error('Failed to create preset');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: offerKeys.presets.all });
+    },
+  });
+}
+
+export function useUpdateOfferPreset() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...data }: { id: string; [key: string]: any }) => {
+      const response = await fetch(`/api/offers/presets/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) throw new Error('Failed to update preset');
+      return response.json();
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: offerKeys.presets.all });
+      queryClient.invalidateQueries({ queryKey: offerKeys.presets.detail(variables.id) });
+    },
+  });
+}
+
+export function useDeleteOfferPreset() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await fetch(`/api/offers/presets/${id}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('Failed to delete preset');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: offerKeys.presets.all });
     },
   });
 }
