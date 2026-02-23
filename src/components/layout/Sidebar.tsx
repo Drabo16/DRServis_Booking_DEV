@@ -95,12 +95,11 @@ export default function Sidebar({ user, profile }: SidebarProps) {
         isCollapsed ? "p-3 justify-center" : "p-6"
       )}>
         {isCollapsed ? (
-          <div className="w-10 h-10 flex items-end justify-center gap-[2px] pb-1">
-            {/* Logo bars - matching the logo icon */}
-            <div className="w-[5px] h-[14px] bg-[#b8d4e8] rounded-sm" />
-            <div className="w-[5px] h-[20px] bg-[#7eb8db] rounded-sm" />
-            <div className="w-[5px] h-[26px] bg-[#3a9fd5] rounded-sm" />
-            <div className="w-[5px] h-[32px] bg-[#0066b3] rounded-sm" />
+          <div className="w-10 h-10 flex items-end justify-center gap-[3px] pb-1">
+            {/* Logo bars - matching the 3 bars from the DR Servis logo */}
+            <div className="w-[6px] h-[16px] bg-[#a8d4f0] rounded-sm" />
+            <div className="w-[6px] h-[24px] bg-[#2da6f0] rounded-sm" />
+            <div className="w-[6px] h-[32px] bg-[#0066cc] rounded-sm" />
           </div>
         ) : (
           <Image
