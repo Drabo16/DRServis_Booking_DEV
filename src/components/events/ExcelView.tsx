@@ -73,19 +73,37 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
   // Multiselect state
   const [selectedEvents, setSelectedEvents] = useState<Set<string>>(new Set());
 
-  // Refs for initialization
-  const initializedRef = useRef(false);
-  const initialEventsRef = useRef<typeof events | null>(null);
-
-  // Capture initial events ONCE
-  if (initialEventsRef.current === null) {
-    initialEventsRef.current = events;
-  }
-
   // LOCAL STATE - single source of truth
-  const [localData, setLocalData] = useState<typeof events>(() => initialEventsRef.current || []);
+  const [localData, setLocalData] = useState<typeof events>(events);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
   const [pendingOperations, setPendingOperations] = useState<PendingOperation[]>([]);
+  const prevEventsRef = useRef(events);
+
+  // Sync localData when events prop changes (search filter, new data from server)
+  // but preserve local edits for events with pending operations
+  useEffect(() => {
+    if (prevEventsRef.current !== events) {
+      prevEventsRef.current = events;
+      if (pendingOperations.length === 0) {
+        // No pending edits - just use the new events directly
+        setLocalData(events);
+      } else {
+        // Has pending edits - merge: use local version for edited events, new data for the rest
+        const editedEventIds = new Set(pendingOperations.flatMap(op => {
+          if ('eventId' in op) return [op.eventId];
+          return [];
+        }));
+        setLocalData(prev => {
+          const localMap = new Map(prev.map(e => [e.id, e]));
+          return events.map(event =>
+            editedEventIds.has(event.id) && localMap.has(event.id)
+              ? localMap.get(event.id)!
+              : event
+          );
+        });
+      }
+    }
+  }, [events, pendingOperations]);
 
   // Refs for auto-save
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -703,15 +721,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
     setSelectedEvents(new Set());
   };
 
-  if (loadingRoles) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
-      </div>
-    );
-  }
-
-  if (roleTypes.length === 0) {
+  if (!loadingRoles && roleTypes.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow-sm p-8 text-center">
         <Users className="w-12 h-12 text-slate-300 mx-auto mb-4" />
