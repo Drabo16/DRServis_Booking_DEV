@@ -1,14 +1,10 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { useQuery } from '@tanstack/react-query';
+// NOTE: We intentionally use raw <table> elements instead of the Table UI component
+// because Table wraps <table> in a <div class="overflow-auto"> which creates a nested
+// scroll context that breaks sticky header positioning.
 import {
   Select,
   SelectContent,
@@ -62,9 +58,17 @@ type PendingOperation =
 export default function ExcelView({ events, isAdmin, allTechnicians, userId }: ExcelViewProps) {
   const queryClient = useQueryClient();
 
-  // Role types from database
-  const [roleTypes, setRoleTypes] = useState<RoleTypeDB[]>([]);
-  const [loadingRoles, setLoadingRoles] = useState(true);
+  // Role types from database - cached across tab switches
+  const { data: roleTypes = [], isLoading: loadingRoles } = useQuery<RoleTypeDB[]>({
+    queryKey: ['roleTypes'],
+    queryFn: async () => {
+      const res = await fetch('/api/role-types');
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.roleTypes || [];
+    },
+    staleTime: 10 * 60 * 1000, // 10 minutes - role types rarely change
+  });
 
   // Multiselect state
   const [selectedEvents, setSelectedEvents] = useState<Set<string>>(new Set());
@@ -91,23 +95,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
   const [isValidatingDrive, setIsValidatingDrive] = useState(false);
   const driveValidatedRef = useRef(false);
 
-  // Load role types from database
-  useEffect(() => {
-    const fetchRoleTypes = async () => {
-      try {
-        const res = await fetch('/api/role-types');
-        if (res.ok) {
-          const data = await res.json();
-          setRoleTypes(data.roleTypes || []);
-        }
-      } catch (error) {
-        console.error('Error fetching role types:', error);
-      } finally {
-        setLoadingRoles(false);
-      }
-    };
-    fetchRoleTypes();
-  }, []);
+  // Role types are now fetched via useQuery above (cached, no loading spinner on revisit)
 
   // Validate Drive folders on mount (only once per session)
   useEffect(() => {
@@ -998,46 +986,46 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
         })}
       </div>
 
-      {/* Desktop: Table layout */}
+      {/* Desktop: Table layout - uses raw <table> to avoid nested overflow-auto from Table component */}
       <div className="hidden md:block overflow-auto max-h-[calc(100vh-280px)] scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100">
-        <Table className="min-w-max">
-          <TableHeader className="sticky top-0 bg-white z-20 shadow-[0_1px_0_0_theme(colors.slate.200)]">
-            <TableRow className="hover:bg-white">
+        <table className="w-full caption-bottom text-sm min-w-max">
+          <thead className="sticky top-0 bg-white z-20 shadow-[0_1px_0_0_theme(colors.slate.200)] [&_tr]:border-b">
+            <tr className="border-b">
               {isAdmin && (
-                <TableHead className="w-[40px]">
+                <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground w-[40px]">
                   <Checkbox
                     checked={selectedEvents.size === localData.length && localData.length > 0}
                     onCheckedChange={toggleSelectAll}
                   />
-                </TableHead>
+                </th>
               )}
-              <TableHead className="w-[70px] text-center">Obsaz.</TableHead>
-              <TableHead className="w-[180px] sticky left-0 bg-white z-30">Akce</TableHead>
-              <TableHead className="w-[90px]">Datum</TableHead>
-              <TableHead className="w-[60px] text-center">Status</TableHead>
+              <th className="h-12 px-4 text-center align-middle font-medium text-muted-foreground w-[70px]">Obsaz.</th>
+              <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground w-[180px] sticky left-0 bg-white z-30">Akce</th>
+              <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground w-[90px]">Datum</th>
+              <th className="h-12 px-4 text-center align-middle font-medium text-muted-foreground w-[60px]">Status</th>
               {roleTypes.map(role => (
-                <TableHead key={role.id} className="min-w-[150px]">
+                <th key={role.id} className="h-12 px-4 text-left align-middle font-medium text-muted-foreground min-w-[150px]">
                   {role.label}
-                </TableHead>
+                </th>
               ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+            </tr>
+          </thead>
+          <tbody className="[&_tr:last-child]:border-0">
             {localData.map((event) => {
               const stats = getEventStats(event);
 
               return (
-                <TableRow key={event.id}>
+                <tr key={event.id} className="border-b transition-colors hover:bg-muted/50">
                   {isAdmin && (
-                    <TableCell>
+                    <td className="p-4 align-middle">
                       <Checkbox
                         checked={selectedEvents.has(event.id)}
                         onCheckedChange={() => toggleSelectEvent(event.id)}
                       />
-                    </TableCell>
+                    </td>
                   )}
 
-                  <TableCell className="text-center">
+                  <td className="p-4 align-middle text-center">
                     {stats.total > 0 ? (
                       <div className="flex flex-col items-center">
                         <span className={`text-xs font-semibold ${
@@ -1059,17 +1047,17 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                     ) : (
                       <span className="text-xs text-slate-400">-</span>
                     )}
-                  </TableCell>
+                  </td>
 
-                  <TableCell className="font-medium sticky left-0 bg-white">
+                  <td className="p-4 align-middle font-medium sticky left-0 bg-white">
                     <div className="line-clamp-2 text-sm">{event.title}</div>
-                  </TableCell>
+                  </td>
 
-                  <TableCell className="text-xs text-slate-600">
+                  <td className="p-4 align-middle text-xs text-slate-600">
                     {format(new Date(event.start_time), 'd.M.yy', { locale: cs })}
-                  </TableCell>
+                  </td>
 
-                  <TableCell className="text-center">
+                  <td className="p-4 align-middle text-center">
                     <div className="flex items-center justify-center gap-1">
                       <div
                         className={`p-1 rounded ${event.drive_folder_id ? 'text-green-600 bg-green-50' : 'text-slate-300'}`}
@@ -1084,14 +1072,14 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                         <Link2 className="w-4 h-4" />
                       </div>
                     </div>
-                  </TableCell>
+                  </td>
 
                   {roleTypes.map(role => {
                     const assignments = getAssignmentsForRole(event, role.value);
                     const emptyPositions = getEmptyPositionsForRole(event, role.value);
 
                     return (
-                      <TableCell key={role.id} className="p-2">
+                      <td key={role.id} className="p-2 align-middle">
                         <div className="flex flex-wrap gap-1">
                           {/* Empty positions (without assigned technician) */}
                           {emptyPositions.map(pos => (
@@ -1188,15 +1176,15 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                             </Popover>
                           )}
                         </div>
-                      </TableCell>
+                      </td>
                     );
                   })}
 
-                </TableRow>
+                </tr>
               );
             })}
-          </TableBody>
-        </Table>
+          </tbody>
+        </table>
       </div>
 
       {localData.length === 0 && (

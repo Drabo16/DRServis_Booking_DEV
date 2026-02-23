@@ -22,7 +22,7 @@ import { Input } from '@/components/ui/input';
 
 // Lazy load heavy components for better initial load time
 const CalendarView = lazy(() => import('@/components/calendar/CalendarView'));
-const ExcelView = lazy(() => import('./ExcelView'));
+import ExcelView from './ExcelView';
 const InviteResponsesTab = lazy(() => import('./InviteResponsesTab'));
 const TechnicianOverview = lazy(() => import('@/components/technicians/TechnicianOverview'));
 const TechnicianCalendar = lazy(() => import('@/components/technicians/TechnicianCalendar'));
@@ -511,13 +511,7 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
           </TabsContent>
 
           <TabsContent value="excel" className="mt-4">
-            <Suspense fallback={
-              <div className="flex items-center justify-center min-h-[300px] md:min-h-[400px]">
-                <Loader2 className="w-8 h-8 animate-spin text-slate-600" />
-              </div>
-            }>
-              <ExcelView events={filteredEvents as any} isAdmin={isAdmin} allTechnicians={allTechnicians} userId={userId} />
-            </Suspense>
+            <ExcelView events={filteredEvents as any} isAdmin={isAdmin} allTechnicians={allTechnicians} userId={userId} />
           </TabsContent>
 
           {isAdmin && (
