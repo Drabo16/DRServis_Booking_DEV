@@ -323,7 +323,12 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
 
   // Save all changes to server - BATCH mode for speed
   const saveChanges = useCallback(async (createVersion = false) => {
-    if (!isDirtyRef.current || isSavingRef.current) return;
+    // Nothing dirty — if explicit save requested, still create a version snapshot
+    if (!isDirtyRef.current) {
+      if (createVersion) saveVersionSnapshot();
+      return;
+    }
+    if (isSavingRef.current) return;
 
     setIsSaving(true);
     startSaving('Ukládám nabídku...');
