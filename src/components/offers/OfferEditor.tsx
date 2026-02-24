@@ -982,30 +982,27 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
           >
             <Save className="w-3.5 h-3.5" />
           </button>
-          {versions.length > 0 && (
-            <select
-              onChange={(e) => {
-                if (e.target.value) {
-                  restoreVersion(e.target.value);
-                  e.target.value = '';
-                }
-              }}
-              disabled={restoringVersion}
-              className="h-7 text-xs border rounded px-1.5 text-slate-600 disabled:opacity-50"
-              title="Historie verzí"
-              defaultValue=""
-            >
-              <option value="" disabled>
-                <History className="w-3 h-3" />
-                {restoringVersion ? 'Obnovuji...' : `${versions.length} verzí`}
+          <select
+            onChange={(e) => {
+              if (e.target.value) {
+                restoreVersion(e.target.value);
+                e.target.value = '';
+              }
+            }}
+            disabled={restoringVersion || versions.length === 0}
+            className="h-7 text-xs border rounded px-1.5 text-slate-600 disabled:opacity-50"
+            title={versions.length === 0 ? 'Uložte Ctrl+S pro vytvoření první verze' : 'Historie verzí'}
+            defaultValue=""
+          >
+            <option value="" disabled>
+              {restoringVersion ? 'Obnovuji...' : versions.length === 0 ? 'Žádné verze' : `${versions.length} verzí`}
+            </option>
+            {versions.map(v => (
+              <option key={v.id} value={v.id}>
+                Verze {v.version_number} · {new Date(v.created_at).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'short' })} {new Date(v.created_at).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' })}
               </option>
-              {versions.map(v => (
-                <option key={v.id} value={v.id}>
-                  Verze {v.version_number} · {new Date(v.created_at).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'short' })} {new Date(v.created_at).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' })}
-                </option>
-              ))}
-            </select>
-          )}
+            ))}
+          </select>
           <button
             onClick={handleDownloadPdf}
             disabled={isDownloadingPdf}

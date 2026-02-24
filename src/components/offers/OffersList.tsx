@@ -214,8 +214,13 @@ export default function OffersList({ onOfferSelect, isAdmin }: OffersListProps) 
                     </h3>
                     {offer.event && (
                       <p className="text-sm text-slate-500 flex items-center gap-1 mt-1">
-                        <Calendar className="w-3.5 h-3.5" />
-                        {offer.event.title}
+                        <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span className="truncate">{offer.event.title}</span>
+                        {offer.event.start_time && (
+                          <span className="text-slate-400 whitespace-nowrap">
+                            · {new Date(offer.event.start_time).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </span>
+                        )}
                       </p>
                     )}
                   </div>
