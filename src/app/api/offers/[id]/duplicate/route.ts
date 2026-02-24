@@ -63,38 +63,44 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     if (itemsError) throw itemsError;
 
-    // Get next offer number for current year
+    // Get next offer number for current year (with retry on unique constraint violation)
     const currentYear = new Date().getFullYear();
-    const { data: maxNumber } = await supabase
-      .from('offers')
-      .select('offer_number')
-      .eq('year', currentYear)
-      .order('offer_number', { ascending: false })
-      .limit(1)
-      .single();
+    let newOffer = null;
+    let lastCreateError = null;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const { data: maxRow } = await supabase
+        .from('offers')
+        .select('offer_number')
+        .eq('year', currentYear)
+        .order('offer_number', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-    const nextNumber = (maxNumber?.offer_number || 0) + 1;
+      const nextNumber = (maxRow?.offer_number || 0) + 1;
 
-    // Create new offer (copy of original)
-    const { data: newOffer, error: createError } = await supabase
-      .from('offers')
-      .insert({
-        offer_number: nextNumber,
-        year: currentYear,
-        title: `${originalOffer.title} (kopie)`,
-        event_id: originalOffer.event_id,
-        valid_until: originalOffer.valid_until,
-        notes: originalOffer.notes,
-        discount_percent: originalOffer.discount_percent,
-        is_vat_payer: originalOffer.is_vat_payer,
-        status: 'draft', // Always start as draft
-        created_by: profile.id,
-        // Don't copy offer_set_id or set_label - new offer is independent
-      })
-      .select()
-      .single();
+      const { data: inserted, error: createError } = await supabase
+        .from('offers')
+        .insert({
+          offer_number: nextNumber,
+          year: currentYear,
+          title: `${originalOffer.title} (kopie)`,
+          event_id: originalOffer.event_id,
+          valid_until: originalOffer.valid_until,
+          notes: originalOffer.notes,
+          discount_percent: originalOffer.discount_percent,
+          is_vat_payer: originalOffer.is_vat_payer,
+          status: 'draft', // Always start as draft
+          created_by: profile.id,
+          // Don't copy offer_set_id or set_label - new offer is independent
+        })
+        .select()
+        .single();
 
-    if (createError) throw createError;
+      if (!createError) { newOffer = inserted; break; }
+      if (createError.code !== '23505') throw createError;
+      lastCreateError = createError;
+    }
+    if (!newOffer) throw lastCreateError ?? new Error('Failed to generate unique offer number');
 
     // Copy items if any
     if (originalItems && originalItems.length > 0) {

@@ -71,6 +71,12 @@ export default function OffersList({ onOfferSelect, isAdmin }: OffersListProps) 
       const dateStr = new Date(offer.created_at).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long', year: 'numeric' });
       const shortDate = (() => { const d = new Date(offer.created_at); return `${d.getDate()}.${d.getMonth()+1}.${d.getFullYear()}`; })();
       const statusLabel = OFFER_STATUS_LABELS[offer.status] || '';
+      const eventDateStr = offer.event?.start_time
+        ? new Date(offer.event.start_time).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long', year: 'numeric' })
+        : '';
+      const eventShortDate = offer.event?.start_time
+        ? (() => { const d = new Date(offer.event!.start_time); return `${d.getDate()}.${d.getMonth()+1}.${d.getFullYear()}`; })()
+        : '';
       const searchable = [
         offer.title,
         offerNumber,
@@ -78,6 +84,8 @@ export default function OffersList({ onOfferSelect, isAdmin }: OffersListProps) 
         offer.event?.location,
         dateStr,
         shortDate,
+        eventDateStr,
+        eventShortDate,
         statusLabel,
       ].filter(Boolean).join(' ').toLowerCase();
       return terms.every(term => searchable.includes(term));

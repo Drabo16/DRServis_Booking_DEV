@@ -159,36 +159,43 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get next offer number for current year
+    // Get next offer number for current year (with retry on unique constraint violation)
     const currentYear = new Date().getFullYear();
-    const { data: maxNumber } = await supabase
-      .from('offers')
-      .select('offer_number')
-      .eq('year', currentYear)
-      .order('offer_number', { ascending: false })
-      .limit(1)
-      .single();
+    let data = null;
+    let lastError = null;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const { data: maxRow } = await supabase
+        .from('offers')
+        .select('offer_number')
+        .eq('year', currentYear)
+        .order('offer_number', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-    const nextNumber = (maxNumber?.offer_number || 0) + 1;
+      const nextNumber = (maxRow?.offer_number || 0) + 1;
 
-    const { data, error } = await supabase
-      .from('offers')
-      .insert({
-        offer_number: nextNumber,
-        year: currentYear,
-        title,
-        event_id: event_id || null,
-        valid_until: valid_until || null,
-        notes: notes || null,
-        created_by: profile.id,
-      })
-      .select(`
-        *,
-        event:events(id, title, start_time, location)
-      `)
-      .single();
+      const { data: inserted, error } = await supabase
+        .from('offers')
+        .insert({
+          offer_number: nextNumber,
+          year: currentYear,
+          title,
+          event_id: event_id || null,
+          valid_until: valid_until || null,
+          notes: notes || null,
+          created_by: profile.id,
+        })
+        .select(`
+          *,
+          event:events(id, title, start_time, location)
+        `)
+        .single();
 
-    if (error) throw error;
+      if (!error) { data = inserted; break; }
+      if (error.code !== '23505') throw error; // Not a unique constraint violation
+      lastError = error;
+    }
+    if (!data) throw lastError ?? new Error('Failed to generate unique offer number');
 
     return NextResponse.json({ success: true, offer: data });
   } catch (error) {

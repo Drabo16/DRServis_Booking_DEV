@@ -46,44 +46,45 @@ CREATE POLICY "Authenticated users can read preset items"
   USING (true);
 
 -- Only admins can modify presets
+-- NOTE: profiles.auth_user_id maps to auth.uid() (NOT profiles.id)
 CREATE POLICY "Admins can insert presets"
   ON offer_presets FOR INSERT
   TO authenticated
   WITH CHECK (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+    EXISTS (SELECT 1 FROM profiles WHERE auth_user_id = auth.uid() AND role = 'admin')
   );
 
 CREATE POLICY "Admins can update presets"
   ON offer_presets FOR UPDATE
   TO authenticated
   USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+    EXISTS (SELECT 1 FROM profiles WHERE auth_user_id = auth.uid() AND role = 'admin')
   );
 
 CREATE POLICY "Admins can delete presets"
   ON offer_presets FOR DELETE
   TO authenticated
   USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+    EXISTS (SELECT 1 FROM profiles WHERE auth_user_id = auth.uid() AND role = 'admin')
   );
 
 CREATE POLICY "Admins can insert preset items"
   ON offer_preset_items FOR INSERT
   TO authenticated
   WITH CHECK (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+    EXISTS (SELECT 1 FROM profiles WHERE auth_user_id = auth.uid() AND role = 'admin')
   );
 
 CREATE POLICY "Admins can update preset items"
   ON offer_preset_items FOR UPDATE
   TO authenticated
   USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+    EXISTS (SELECT 1 FROM profiles WHERE auth_user_id = auth.uid() AND role = 'admin')
   );
 
 CREATE POLICY "Admins can delete preset items"
   ON offer_preset_items FOR DELETE
   TO authenticated
   USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+    EXISTS (SELECT 1 FROM profiles WHERE auth_user_id = auth.uid() AND role = 'admin')
   );

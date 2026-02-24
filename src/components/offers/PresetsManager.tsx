@@ -98,6 +98,7 @@ export default function PresetsManager({ onPresetSelect }: PresetsManagerProps) 
       setShowDialog(false);
     } catch (error) {
       console.error('Failed to save preset:', error);
+      alert('Nepodařilo se uložit šablonu. Ujistěte se, že byla spuštěna databázová migrace (supabase-offer-presets.sql).');
     }
   }, [formName, formDescription, editingPreset, createPreset, updatePreset, onPresetSelect]);
 
@@ -108,6 +109,7 @@ export default function PresetsManager({ onPresetSelect }: PresetsManagerProps) 
       await deletePreset.mutateAsync(id);
     } catch (error) {
       console.error('Failed to delete preset:', error);
+      alert('Nepodařilo se smazat šablonu.');
     }
   }, [deletePreset]);
 

@@ -691,7 +691,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
           sort_order: index,
         }));
 
-      await fetch(`/api/offers/presets/${preset.id}`, {
+      const patchRes = await fetch(`/api/offers/presets/${preset.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -700,6 +700,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
           items: itemsToSave,
         }),
       });
+      if (!patchRes.ok) throw new Error('Failed to save preset items');
 
       setShowSaveAsPreset(false);
       setPresetName('');
@@ -707,7 +708,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
       alert('Šablona byla úspěšně uložena.');
     } catch (e) {
       console.error('Failed to save as preset:', e);
-      alert('Nepodařilo se uložit šablonu.');
+      alert('Nepodařilo se uložit šablonu. Ujistěte se, že byla spuštěna migrace supabase-offer-presets.sql a fix-offer-preset-rls.sql v Supabase.');
     } finally {
       setSavingPreset(false);
     }
