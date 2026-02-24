@@ -4,7 +4,7 @@
 // Duplicate an existing offer with all its items
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import {
   calculateOfferTotals,
   calculateDiscountAmount,
@@ -44,8 +44,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    // Use service role client for all data operations to bypass RLS
+    // (auth already verified above via anon client)
+    const db = createServiceRoleClient();
+
     // Get original offer
-    const { data: originalOffer, error: offerError } = await supabase
+    const { data: originalOffer, error: offerError } = await db
       .from('offers')
       .select('*')
       .eq('id', id)
@@ -56,7 +60,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // Get original items
-    const { data: originalItems, error: itemsError } = await supabase
+    const { data: originalItems, error: itemsError } = await db
       .from('offer_items')
       .select('*')
       .eq('offer_id', id);
@@ -68,7 +72,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     let newOffer = null;
     let lastCreateError = null;
     for (let attempt = 0; attempt < 5; attempt++) {
-      const { data: maxRow } = await supabase
+      const { data: maxRow } = await db
         .from('offers')
         .select('offer_number')
         .eq('year', currentYear)
@@ -78,7 +82,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
       const nextNumber = (maxRow?.offer_number || 0) + 1;
 
-      const { data: inserted, error: createError } = await supabase
+      const { data: inserted, error: createError } = await db
         .from('offers')
         .insert({
           offer_number: nextNumber,
@@ -104,27 +108,31 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Copy items if any
     if (originalItems && originalItems.length > 0) {
-      const newItems = originalItems.map(item => ({
-        offer_id: newOffer.id,
+      const newItems = originalItems.map((item: any) => ({
+        offer_id: newOffer!.id,
         template_item_id: item.template_item_id,
         name: item.name,
         category: item.category,
         subcategory: item.subcategory,
-        unit: item.unit,
         unit_price: item.unit_price,
         quantity: item.quantity,
         days_hours: item.days_hours,
         sort_order: item.sort_order,
+        total_price: item.total_price,
       }));
 
-      const { error: insertItemsError } = await supabase
+      const { error: insertItemsError } = await db
         .from('offer_items')
         .insert(newItems);
 
-      if (insertItemsError) throw insertItemsError;
+      if (insertItemsError) {
+        // Clean up orphaned offer on failure
+        await db.from('offers').delete().eq('id', newOffer.id);
+        throw insertItemsError;
+      }
 
       // Recalculate totals
-      const { data: items } = await supabase
+      const { data: items } = await db
         .from('offer_items')
         .select('*')
         .eq('offer_id', newOffer.id);
@@ -138,7 +146,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         newOffer.discount_percent || 0
       );
 
-      await supabase
+      await db
         .from('offers')
         .update({
           subtotal_equipment: totals.subtotal_equipment,
@@ -151,7 +159,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // Get final offer with event
-    const { data: finalOffer } = await supabase
+    const { data: finalOffer } = await db
       .from('offers')
       .select(`
         *,

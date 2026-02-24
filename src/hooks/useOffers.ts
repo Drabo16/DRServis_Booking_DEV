@@ -232,6 +232,10 @@ export function useDuplicateOffer() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: offerKeys.lists() });
     },
+    onError: () => {
+      // Refresh list even on error - server may have created the offer before the error
+      queryClient.invalidateQueries({ queryKey: offerKeys.lists() });
+    },
   });
 }
 

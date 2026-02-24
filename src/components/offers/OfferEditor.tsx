@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ArrowLeft, FileDown, Save, FolderKanban, BookTemplate } from 'lucide-react';
+import { Loader2, ArrowLeft, FileDown, Save, FolderKanban, BookTemplate, History } from 'lucide-react';
 import { offerKeys } from '@/hooks/useOffers';
 import type { OfferPresetWithCount, OfferPresetItem } from '@/types/offers';
 import { useSaveStatus } from '@/contexts/SaveStatusContext';
@@ -115,6 +115,10 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
   const [presetName, setPresetName] = useState('');
   const [presetDescription, setPresetDescription] = useState('');
   const [savingPreset, setSavingPreset] = useState(false);
+
+  // Version history
+  const [versions, setVersions] = useState<Array<{ id: string; version_number: number; created_at: string }>>([]);
+  const [restoringVersion, setRestoringVersion] = useState(false);
 
   // Refs for auto-save (to avoid stale closures)
   const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
@@ -248,8 +252,77 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     setLocalItems(items);
   };
 
+  // Load version history
+  const loadVersions = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/offers/${offerId}/versions`);
+      if (res.ok) setVersions(await res.json());
+    } catch (e) {
+      console.error('Failed to load versions:', e);
+    }
+  }, [offerId]);
+
+  // Save a version snapshot after explicit save
+  const saveVersionSnapshot = useCallback(async () => {
+    const items = localItemsRef.current
+      .filter(item => item.qty > 0)
+      .map(item => ({
+        templateId: item.templateId,
+        name: item.name,
+        category: item.category,
+        subcategory: item.subcategory,
+        unitPrice: item.unitPrice,
+        unit: item.unit,
+        days: item.days,
+        qty: item.qty,
+      }));
+    try {
+      await fetch(`/api/offers/${offerId}/versions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: localTitleRef.current,
+          status: localStatusRef.current,
+          discount_percent: localDiscountRef.current,
+          is_vat_payer: localIsVatPayerRef.current,
+          items,
+        }),
+      });
+      loadVersions();
+    } catch (e) {
+      console.error('Failed to save version:', e);
+    }
+  }, [offerId, loadVersions]);
+
+  // Restore a version
+  const restoreVersion = useCallback(async (versionId: string) => {
+    if (!confirm('Chcete obnovit tuto verzi? Neuložené změny budou ztraceny.')) return;
+    setRestoringVersion(true);
+    try {
+      const res = await fetch(`/api/offers/${offerId}/versions/${versionId}`);
+      if (!res.ok) throw new Error('Failed to fetch version');
+      const version = await res.json();
+      const restoredItems: Array<{ templateId: string; days: number; qty: number; unitPrice: number }> = version.items || [];
+
+      setLocalItems(prev => prev.map(item => {
+        const r = restoredItems.find(ri => ri.templateId === item.templateId);
+        if (r) return { ...item, days: r.days, qty: r.qty, unitPrice: r.unitPrice };
+        return { ...item, qty: 0 };
+      }));
+      setLocalDiscount(version.discount_percent || 0);
+      setLocalIsVatPayer(version.is_vat_payer ?? true);
+      setIsDirty(true);
+      isDirtyRef.current = true;
+    } catch (e) {
+      console.error('Failed to restore version:', e);
+      alert('Nepodařilo se obnovit verzi.');
+    } finally {
+      setRestoringVersion(false);
+    }
+  }, [offerId]);
+
   // Save all changes to server - BATCH mode for speed
-  const saveChanges = useCallback(async () => {
+  const saveChanges = useCallback(async (createVersion = false) => {
     if (!isDirtyRef.current || isSavingRef.current) return;
 
     setIsSaving(true);
@@ -401,6 +474,9 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
 
       setIsDirty(false);
       isDirtyRef.current = false;
+
+      // Save version snapshot on explicit save (not auto-save)
+      if (createVersion) saveVersionSnapshot();
     } catch (e) {
       console.error('Save failed:', e);
     } finally {
@@ -408,7 +484,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
       stopSaving();
       isSavingRef.current = false;
     }
-  }, [offerId, queryClient, startSaving, stopSaving]);
+  }, [offerId, queryClient, startSaving, stopSaving, saveVersionSnapshot]);
 
   // Schedule auto-save (uses refs to avoid stale closures)
   const scheduleAutoSave = useCallback(() => {
@@ -427,12 +503,15 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     scheduleAutoSave();
   }, [scheduleAutoSave]);
 
-  // CTRL+S handler
+  // Load versions on mount
+  useEffect(() => { loadVersions(); }, [loadVersions]);
+
+  // CTRL+S handler - explicit save creates a version
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
-        saveChanges();
+        saveChanges(true);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -896,13 +975,37 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
             <option value="expired">Vypršelo</option>
           </select>
           <button
-            onClick={saveChanges}
+            onClick={() => saveChanges(true)}
             disabled={!isDirty || isSaving}
             className="h-7 px-2 border rounded hover:bg-slate-50 disabled:opacity-50 flex items-center gap-1"
             title="Uložit (Ctrl+S)"
           >
             <Save className="w-3.5 h-3.5" />
           </button>
+          {versions.length > 0 && (
+            <select
+              onChange={(e) => {
+                if (e.target.value) {
+                  restoreVersion(e.target.value);
+                  e.target.value = '';
+                }
+              }}
+              disabled={restoringVersion}
+              className="h-7 text-xs border rounded px-1.5 text-slate-600 disabled:opacity-50"
+              title="Historie verzí"
+              defaultValue=""
+            >
+              <option value="" disabled>
+                <History className="w-3 h-3" />
+                {restoringVersion ? 'Obnovuji...' : `${versions.length} verzí`}
+              </option>
+              {versions.map(v => (
+                <option key={v.id} value={v.id}>
+                  Verze {v.version_number} · {new Date(v.created_at).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'short' })} {new Date(v.created_at).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' })}
+                </option>
+              ))}
+            </select>
+          )}
           <button
             onClick={handleDownloadPdf}
             disabled={isDownloadingPdf}

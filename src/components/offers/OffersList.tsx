@@ -118,7 +118,7 @@ export default function OffersList({ onOfferSelect, isAdmin }: OffersListProps) 
       }
     } catch (error) {
       console.error('Failed to duplicate offer:', error);
-      alert('Nepodařilo se duplikovat nabídku');
+      alert('Při duplikování nastala chyba. Zkontrolujte prosím seznam nabídek — kopie mohla být vytvořena.');
     }
   }, [duplicateOffer, onOfferSelect]);
 
