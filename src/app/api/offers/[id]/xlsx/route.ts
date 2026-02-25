@@ -1,14 +1,13 @@
 // =====================================================
 // OFFERS API - XLSX Export Route (Warehouse Preparation)
 // =====================================================
-// Generates an Excel file with offer items (no prices)
-// for warehouse workers to use as a preparation checklist.
+// Generates a simple checklist Excel for warehouse workers.
+// Format: event name + date, then items with boolean checkboxes.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { createServiceRoleClient } from '@/lib/supabase/server';
+import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import * as XLSX from 'xlsx';
-import { formatOfferNumber, OFFER_CATEGORY_ORDER } from '@/types/offers';
+import { OFFER_CATEGORY_ORDER } from '@/types/offers';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -24,7 +23,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check offers access
     const { data: profile } = await supabase
       .from('profiles')
       .select('role, id')
@@ -45,26 +43,24 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         .maybeSingle();
       hasAccess = !!moduleAccess;
     }
-
     if (!hasAccess) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Fetch offer data using service role to bypass RLS
+    // Use service role to fetch data (bypasses RLS)
     const db = createServiceRoleClient();
 
     const [offerRes, itemsRes] = await Promise.all([
       db
         .from('offers')
-        .select('id, offer_number, year, title, event:events(title, start_time, location)')
+        .select('offer_number, year, title, event:events(title, start_time)')
         .eq('id', id)
         .single(),
       db
         .from('offer_items')
         .select('name, category, subcategory, unit, days_hours, quantity, sort_order')
         .eq('offer_id', id)
-        .gt('quantity', 0)
-        .order('sort_order', { ascending: true }),
+        .gt('quantity', 0),
     ]);
 
     if (offerRes.error || !offerRes.data) {
@@ -74,80 +70,64 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const offer = offerRes.data as any;
     const rawItems: any[] = itemsRes.data || [];
 
-    // Sort items by category order
-    const categoryIndex = (cat: string) => {
-      const idx = OFFER_CATEGORY_ORDER.indexOf(cat as any);
-      return idx === -1 ? 999 : idx;
+    // Sort by category order then sort_order
+    const catIdx = (cat: string) => {
+      const i = OFFER_CATEGORY_ORDER.indexOf(cat as any);
+      return i === -1 ? 999 : i;
     };
     const items = [...rawItems].sort((a, b) => {
-      const catDiff = categoryIndex(a.category) - categoryIndex(b.category);
-      if (catDiff !== 0) return catDiff;
-      return (a.sort_order || 0) - (b.sort_order || 0);
+      const d = catIdx(a.category) - catIdx(b.category);
+      return d !== 0 ? d : (a.sort_order || 0) - (b.sort_order || 0);
     });
 
-    // Build spreadsheet rows
-    const offerNum = formatOfferNumber(offer.offer_number, offer.year);
-    const eventTitle = offer.event?.title || '-';
-    const eventDate = offer.event?.start_time
+    // Event info
+    const eventTitle: string = offer.event?.title || offer.title || '';
+    const eventDate: string = offer.event?.start_time
       ? new Date(offer.event.start_time).toLocaleDateString('cs-CZ', {
           day: 'numeric', month: 'long', year: 'numeric',
         })
-      : '-';
+      : '';
 
-    const headerRows: any[][] = [
-      ['Nabídka:', offerNum],
-      ['Název:', offer.title],
-      ['Akce:', eventTitle],
-      ['Datum akce:', eventDate],
+    // Build rows: info block, empty row, header, item rows
+    const rows: any[][] = [
+      [eventTitle],
+      eventDate ? [eventDate] : [],
       [],
+      // Table header
+      ['Připraveno', 'Položka', 'Počet (ks)', 'Dny/hod'],
+      // Item rows — first column is boolean false (= unchecked checkbox in Sheets)
+      ...items.map(item => [
+        false,
+        item.subcategory ? `${item.name} (${item.subcategory})` : item.name,
+        item.quantity ?? 0,
+        item.days_hours ?? 1,
+      ]),
     ];
 
-    const tableHeader = ['Připraveno', 'Kategorie', 'Položka', 'Podkategorie', 'Dny / hod', 'Množství', 'Jednotka'];
-
-    const tableRows = items.map(item => [
-      '',                         // Připraveno — empty, worker marks this
-      item.category || '',
-      item.name || '',
-      item.subcategory || '',
-      item.days_hours ?? 1,
-      item.quantity ?? 0,
-      item.unit || 'ks',
-    ]);
-
-    const allRows = [...headerRows, tableHeader, ...tableRows];
-
-    // Create worksheet
-    const ws = XLSX.utils.aoa_to_sheet(allRows);
+    const ws = XLSX.utils.aoa_to_sheet(rows);
 
     // Column widths
     ws['!cols'] = [
-      { wch: 13 }, // Připraveno
-      { wch: 22 }, // Kategorie
-      { wch: 40 }, // Položka
-      { wch: 22 }, // Podkategorie
-      { wch: 11 }, // Dny/hod
-      { wch: 11 }, // Množství
-      { wch: 9 },  // Jednotka
+      { wch: 14 }, // Připraveno
+      { wch: 45 }, // Položka
+      { wch: 12 }, // Počet
+      { wch: 10 }, // Dny/hod
     ];
 
-    // Bold the table header row (row index = headerRows.length, 0-based)
-    const headerRowIdx = headerRows.length;
-    tableHeader.forEach((_, colIdx) => {
-      const cellAddr = XLSX.utils.encode_cell({ r: headerRowIdx, c: colIdx });
-      if (ws[cellAddr]) {
-        ws[cellAddr].s = { font: { bold: true }, fill: { fgColor: { rgb: 'E2E8F0' } } };
-      }
-    });
-
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Příprava skladu');
+    XLSX.utils.book_append_sheet(wb, ws, 'Priprava');
 
-    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    // Write to base64, then decode to binary (avoids Buffer type issues in edge TS)
+    const base64: string = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+    const binary = Buffer.from(base64, 'base64');
 
-    return new Response(buffer, {
+    const filename = `priprava-${offer.offer_number}-${offer.year}.xlsx`;
+
+    return new NextResponse(binary, {
+      status: 200,
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="priprava-${offerNum}.xlsx"`,
+        'Content-Disposition': `attachment; filename="${filename}"`,
       },
     });
   } catch (error) {

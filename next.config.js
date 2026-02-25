@@ -4,6 +4,8 @@ const withBundleAnalyzer = require('@next/bundle-analyzer')({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Packages that should NOT be bundled — used as Node.js externals on the server
+  serverExternalPackages: ['xlsx'],
   images: {
     remotePatterns: [
       {
