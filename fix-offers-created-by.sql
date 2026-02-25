@@ -15,8 +15,26 @@ SET created_by = (
 )
 WHERE created_by IS NULL;
 
--- Verify result
+-- Verify offers result
 SELECT
   COUNT(*) FILTER (WHERE created_by IS NULL) AS still_null,
   COUNT(*) FILTER (WHERE created_by IS NOT NULL) AS assigned
 FROM offers;
+
+-- =====================================================
+-- Fix: Assign existing offer_sets (projects) without created_by
+-- =====================================================
+UPDATE offer_sets
+SET created_by = (
+  SELECT p.id
+  FROM profiles p
+  JOIN supervisor_emails se ON LOWER(p.email) = LOWER(se.email)
+  LIMIT 1
+)
+WHERE created_by IS NULL;
+
+-- Verify offer_sets result
+SELECT
+  COUNT(*) FILTER (WHERE created_by IS NULL) AS sets_still_null,
+  COUNT(*) FILTER (WHERE created_by IS NOT NULL) AS sets_assigned
+FROM offer_sets;

@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     // SECURITY: Check offers module access
     const { data: profile } = await supabase
       .from('profiles')
-      .select('id, role')
+      .select('id, role, email')
       .eq('auth_user_id', user.id)
       .single();
 
@@ -38,8 +38,25 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    // Determine if user can view ALL sets (same rules as offers)
+    const { data: supervisorRow } = await supabase
+      .from('supervisor_emails')
+      .select('email')
+      .ilike('email', profile.email)
+      .maybeSingle();
+    const isSupervisor = !!supervisorRow;
+
+    const { data: editAllPerm } = await supabase
+      .from('user_permissions')
+      .select('id')
+      .eq('user_id', profile.id)
+      .eq('permission_code', 'offers_edit_all')
+      .maybeSingle();
+
+    const canViewAll = isSupervisor || profile.role === 'admin' || !!editAllPerm;
+
     // Fetch offer sets with their offers
-    const { data: sets, error } = await supabase
+    let setsQuery = supabase
       .from('offer_sets')
       .select(`
         id,
@@ -64,6 +81,13 @@ export async function GET(request: NextRequest) {
         )
       `)
       .order('created_at', { ascending: false });
+
+    // Non-supervisors/non-admins see only their own sets
+    if (!canViewAll) {
+      setsQuery = setsQuery.eq('created_by', profile.id);
+    }
+
+    const { data: sets, error } = await setsQuery;
 
     if (error) throw error;
 
