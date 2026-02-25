@@ -63,7 +63,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     // Fetch all items for this offer (same as the items GET route — no quantity filter)
     const { data: items, error: itemsError } = await supabase
       .from('offer_items')
-      .select('name, category, subcategory, unit, days_hours, quantity, sort_order')
+      .select('name, category, subcategory, days_hours, quantity, sort_order')
       .eq('offer_id', id)
       .order('sort_order', { ascending: true });
 

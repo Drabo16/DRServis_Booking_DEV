@@ -877,11 +877,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     setIsDownloadingXlsx(true);
     try {
       const response = await fetch(`/api/offers/${offerId}/xlsx`);
-      if (!response.ok) {
-        const text = await response.text().catch(() => '');
-        alert(`XLSX chyba ${response.status}: ${text || 'neznámá chyba'}`);
-        return;
-      }
+      if (!response.ok) throw new Error('Failed');
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -893,7 +889,6 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
       window.URL.revokeObjectURL(url);
     } catch (e) {
       console.error('XLSX download failed:', e);
-      alert(`XLSX chyba: ${e}`);
     } finally {
       setIsDownloadingXlsx(false);
     }
