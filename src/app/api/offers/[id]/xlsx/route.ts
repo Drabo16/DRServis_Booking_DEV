@@ -17,10 +17,6 @@ const S_TITLE = {
   font: { bold: true, sz: 16, color: { rgb: '1A355E' } },
   alignment: { horizontal: 'center', vertical: 'center' },
 };
-const S_DATE_ROW = {
-  font: { sz: 11, italic: true, color: { rgb: '555555' } },
-  alignment: { horizontal: 'center', vertical: 'center' },
-};
 const S_COL_HEADER_CENTER = {
   fill: { fgColor: { rgb: '1A355E' } },
   font: { bold: true, sz: 11, color: { rgb: 'FFFFFF' } },
@@ -98,7 +94,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Failed to fetch items' }, { status: 500 });
     }
 
-    const activeItems = (items || []).filter(item => (item.quantity ?? 0) > 0);
+    const EXCLUDED_CATEGORIES = ['Technický personál', 'Doprava'];
+    const activeItems = (items || []).filter(item =>
+      (item.quantity ?? 0) > 0 && !EXCLUDED_CATEGORIES.includes(item.category)
+    );
 
     const catIdx = (cat: string): number => {
       const i = OFFER_CATEGORY_ORDER.indexOf(cat as any);
@@ -112,21 +111,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const offerData = offer as any;
     const ev = offerData.event;
     const eventTitle: string = ev?.title || offerData.title || '';
-
-    // Date range label
-    let dateLabel = '';
-    if (ev?.start_time) {
-      const startDate = new Date(ev.start_time);
-      const fmt = (d: Date) => d.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long', year: 'numeric' });
-      if (ev?.end_time) {
-        const endDate = new Date(ev.end_time);
-        dateLabel = startDate.toDateString() === endDate.toDateString()
-          ? fmt(startDate)
-          : `${startDate.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long' })} – ${fmt(endDate)}`;
-      } else {
-        dateLabel = fmt(startDate);
-      }
-    }
 
     // ── Build worksheet ───────────────────────────────────────────────────
     // Columns: A = Položka | B = Počet (ks) | C = Připraveno (empty, for manual checkbox)
@@ -145,10 +129,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     // Title
     for (let c = 0; c < NUM_COLS; c++) set(r, c, c === 0 ? eventTitle : '', 's', S_TITLE);
-    mergeRow(r); r++;
-
-    // Date
-    for (let c = 0; c < NUM_COLS; c++) set(r, c, c === 0 ? dateLabel : '', 's', S_DATE_ROW);
     mergeRow(r); r++;
 
     // Spacer
