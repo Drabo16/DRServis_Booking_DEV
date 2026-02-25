@@ -1,12 +1,12 @@
 // =====================================================
 // OFFERS API - XLSX Export Route (Warehouse Preparation)
 // =====================================================
-// Uses xlsx-js-style (SheetJS fork with real style writing support).
-// Excel 365 checkboxes: boolean cell + numFmt "Checkbox" in styles.xml.
+// Uses xlsx-js-style for real style writing.
+// Excel 365 checkboxes: boolean cell with f:"CHECKBOX()" formula.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-// xlsx-js-style: drop-in replacement for xlsx that actually writes cell styles
+// xlsx-js-style: SheetJS fork that actually writes cell styles
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const XLSX = require('xlsx-js-style');
 import { OFFER_CATEGORY_ORDER } from '@/types/offers';
@@ -15,12 +15,14 @@ interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
-// ── Styles (xlsx-js-style format) ──────────────────────────────────────────
+// ── Styles ────────────────────────────────────────────────────────────────
 const S_TITLE = {
   font: { bold: true, sz: 16, color: { rgb: '1A355E' } },
+  alignment: { horizontal: 'center', vertical: 'center' },
 };
-const S_DATE = {
-  font: { sz: 11, italic: true, color: { rgb: '666666' } },
+const S_DATE_ROW = {
+  font: { sz: 11, italic: true, color: { rgb: '555555' } },
+  alignment: { horizontal: 'center', vertical: 'center' },
 };
 const S_COL_HEADER_CENTER = {
   fill: { fgColor: { rgb: '1A355E' } },
@@ -37,17 +39,17 @@ const S_CATEGORY = {
   font: { bold: true, sz: 11, color: { rgb: '1A355E' } },
   alignment: { horizontal: 'left', vertical: 'center' },
 };
-// Excel 365 checkbox: boolean cell + numFmt "Checkbox" written to styles.xml
-const S_CHECKBOX = {
-  numFmt: 'Checkbox',
-  alignment: { horizontal: 'center', vertical: 'center' },
-};
 const S_ITEM = {
   font: { sz: 11 },
-  alignment: { vertical: 'center' },
+  alignment: { vertical: 'center', wrapText: false },
 };
 const S_QTY = {
   font: { sz: 11 },
+  alignment: { horizontal: 'center', vertical: 'center' },
+};
+const S_CHECKBOX_HEADER = {
+  fill: { fgColor: { rgb: '1A355E' } },
+  font: { bold: true, sz: 11, color: { rgb: 'FFFFFF' } },
   alignment: { horizontal: 'center', vertical: 'center' },
 };
 
@@ -87,7 +89,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     const { data: offer, error: offerError } = await supabase
       .from('offers')
-      .select('offer_number, year, title, event:events(title, start_time)')
+      .select('offer_number, year, title, event:events(title, start_time, end_time)')
       .eq('id', id)
       .single();
 
@@ -118,58 +120,74 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     });
 
     const offerData = offer as any;
-    const eventTitle: string = offerData.event?.title || offerData.title || '';
-    const eventDate: string = offerData.event?.start_time
-      ? new Date(offerData.event.start_time).toLocaleDateString('cs-CZ', {
-          day: 'numeric', month: 'long', year: 'numeric',
-        })
-      : '';
+    const ev = offerData.event;
+    const eventTitle: string = ev?.title || offerData.title || '';
 
-    // ── Build worksheet manually (not aoa) for full style control ──────────
+    // Date range: "25. června 2025" or "25. – 27. června 2025"
+    let dateLabel = '';
+    if (ev?.start_time) {
+      const startDate = new Date(ev.start_time);
+      const fmt = (d: Date) => d.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long', year: 'numeric' });
+      if (ev?.end_time) {
+        const endDate = new Date(ev.end_time);
+        const sameDay = startDate.toDateString() === endDate.toDateString();
+        dateLabel = sameDay
+          ? fmt(startDate)
+          : `${startDate.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long' })} – ${fmt(endDate)}`;
+      } else {
+        dateLabel = fmt(startDate);
+      }
+    }
+
+    // ── Build worksheet ───────────────────────────────────────────────────
+    // Columns: A = Položka | B = Počet (ks) | C = Připraveno (checkbox, last)
+    const NUM_COLS = 3;
     const ws: any = {};
     const merges: any[] = [];
-    let r = 0; // current row index
+    let r = 0;
 
-    const setCell = (row: number, col: number, v: any, t: string, s?: any) => {
+    const set = (row: number, col: number, v: any, t: string, s?: any, f?: string) => {
       const addr = XLSX.utils.encode_cell({ r: row, c: col });
-      ws[addr] = { v, t, ...(s ? { s } : {}) };
+      ws[addr] = { v, t, ...(s ? { s } : {}), ...(f ? { f } : {}) };
     };
 
     const mergeRow = (row: number) =>
-      merges.push({ s: { r: row, c: 0 }, e: { r: row, c: 2 } });
+      merges.push({ s: { r: row, c: 0 }, e: { r: row, c: NUM_COLS - 1 } });
 
-    // Row: event title
-    setCell(r, 0, eventTitle, 's', S_TITLE);
-    setCell(r, 1, '', 's');
-    setCell(r, 2, '', 's');
+    const emptyMergedRow = (row: number, s?: any) => {
+      for (let c = 0; c < NUM_COLS; c++) set(row, c, '', 's', s);
+      mergeRow(row);
+    };
+
+    // Row 0: event title (centered, merged)
+    for (let c = 0; c < NUM_COLS; c++) set(r, c, c === 0 ? eventTitle : '', 's', S_TITLE);
     mergeRow(r); r++;
 
-    // Row: date
-    if (eventDate) {
-      setCell(r, 0, eventDate, 's', S_DATE);
-      setCell(r, 1, '', 's');
-      setCell(r, 2, '', 's');
+    // Row 1: date range (if available)
+    if (dateLabel) {
+      for (let c = 0; c < NUM_COLS; c++) set(r, c, c === 0 ? dateLabel : '', 's', S_DATE_ROW);
       mergeRow(r); r++;
+    } else {
+      // Empty row 1 even if no date
+      emptyMergedRow(r); r++;
     }
 
-    // Spacer
-    setCell(r, 0, '', 's'); setCell(r, 1, '', 's'); setCell(r, 2, '', 's');
+    // Row 2: spacer
+    emptyMergedRow(r); r++;
+
+    // Row 3: column headers — Položka | Počet (ks) | Připraveno
+    set(r, 0, 'Položka',     's', S_COL_HEADER_LEFT);
+    set(r, 1, 'Počet (ks)', 's', S_COL_HEADER_CENTER);
+    set(r, 2, 'Připraveno', 's', S_CHECKBOX_HEADER);
     r++;
 
-    // Column headers
-    setCell(r, 0, 'Připraveno', 's', S_COL_HEADER_CENTER);
-    setCell(r, 1, 'Položka',    's', S_COL_HEADER_LEFT);
-    setCell(r, 2, 'Počet (ks)', 's', S_COL_HEADER_CENTER);
-    r++;
-
-    // Items grouped by category
+    // Items
     let lastCategory = '';
     for (const item of activeItems) {
       const cat = item.category || 'Ostatní';
       if (cat !== lastCategory) {
-        setCell(r, 0, cat, 's', S_CATEGORY);
-        setCell(r, 1, '',  's', S_CATEGORY);
-        setCell(r, 2, '',  's', S_CATEGORY);
+        // Category row: merged, colored
+        for (let c = 0; c < NUM_COLS; c++) set(r, c, c === 0 ? cat : '', 's', S_CATEGORY);
         mergeRow(r); r++;
         lastCategory = cat;
       }
@@ -178,39 +196,41 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         ? `${item.name} (${item.subcategory})`
         : item.name;
 
-      // Checkbox: boolean false + numFmt "Checkbox" → Excel 365 interactive checkbox
-      setCell(r, 0, false,             'b', S_CHECKBOX);
-      setCell(r, 1, itemName,          's', S_ITEM);
-      setCell(r, 2, item.quantity ?? 0,'n', S_QTY);
+      set(r, 0, itemName,          's', S_ITEM);
+      set(r, 1, item.quantity ?? 0,'n', S_QTY);
+      // Column C: Excel 365 checkbox via CHECKBOX() formula
+      // t:'b', v:false = cached boolean value, f:'CHECKBOX()' = Excel 365 checkbox formula
+      set(r, 2, false, 'b', S_COL_HEADER_CENTER, 'CHECKBOX()');
       r++;
     }
 
     if (activeItems.length === 0) {
-      setCell(r, 0, '', 's');
-      setCell(r, 1, '— žádné položky —', 's');
-      setCell(r, 2, '', 's');
+      set(r, 0, '— žádné položky —', 's');
+      set(r, 1, '', 's');
+      set(r, 2, '', 's');
       r++;
     }
 
-    // Worksheet range
-    ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: r - 1, c: 2 } });
+    // Worksheet metadata
+    ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: r - 1, c: NUM_COLS - 1 } });
     ws['!merges'] = merges;
     ws['!cols'] = [
-      { wch: 13 }, // Připraveno
-      { wch: 52 }, // Položka
+      { wch: 54 }, // Položka
       { wch: 12 }, // Počet (ks)
+      { wch: 13 }, // Připraveno
     ];
-    // Row heights (hpt = points)
     ws['!rows'] = Array.from({ length: r }, (_, i) => {
-      if (i === 0) return { hpt: 28 };          // title
-      if (eventDate && i === 1) return { hpt: 18 }; // date
-      return { hpt: 20 };
+      if (i === 0) return { hpt: 30 };  // title
+      if (i === 1) return { hpt: 18 };  // date / empty
+      return { hpt: 20 };               // rest
     });
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Priprava');
 
-    const filename = `priprava-${offerData.offer_number}-${offerData.year}.xlsx`;
+    const offerNum = offerData.offer_number;
+    const offerYear = offerData.year;
+    const filename = `priprava-${offerNum}-${offerYear}.xlsx`;
     const xlsxBuffer: Buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 
     return new NextResponse(new Uint8Array(xlsxBuffer), {
