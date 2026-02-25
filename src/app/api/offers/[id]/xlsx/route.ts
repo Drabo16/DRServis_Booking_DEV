@@ -1,17 +1,11 @@
 // =====================================================
 // OFFERS API - XLSX Export Route (Warehouse Preparation)
 // =====================================================
-// Uses xlsx-js-style for cell styles.
-// Injects VML form-control checkboxes via fflate ZIP manipulation.
-// These are the "Zaškrtávací políčko" (legacy form controls) that work
-// in all Excel versions without needing the CHECKBOX() function.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const XLSX = require('xlsx-js-style');
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { unzipSync, zipSync, strToU8, strFromU8 } = require('fflate');
 import { OFFER_CATEGORY_ORDER } from '@/types/offers';
 
 interface RouteParams {
@@ -50,98 +44,11 @@ const S_QTY = {
   font: { sz: 11 },
   alignment: { horizontal: 'center', vertical: 'center' },
 };
-// Checkbox cell: dark blue fill, text invisible (same as bg) — form control floats on top
-const S_CHECKBOX_CELL = {
-  fill: { fgColor: { rgb: '1A355E' } },
-  font: { color: { rgb: '1A355E' } }, // invisible text on dark bg
+// Empty cell — white background, no content (placeholder for checkbox)
+const S_EMPTY = {
   alignment: { horizontal: 'center', vertical: 'center' },
 };
 
-// ── VML injection ─────────────────────────────────────────────────────────
-function injectFormControls(buffer: Buffer, rowIndices: number[]): Buffer {
-  if (rowIndices.length === 0) return buffer;
-
-  const zipped: Record<string, Uint8Array> = unzipSync(new Uint8Array(buffer));
-
-  // 1. Build VML drawing with one checkbox per row
-  const shapes = rowIndices.map((rowIdx, i) => `
-  <v:shape id="_x0000_s${1025 + i}" type="#_x0000_t201"
-   style='position:absolute;margin-left:0;margin-top:0;width:52pt;height:14pt;z-index:1;mso-position-horizontal:absolute;mso-position-vertical:absolute'>
-   <v:fill color2="window [65]" o:detectmouseclick="t"/>
-   <v:shadow color="windowText [64]" obscured="t"/>
-   <v:path o:connecttype="rect"/>
-   <v:textbox><div style='text-align:left'><span style='font-size:8pt'>&#x00A0;</span></div></v:textbox>
-   <x:ClientData ObjectType="Checkbox">
-    <x:Anchor>2, 15, ${rowIdx}, 2, 3, -15, ${rowIdx + 1}, -2</x:Anchor>
-    <x:PrintObject/>
-    <x:AutoFill>False</x:AutoFill>
-    <x:FmlaLink>$C$${rowIdx + 1}</x:FmlaLink>
-    <x:TextHAlign>Center</x:TextHAlign>
-    <x:NoThreeD/>
-   </x:ClientData>
-  </v:shape>`).join('');
-
-  const vmlXml =
-    `<xml xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">` +
-    `<o:shapelayout v:ext="edit"><o:idmap v:ext="edit" data="1"/></o:shapelayout>` +
-    `<v:shapetype id="_x0000_t201" coordsize="21600,21600" o:spt="201" path="m0,0l0,21600,21600,21600,21600,0xe">` +
-    `<v:stroke joinstyle="miter"/>` +
-    `<v:path shadowok="f" o:extrusionok="f" gradientshapeok="t" o:connecttype="rect"/>` +
-    `</v:shapetype>` +
-    shapes +
-    `</xml>`;
-
-  zipped['xl/drawings/vmlDrawing1.vml'] = strToU8(vmlXml);
-
-  // 2. Add <legacyDrawing> to sheet1.xml
-  const sheetKey = 'xl/worksheets/sheet1.xml';
-  if (zipped[sheetKey]) {
-    let sheetXml: string = strFromU8(zipped[sheetKey]);
-    if (!sheetXml.includes('legacyDrawing')) {
-      sheetXml = sheetXml.replace('</worksheet>', '<legacyDrawing r:id="rIdVML"/></worksheet>');
-      zipped[sheetKey] = strToU8(sheetXml);
-    }
-  }
-
-  // 3. Create sheet1.xml.rels (doesn't exist in base output)
-  const vmlRel =
-    `<Relationship Id="rIdVML"` +
-    ` Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/vmlDrawing"` +
-    ` Target="../drawings/vmlDrawing1.vml"/>`;
-  const relsKey = 'xl/worksheets/_rels/sheet1.xml.rels';
-  if (zipped[relsKey]) {
-    let relsXml: string = strFromU8(zipped[relsKey]);
-    if (!relsXml.includes('vmlDrawing')) {
-      relsXml = relsXml.replace('</Relationships>', vmlRel + '</Relationships>');
-      zipped[relsKey] = strToU8(relsXml);
-    }
-  } else {
-    zipped[relsKey] = strToU8(
-      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
-      `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
-      vmlRel +
-      `</Relationships>`
-    );
-  }
-
-  // 4. Register vmlDrawing in [Content_Types].xml
-  const ctKey = '[Content_Types].xml';
-  if (zipped[ctKey]) {
-    let ctXml: string = strFromU8(zipped[ctKey]);
-    if (!ctXml.includes('vmlDrawing')) {
-      ctXml = ctXml.replace(
-        '</Types>',
-        `<Override PartName="/xl/drawings/vmlDrawing1.vml"` +
-        ` ContentType="application/vnd.openxmlformats-officedocument.vmlDrawing"/></Types>`
-      );
-      zipped[ctKey] = strToU8(ctXml);
-    }
-  }
-
-  return Buffer.from(zipSync(zipped));
-}
-
-// ── Route handler ──────────────────────────────────────────────────────────
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
@@ -182,7 +89,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     const { data: items, error: itemsError } = await supabase
       .from('offer_items')
-      .select('name, category, subcategory, days_hours, quantity, sort_order')
+      .select('name, category, subcategory, quantity, sort_order')
       .eq('offer_id', id)
       .order('sort_order', { ascending: true });
 
@@ -213,8 +120,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       const fmt = (d: Date) => d.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long', year: 'numeric' });
       if (ev?.end_time) {
         const endDate = new Date(ev.end_time);
-        const sameDay = startDate.toDateString() === endDate.toDateString();
-        dateLabel = sameDay
+        dateLabel = startDate.toDateString() === endDate.toDateString()
           ? fmt(startDate)
           : `${startDate.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long' })} – ${fmt(endDate)}`;
       } else {
@@ -223,11 +129,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     // ── Build worksheet ───────────────────────────────────────────────────
-    // Columns: A = Položka (wide) | B = Počet (ks) | C = Připraveno (checkbox)
+    // Columns: A = Položka | B = Počet (ks) | C = Připraveno (empty, for manual checkbox)
     const NUM_COLS = 3;
     const ws: any = {};
     const merges: any[] = [];
-    const checkboxRowIndices: number[] = [];
     let r = 0;
 
     const set = (row: number, col: number, v: any, t: string, s?: any) => {
@@ -238,11 +143,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const mergeRow = (row: number) =>
       merges.push({ s: { r: row, c: 0 }, e: { r: row, c: NUM_COLS - 1 } });
 
-    // Title row (merged, centered)
+    // Title
     for (let c = 0; c < NUM_COLS; c++) set(r, c, c === 0 ? eventTitle : '', 's', S_TITLE);
     mergeRow(r); r++;
 
-    // Date row (merged, centered) — always present (empty if no date)
+    // Date
     for (let c = 0; c < NUM_COLS; c++) set(r, c, c === 0 ? dateLabel : '', 's', S_DATE_ROW);
     mergeRow(r); r++;
 
@@ -250,7 +155,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     for (let c = 0; c < NUM_COLS; c++) set(r, c, '', 's');
     r++;
 
-    // Column headers
+    // Headers
     set(r, 0, 'Položka',     's', S_COL_HEADER_LEFT);
     set(r, 1, 'Počet (ks)', 's', S_COL_HEADER_CENTER);
     set(r, 2, 'Připraveno', 's', S_COL_HEADER_CENTER);
@@ -272,9 +177,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
       set(r, 0, itemName,          's', S_ITEM);
       set(r, 1, item.quantity ?? 0,'n', S_QTY);
-      // boolean FALSE — form control linked here; text color = bg = invisible
-      set(r, 2, false,             'b', S_CHECKBOX_CELL);
-      checkboxRowIndices.push(r);
+      set(r, 2, '',                's', S_EMPTY); // empty — user adds checkbox via Insert > Checkbox
       r++;
     }
 
@@ -300,12 +203,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     XLSX.utils.book_append_sheet(wb, ws, 'Priprava');
 
     const filename = `priprava-${offerData.offer_number}-${offerData.year}.xlsx`;
+    const xlsxBuffer: Buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 
-    // Generate base XLSX with styles, then inject VML form control checkboxes
-    const baseBuffer: Buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
-    const finalBuffer = injectFormControls(baseBuffer, checkboxRowIndices);
-
-    return new NextResponse(new Uint8Array(finalBuffer), {
+    return new NextResponse(new Uint8Array(xlsxBuffer), {
       status: 200,
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
