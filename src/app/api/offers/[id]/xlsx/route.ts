@@ -148,13 +148,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Priprava');
 
-    // Write to base64, then decode to binary
-    const base64: string = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
-    const binary = Buffer.from(base64, 'base64');
-
     const filename = `priprava-${offerData.offer_number}-${offerData.year}.xlsx`;
 
-    return new NextResponse(binary, {
+    const xlsxBuffer: Buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+    return new NextResponse(new Uint8Array(xlsxBuffer), {
       status: 200,
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
