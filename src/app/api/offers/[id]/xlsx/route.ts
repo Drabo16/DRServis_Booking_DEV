@@ -1,52 +1,52 @@
 // =====================================================
 // OFFERS API - XLSX Export Route (Warehouse Preparation)
 // =====================================================
-// Professional warehouse checklist with Excel 365 checkboxes.
-// Excel 365 stores checkboxes as boolean cells with numFmt="Checkbox".
+// Uses xlsx-js-style (SheetJS fork with real style writing support).
+// Excel 365 checkboxes: boolean cell + numFmt "Checkbox" in styles.xml.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import * as XLSX from 'xlsx';
+// xlsx-js-style: drop-in replacement for xlsx that actually writes cell styles
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const XLSX = require('xlsx-js-style');
 import { OFFER_CATEGORY_ORDER } from '@/types/offers';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
-// ── Style definitions ──────────────────────────────────────────────────────
-const S_TITLE: any = {
+// ── Styles (xlsx-js-style format) ──────────────────────────────────────────
+const S_TITLE = {
   font: { bold: true, sz: 16, color: { rgb: '1A355E' } },
-  alignment: { vertical: 'center' },
 };
-const S_DATE: any = {
-  font: { sz: 11, color: { rgb: '555555' } },
-  alignment: { vertical: 'center' },
+const S_DATE = {
+  font: { sz: 11, italic: true, color: { rgb: '666666' } },
 };
-const S_COL_HEADER: any = {
-  fill: { patternType: 'solid', fgColor: { rgb: '1A355E' } },
+const S_COL_HEADER_CENTER = {
+  fill: { fgColor: { rgb: '1A355E' } },
   font: { bold: true, sz: 11, color: { rgb: 'FFFFFF' } },
   alignment: { horizontal: 'center', vertical: 'center' },
 };
-const S_COL_HEADER_LEFT: any = {
-  fill: { patternType: 'solid', fgColor: { rgb: '1A355E' } },
+const S_COL_HEADER_LEFT = {
+  fill: { fgColor: { rgb: '1A355E' } },
   font: { bold: true, sz: 11, color: { rgb: 'FFFFFF' } },
   alignment: { horizontal: 'left', vertical: 'center' },
 };
-const S_CATEGORY: any = {
-  fill: { patternType: 'solid', fgColor: { rgb: 'BDD7EE' } },
+const S_CATEGORY = {
+  fill: { fgColor: { rgb: 'BDD7EE' } },
   font: { bold: true, sz: 11, color: { rgb: '1A355E' } },
   alignment: { horizontal: 'left', vertical: 'center' },
 };
-// Excel 365 native checkbox: boolean cell + numFmt "Checkbox"
-const S_CHECKBOX: any = {
+// Excel 365 checkbox: boolean cell + numFmt "Checkbox" written to styles.xml
+const S_CHECKBOX = {
   numFmt: 'Checkbox',
   alignment: { horizontal: 'center', vertical: 'center' },
 };
-const S_ITEM_NAME: any = {
+const S_ITEM = {
   font: { sz: 11 },
-  alignment: { vertical: 'center', wrapText: false },
+  alignment: { vertical: 'center' },
 };
-const S_ITEM_QTY: any = {
+const S_QTY = {
   font: { sz: 11 },
   alignment: { horizontal: 'center', vertical: 'center' },
 };
@@ -92,7 +92,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       .single();
 
     if (offerError || !offer) {
-      console.error('XLSX: offer fetch error', offerError);
       return NextResponse.json({ error: 'Offer not found' }, { status: 404 });
     }
 
@@ -126,51 +125,52 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         })
       : '';
 
-    // ── Build worksheet ───────────────────────────────────────────────────
-    const wsData: any[][] = [];
-    const merges: XLSX.Range[] = [];
-    // { r, c, style } applied after aoa_to_sheet
-    const cellStyleMap: { r: number; c: number; style: any; t?: string; v?: any }[] = [];
-    const rowHpts: number[] = [];
+    // ── Build worksheet manually (not aoa) for full style control ──────────
+    const ws: any = {};
+    const merges: any[] = [];
+    let r = 0; // current row index
 
-    const push = (cells: any[], hpt: number): number => {
-      wsData.push(cells);
-      rowHpts.push(hpt);
-      return wsData.length - 1;
+    const setCell = (row: number, col: number, v: any, t: string, s?: any) => {
+      const addr = XLSX.utils.encode_cell({ r: row, c: col });
+      ws[addr] = { v, t, ...(s ? { s } : {}) };
     };
 
-    const mergeRow = (r: number) =>
-      merges.push({ s: { r, c: 0 }, e: { r, c: 2 } });
+    const mergeRow = (row: number) =>
+      merges.push({ s: { r: row, c: 0 }, e: { r: row, c: 2 } });
 
     // Row: event title
-    const rTitle = push([eventTitle, '', ''], 32);
-    mergeRow(rTitle);
-    cellStyleMap.push({ r: rTitle, c: 0, style: S_TITLE });
+    setCell(r, 0, eventTitle, 's', S_TITLE);
+    setCell(r, 1, '', 's');
+    setCell(r, 2, '', 's');
+    mergeRow(r); r++;
 
     // Row: date
     if (eventDate) {
-      const rDate = push([eventDate, '', ''], 20);
-      mergeRow(rDate);
-      cellStyleMap.push({ r: rDate, c: 0, style: S_DATE });
+      setCell(r, 0, eventDate, 's', S_DATE);
+      setCell(r, 1, '', 's');
+      setCell(r, 2, '', 's');
+      mergeRow(r); r++;
     }
 
     // Spacer
-    push(['', '', ''], 10);
+    setCell(r, 0, '', 's'); setCell(r, 1, '', 's'); setCell(r, 2, '', 's');
+    r++;
 
     // Column headers
-    const rHeader = push(['Připraveno', 'Položka', 'Počet (ks)'], 24);
-    cellStyleMap.push({ r: rHeader, c: 0, style: S_COL_HEADER });
-    cellStyleMap.push({ r: rHeader, c: 1, style: S_COL_HEADER_LEFT });
-    cellStyleMap.push({ r: rHeader, c: 2, style: S_COL_HEADER });
+    setCell(r, 0, 'Připraveno', 's', S_COL_HEADER_CENTER);
+    setCell(r, 1, 'Položka',    's', S_COL_HEADER_LEFT);
+    setCell(r, 2, 'Počet (ks)', 's', S_COL_HEADER_CENTER);
+    r++;
 
-    // Items
+    // Items grouped by category
     let lastCategory = '';
     for (const item of activeItems) {
       const cat = item.category || 'Ostatní';
       if (cat !== lastCategory) {
-        const rCat = push([cat, '', ''], 22);
-        mergeRow(rCat);
-        cellStyleMap.push({ r: rCat, c: 0, style: S_CATEGORY });
+        setCell(r, 0, cat, 's', S_CATEGORY);
+        setCell(r, 1, '',  's', S_CATEGORY);
+        setCell(r, 2, '',  's', S_CATEGORY);
+        mergeRow(r); r++;
         lastCategory = cat;
       }
 
@@ -178,50 +178,40 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         ? `${item.name} (${item.subcategory})`
         : item.name;
 
-      // Use boolean false → Excel 365 will treat as checkbox with numFmt "Checkbox"
-      const rItem = push([false, itemName, item.quantity ?? 0], 20);
-
-      // Checkbox cell: boolean + Excel 365 numFmt
-      cellStyleMap.push({ r: rItem, c: 0, style: S_CHECKBOX, t: 'b', v: false });
-      cellStyleMap.push({ r: rItem, c: 1, style: S_ITEM_NAME });
-      cellStyleMap.push({ r: rItem, c: 2, style: S_ITEM_QTY });
+      // Checkbox: boolean false + numFmt "Checkbox" → Excel 365 interactive checkbox
+      setCell(r, 0, false,             'b', S_CHECKBOX);
+      setCell(r, 1, itemName,          's', S_ITEM);
+      setCell(r, 2, item.quantity ?? 0,'n', S_QTY);
+      r++;
     }
 
     if (activeItems.length === 0) {
-      const rEmpty = push(['', '— žádné položky —', ''], 20);
-      mergeRow(rEmpty);
+      setCell(r, 0, '', 's');
+      setCell(r, 1, '— žádné položky —', 's');
+      setCell(r, 2, '', 's');
+      r++;
     }
 
-    // ── Create & style worksheet ──────────────────────────────────────────
-    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    // Worksheet range
+    ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: r - 1, c: 2 } });
     ws['!merges'] = merges;
-
-    // Apply cell styles (and override t/v for checkbox cells)
-    for (const { r, c, style, t, v } of cellStyleMap) {
-      const addr = XLSX.utils.encode_cell({ r, c });
-      if (!ws[addr]) ws[addr] = {};
-      ws[addr].s = style;
-      if (t !== undefined) ws[addr].t = t;
-      if (v !== undefined) ws[addr].v = v;
-    }
-
-    // Row heights
-    ws['!rows'] = rowHpts.map(hpt => ({ hpt }));
-
-    // Column widths
     ws['!cols'] = [
       { wch: 13 }, // Připraveno
       { wch: 52 }, // Položka
       { wch: 12 }, // Počet (ks)
     ];
+    // Row heights (hpt = points)
+    ws['!rows'] = Array.from({ length: r }, (_, i) => {
+      if (i === 0) return { hpt: 28 };          // title
+      if (eventDate && i === 1) return { hpt: 18 }; // date
+      return { hpt: 20 };
+    });
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Priprava');
 
     const filename = `priprava-${offerData.offer_number}-${offerData.year}.xlsx`;
-    // cellStyles: true — SheetJS writes s.numFmt as custom numFmt in styles.xml
-    // Excel 365 reads numFmt="Checkbox" and renders boolean cells as interactive checkboxes
-    const xlsxBuffer: Buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx', cellStyles: true });
+    const xlsxBuffer: Buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 
     return new NextResponse(new Uint8Array(xlsxBuffer), {
       status: 200,
