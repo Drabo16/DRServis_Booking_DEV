@@ -243,6 +243,11 @@ export default function OffersList({ onOfferSelect, isAdmin }: OffersListProps) 
                         -{offer.discount_percent}% sleva
                       </span>
                     )}
+                    {isAdmin && offer.created_by_profile && (
+                      <span className="ml-2 text-slate-400">
+                        · {offer.created_by_profile.full_name}
+                      </span>
+                    )}
                   </div>
                   {isAdmin && (
                     <DropdownMenu>

@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     // Check offers access
     const { data: profile } = await supabase
       .from('profiles')
-      .select('id, role')
+      .select('id, role, email')
       .eq('auth_user_id', user.id)
       .single();
 
@@ -36,6 +36,23 @@ export async function GET(request: NextRequest) {
     if (!hasAccess) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
+
+    // Determine if user can view ALL offers (supervisor/admin/offers_edit_all permission)
+    const { data: supervisorRow } = await supabase
+      .from('supervisor_emails')
+      .select('email')
+      .ilike('email', profile.email)
+      .maybeSingle();
+    const isSupervisor = !!supervisorRow;
+
+    const { data: editAllPerm } = await supabase
+      .from('user_permissions')
+      .select('id')
+      .eq('user_id', profile.id)
+      .eq('permission_code', 'offers_edit_all')
+      .maybeSingle();
+
+    const canViewAll = isSupervisor || profile.role === 'admin' || !!editAllPerm;
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
@@ -80,6 +97,11 @@ export async function GET(request: NextRequest) {
     if (search) {
       const sanitizedSearch = search.replace(/[%_\\]/g, '\\$&');
       query = query.ilike('title', `%${sanitizedSearch}%`);
+    }
+
+    // Non-supervisors/non-admins see only their own offers
+    if (!canViewAll) {
+      query = query.eq('created_by', profile.id);
     }
 
     const { data, error } = await query;

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ArrowLeft, FileDown, Save, FolderKanban, BookTemplate, History } from 'lucide-react';
+import { Loader2, ArrowLeft, FileDown, FileSpreadsheet, Save, FolderKanban, BookTemplate, History } from 'lucide-react';
 import { offerKeys } from '@/hooks/useOffers';
 import type { OfferPresetWithCount, OfferPresetItem } from '@/types/offers';
 import { useSaveStatus } from '@/contexts/SaveStatusContext';
@@ -98,6 +98,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [isDownloadingXlsx, setIsDownloadingXlsx] = useState(false);
 
   // Custom item dialog
   const [showAddCustomItem, setShowAddCustomItem] = useState(false);
@@ -870,6 +871,29 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     }
   }, [offerId, offer, saveChanges]);
 
+  // Download XLSX preparation sheet
+  const handleDownloadXlsx = useCallback(async () => {
+    if (isDirtyRef.current) await saveChanges();
+    setIsDownloadingXlsx(true);
+    try {
+      const response = await fetch(`/api/offers/${offerId}/xlsx`);
+      if (!response.ok) throw new Error('Failed');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `priprava-${offer?.offer_number}-${offer?.year}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('XLSX download failed:', e);
+    } finally {
+      setIsDownloadingXlsx(false);
+    }
+  }, [offerId, offer, saveChanges]);
+
   // Calculate totals - OPTIMIZED: memoized to avoid recalculation on every render
   const totals = useMemo(() => {
     return localItems.reduce(
@@ -1015,6 +1039,15 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
           >
             {isDownloadingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />}
             <span className="text-xs">PDF</span>
+          </button>
+          <button
+            onClick={handleDownloadXlsx}
+            disabled={isDownloadingXlsx}
+            className="h-7 px-2 border rounded hover:bg-slate-50 disabled:opacity-50 flex items-center gap-1"
+            title="Stáhnout přípravu pro sklad (XLSX)"
+          >
+            {isDownloadingXlsx ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileSpreadsheet className="w-3.5 h-3.5" />}
+            <span className="text-xs">Příprava</span>
           </button>
         </div>
       </div>
