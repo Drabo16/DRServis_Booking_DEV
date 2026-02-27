@@ -1183,9 +1183,9 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
       )}
 
       {/* Table */}
-      <div className="border rounded overflow-x-hidden text-xs">
+      <div className="border rounded text-xs">
         <table className="w-full">
-          <thead className="sticky top-0 z-10">
+          <thead className="sticky top-0 z-10 shadow-sm">
             <tr className="bg-slate-100 text-slate-600">
               <th className="text-left py-1.5 px-2 font-medium">Položka</th>
               <th className="text-center py-1.5 px-1 font-medium w-14">Dny</th>
