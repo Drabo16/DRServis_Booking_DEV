@@ -946,7 +946,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 max-w-5xl">
       {/* Header */}
       <div className="flex items-center justify-between pb-2 border-b">
         <div className="flex items-center gap-2">
@@ -1475,7 +1475,7 @@ const ItemRow = memo(function ItemRow({
   const hasValue = item.qty > 0;
 
   return (
-    <tr className={`${odd ? 'bg-slate-50' : 'bg-white'} ${!hasValue ? 'text-slate-400' : ''} hover:bg-blue-50/70 [&:has(:focus)]:bg-blue-50`}>
+    <tr className={`${odd ? 'bg-slate-50' : 'bg-white'} ${!hasValue ? 'text-slate-400' : ''} hover:bg-blue-100/60 [&:has(:focus)]:bg-blue-100/80`}>
       <td className="py-0.5 px-2 overflow-hidden">
         <div className="truncate" title={item.name}>
           <span className={hasValue ? 'font-medium' : ''}>{item.name}</span>
