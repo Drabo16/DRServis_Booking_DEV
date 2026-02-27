@@ -87,6 +87,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     // Fetch direct items on the project (offer_set_items table)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let directItems: any[] = [];
     try {
       const { data: setItems } = await supabase
@@ -101,9 +102,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     // Sort items in each offer by category and sort_order
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const offersWithSortedItems = (offers || []).map((offer: any) => ({
       ...offer,
-      items: (offer.items || []).sort((a: any, b: any) => {
+      items: (offer.items || []).sort((a: { category: string; sort_order?: number }, b: { category: string; sort_order?: number }) => {
         if (a.category !== b.category) {
           return a.category.localeCompare(b.category);
         }
@@ -124,8 +126,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     // Generate PDF
     const pdfBuffer = await renderToBuffer(
       ProjectPdfDocument({
-        project: offerSet,
-        offers: offersWithSortedItems,
+        project: offerSet as unknown as Parameters<typeof ProjectPdfDocument>[0]['project'],
+        offers: offersWithSortedItems as unknown as Parameters<typeof ProjectPdfDocument>[0]['offers'],
         directItems,
         logoBase64,
       })

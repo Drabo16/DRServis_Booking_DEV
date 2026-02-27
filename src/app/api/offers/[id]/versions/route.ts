@@ -82,7 +82,7 @@ export async function POST(
 
     if (allVersions && allVersions.length >= 20) {
       // Delete oldest versions to keep only 19 (making room for the new one)
-      const toDelete = allVersions.slice(0, allVersions.length - 19).map((v: any) => v.id);
+      const toDelete = allVersions.slice(0, allVersions.length - 19).map((v) => v.id);
       await db.from('offer_versions').delete().in('id', toDelete);
     }
 

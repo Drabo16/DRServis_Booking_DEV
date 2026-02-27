@@ -65,7 +65,26 @@ export async function GET(request: Request) {
     if (error) throw error;
 
     // Transform and filter the data
-    let transformedAssignments = (assignments || []).map((a: any) => ({
+    interface CalendarAssignment {
+      id: string;
+      attendance_status: string;
+      start_date: string | null;
+      end_date: string | null;
+      position: {
+        id: string;
+        title: string;
+        role_type: string;
+        event: {
+          id: string;
+          title: string;
+          start_time: string;
+          end_time: string;
+          location: string | null;
+          status: string;
+        };
+      };
+    }
+    let transformedAssignments = ((assignments || []) as unknown as CalendarAssignment[]).map((a) => ({
       id: a.id,
       attendance_status: a.attendance_status,
       start_date: a.start_date,

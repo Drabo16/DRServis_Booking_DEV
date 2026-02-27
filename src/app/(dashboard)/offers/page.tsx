@@ -32,7 +32,7 @@ export default async function OffersPage() {
 
   // Check access: admin OR has 'offers' module access
   const hasAccess = profile.role === 'admin' ||
-    (profile.module_access as any[])?.some((ma: any) => ma.module_code === 'offers');
+    (profile.module_access as Array<{ module_code: string }> | null)?.some((ma) => ma.module_code === 'offers');
 
   if (!hasAccess) {
     redirect('/');

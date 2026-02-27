@@ -69,7 +69,7 @@ export async function POST(
     let folderFiles: Array<{ id: string; name: string; mimeType: string; webViewLink: string }> = [];
     try {
       const files = await listFilesInFolder(event.drive_folder_id);
-      folderFiles = files.map((f: any) => ({
+      folderFiles = files.map((f) => ({
         id: f.id!,
         name: f.name!,
         mimeType: f.mimeType!,

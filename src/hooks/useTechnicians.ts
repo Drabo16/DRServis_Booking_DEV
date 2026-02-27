@@ -6,7 +6,7 @@ import type { Profile } from '@/types';
 export const technicianKeys = {
   all: ['technicians'] as const,
   lists: () => [...technicianKeys.all, 'list'] as const,
-  list: (filters?: any) => [...technicianKeys.lists(), filters] as const,
+  list: (filters?: Record<string, unknown>) => [...technicianKeys.lists(), filters] as const,
 };
 
 export function useTechnicians() {

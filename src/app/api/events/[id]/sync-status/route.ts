@@ -48,7 +48,7 @@ export async function POST(
     const attendeeStatuses = await getAttendeeStatuses(event.google_event_id);
 
     let updatedCount = 0;
-    const updates: any[] = [];
+    const updates: Array<{ assignmentId: string; technicianEmail: string; oldStatus: string; newStatus: string }> = [];
 
     // Aktualizace každého assignment podle emailu
     for (const assignment of event.assignments) {

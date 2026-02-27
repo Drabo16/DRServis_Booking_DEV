@@ -2,8 +2,9 @@ import { google } from 'googleapis';
 import { getGoogleAuth } from './auth';
 import { format } from 'date-fns';
 import { cs } from 'date-fns/locale';
+import { env } from '@/lib/env';
 
-const PARENT_FOLDER_ID = process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID || 'root';
+const PARENT_FOLDER_ID = env.GOOGLE_DRIVE_PARENT_FOLDER_ID;
 
 /** Escape single quotes for Google Drive API query strings */
 function escapeDriveQuery(value: string): string {
@@ -50,9 +51,9 @@ export async function createFolder(folderName: string, parentFolderId?: string) 
         },
       });
       console.log(`[Drive] Set public link permission for folder: ${folderId}`);
-    } catch (permError: any) {
+    } catch (permError) {
       // Na Shared Drive může být omezení na sdílení - to je ok
-      console.warn(`[Drive] Could not set public permission (may be Shared Drive restriction): ${permError?.message}`);
+      console.warn(`[Drive] Could not set public permission (may be Shared Drive restriction): ${permError instanceof Error ? permError.message : permError}`);
     }
 
     return {
@@ -60,9 +61,10 @@ export async function createFolder(folderName: string, parentFolderId?: string) 
       name: response.data.name!,
       webViewLink: response.data.webViewLink!,
     };
-  } catch (error: any) {
-    console.error('Error creating folder:', error?.message);
-    throw new Error(`Failed to create folder on Google Drive: ${error?.message}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error creating folder:', message);
+    throw new Error(`Failed to create folder on Google Drive: ${message}`);
   }
 }
 
@@ -206,8 +208,8 @@ Vygenerováno: ${format(new Date(), 'd. MMMM yyyy HH:mm:ss', { locale: cs })}
         },
       });
       console.log('[Drive] Content written to doc');
-    } catch (docsError: any) {
-      console.warn('[Drive] Could not write content to doc:', docsError?.message);
+    } catch (docsError) {
+      console.warn('[Drive] Could not write content to doc:', docsError instanceof Error ? docsError.message : docsError);
       // Doc je vytvořený, jen bez obsahu - to je OK
     }
 
@@ -225,8 +227,8 @@ Vygenerováno: ${format(new Date(), 'd. MMMM yyyy HH:mm:ss', { locale: cs })}
         },
       });
       console.log('[Drive] Public permission set for info file');
-    } catch (permError: any) {
-      console.warn('[Drive] Could not set public permission for info file:', permError?.message);
+    } catch (permError) {
+      console.warn('[Drive] Could not set public permission for info file:', permError instanceof Error ? permError.message : permError);
     }
 
     return {
@@ -234,17 +236,20 @@ Vygenerováno: ${format(new Date(), 'd. MMMM yyyy HH:mm:ss', { locale: cs })}
       name: response.data.name!,
       webViewLink: response.data.webViewLink!,
     };
-  } catch (error: any) {
+  } catch (error) {
+    const errObj = error as Record<string, unknown>;
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    const response = errObj?.response as Record<string, unknown> | undefined;
     console.error('[Drive] Error creating info file:', {
-      message: error?.message,
-      code: error?.code,
-      status: error?.response?.status,
-      statusText: error?.response?.statusText,
-      data: JSON.stringify(error?.response?.data),
-      errors: error?.errors,
-      stack: error?.stack,
+      message,
+      code: errObj?.code,
+      status: response?.status,
+      statusText: response?.statusText,
+      data: JSON.stringify(response?.data),
+      errors: errObj?.errors,
+      stack: error instanceof Error ? error.stack : undefined,
     });
-    throw new Error(`Failed to create info file: ${error?.message || 'Unknown error'}`);
+    throw new Error(`Failed to create info file: ${message}`);
   }
 }
 
@@ -342,14 +347,16 @@ export async function createEventFolderStructure(
       infoFileCreated,
       infoFileError,
     };
-  } catch (error: any) {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    const response = (error as Record<string, unknown>)?.response as Record<string, unknown> | undefined;
     console.error('[Drive] Error creating event folder structure:', error);
     console.error('[Drive] Error details:', {
-      message: error?.message,
-      response: error?.response?.data,
-      status: error?.response?.status,
+      message,
+      response: response?.data,
+      status: response?.status,
     });
-    throw new Error(`Failed to create event folder structure: ${error?.message || 'Unknown error'}`);
+    throw new Error(`Failed to create event folder structure: ${message}`);
   }
 }
 
@@ -376,7 +383,7 @@ export async function getFolderInfo(folderId: string) {
     // Kontrola, jestli má složka nastavené "anyone" permission (veřejný odkaz)
     const permissions = response.data.permissions || [];
     const hasPublicAccess = permissions.some(
-      (p: any) => p.type === 'anyone' && (p.role === 'reader' || p.role === 'writer')
+      (p) => p.type === 'anyone' && (p.role === 'reader' || p.role === 'writer')
     );
 
     if (!hasPublicAccess) {
@@ -392,17 +399,17 @@ export async function getFolderInfo(folderId: string) {
           },
         });
         console.log(`[Drive] Public permission set for folder: ${folderId}`);
-      } catch (permError: any) {
+      } catch (permError) {
         // Pokud se nepodaří nastavit oprávnění, složka není platná pro uživatele
-        console.error(`[Drive] Failed to set public permission: ${permError?.message}`);
+        console.error(`[Drive] Failed to set public permission: ${permError instanceof Error ? permError.message : permError}`);
         throw new Error('Folder not accessible - cannot set public permission');
       }
     }
 
     return response.data;
-  } catch (error: any) {
+  } catch (error) {
     // 404 = neexistuje, trashed = v koši, jiné = problém s přístupem
-    console.error('Error getting folder info:', error?.message || error);
+    console.error('Error getting folder info:', error instanceof Error ? error.message : error);
     throw new Error('Failed to get folder info');
   }
 }
@@ -494,13 +501,16 @@ export async function deleteFolder(folderId: string) {
     });
     console.log(`[Drive] Folder deleted successfully: ${folderId}`);
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
+    const errObj = error as Record<string, unknown>;
+    const response = errObj?.response as Record<string, unknown> | undefined;
     // Pokud složka neexistuje (404), považujeme to za úspěch
-    if (error?.code === 404 || error?.response?.status === 404) {
+    if (errObj?.code === 404 || response?.status === 404) {
       console.log(`[Drive] Folder not found (already deleted?): ${folderId}`);
       return { success: true, alreadyDeleted: true };
     }
-    console.error('Error deleting folder:', error?.message || error);
-    throw new Error(`Failed to delete folder: ${error?.message || 'Unknown error'}`);
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error deleting folder:', message);
+    throw new Error(`Failed to delete folder: ${message}`);
   }
 }

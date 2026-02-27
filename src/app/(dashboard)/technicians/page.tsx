@@ -13,7 +13,7 @@ export default function TechniciansPage() {
       const response = await fetch('/api/technicians');
       if (!response.ok) throw new Error('Failed to fetch');
       const data = await response.json();
-      return data.technicians || [];
+      return (data.technicians || []) as Array<{ id: string; full_name: string; email: string; phone: string | null; role: string; specialization: string[] | null; is_active: boolean; is_drservis: boolean; company: string | null; note: string | null }>;
     },
   });
 
@@ -30,7 +30,7 @@ export default function TechniciansPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {technicians?.map((tech: any) => (
+          {technicians?.map((tech) => (
             <Card key={tech.id}>
               <CardHeader>
                 <div className="flex items-start justify-between">

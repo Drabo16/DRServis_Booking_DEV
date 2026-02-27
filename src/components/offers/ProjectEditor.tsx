@@ -120,7 +120,7 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
       console.log('✅ Project loaded:', {
         name: projectData.name,
         offersCount: projectData.offers?.length || 0,
-        offers: projectData.offers?.map((o: any) => `${o.offer_number}/${o.year}`) || []
+        offers: projectData.offers?.map((o: { offer_number: number; year: number }) => `${o.offer_number}/${o.year}`) || []
       });
 
       setProject(projectData);

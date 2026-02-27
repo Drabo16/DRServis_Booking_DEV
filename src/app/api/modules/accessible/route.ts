@@ -82,7 +82,7 @@ export async function GET() {
 
     // Add user's accessible modules
     accessibleModules?.forEach((access) => {
-      const mod = access.app_modules as any;
+      const mod = access.app_modules as unknown as { code: string; name: string; icon: string; route: string; is_core: boolean; sort_order: number; is_active: boolean };
       if (mod.is_active) {
         moduleMap.set(mod.code, {
           code: mod.code,

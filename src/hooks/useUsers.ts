@@ -6,7 +6,7 @@ import type { Profile } from '@/types';
 export const userKeys = {
   all: ['users'] as const,
   lists: () => [...userKeys.all, 'list'] as const,
-  list: (filters?: any) => [...userKeys.lists(), filters] as const,
+  list: (filters?: Record<string, unknown>) => [...userKeys.lists(), filters] as const,
   details: () => [...userKeys.all, 'detail'] as const,
   detail: (id: string) => [...userKeys.details(), id] as const,
 };
@@ -27,7 +27,16 @@ export function useCreateUser() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (userData: any) => {
+    mutationFn: async (userData: {
+      email: string;
+      full_name: string;
+      phone?: string | null;
+      role: 'admin' | 'manager' | 'technician';
+      specialization?: string[] | string | null;
+      is_drservis?: boolean;
+      company?: string | null;
+      note?: string | null;
+    }) => {
       const response = await fetch('/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -49,7 +58,17 @@ export function useUpdateUser() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+    mutationFn: async ({ id, data }: { id: string; data: {
+      full_name?: string;
+      email?: string;
+      phone?: string | null;
+      role?: 'admin' | 'manager' | 'technician';
+      specialization?: string[] | string | null;
+      is_active?: boolean;
+      is_drservis?: boolean;
+      company?: string | null;
+      note?: string | null;
+    } }) => {
       const response = await fetch(`/api/users/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },

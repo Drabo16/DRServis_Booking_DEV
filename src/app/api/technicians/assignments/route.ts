@@ -86,9 +86,38 @@ export async function GET(request: NextRequest) {
     }
 
     // Group assignments by technician
-    const technicianAssignments = new Map<string, any[]>();
+    interface AssignmentRow {
+      id: string;
+      position_id: string;
+      technician_id: string;
+      attendance_status: string;
+      start_date: string | null;
+      end_date: string | null;
+      position: {
+        id: string;
+        title: string;
+        role_type: string;
+        event: {
+          id: string;
+          title: string;
+          start_time: string;
+          end_time: string;
+          location: string | null;
+          status: string;
+        };
+      };
+    }
+    interface TransformedAssignment {
+      id: string;
+      attendance_status: string;
+      start_date: string | null;
+      end_date: string | null;
+      position: { id: string; title: string; role_type: string };
+      event: { id: string; title: string; start_time: string; end_time: string; location: string | null; status: string };
+    }
+    const technicianAssignments = new Map<string, TransformedAssignment[]>();
 
-    (assignments || []).forEach((assignment: any) => {
+    ((assignments || []) as unknown as AssignmentRow[]).forEach((assignment) => {
       const techId = assignment.technician_id;
       if (!technicianAssignments.has(techId)) {
         technicianAssignments.set(techId, []);
@@ -108,7 +137,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Find conflicts for each technician
-    const result = (technicians || []).map((tech: any) => {
+    const result = (technicians || []).map((tech) => {
       const techAssignments = technicianAssignments.get(tech.id) || [];
 
       // Sort assignments by event start time

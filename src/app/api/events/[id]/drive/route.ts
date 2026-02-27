@@ -4,6 +4,17 @@ import { createEventFolderStructure, updateInfoFile, deleteFolder } from '@/lib/
 import { removeDriveFolderFromEvent } from '@/lib/google/calendar';
 import { apiError } from '@/lib/api-response';
 
+interface EventPosition {
+  id: string;
+  role_type: string;
+  title: string;
+  assignments: Array<{
+    id: string;
+    attendance_status: string;
+    technician: { full_name: string } | null;
+  }>;
+}
+
 /**
  * POST /api/events/[id]/drive
  * Vytvoření struktury složek na Google Drive pro akci
@@ -76,10 +87,10 @@ export async function POST(
     }
 
     // Připravíme data o potvrzených technicích
-    const confirmedTechnicians = (event.positions || []).flatMap((pos: any) =>
+    const confirmedTechnicians = ((event.positions || []) as EventPosition[]).flatMap((pos) =>
       (pos.assignments || [])
-        .filter((a: any) => a.attendance_status === 'accepted')
-        .map((a: any) => ({
+        .filter((a) => a.attendance_status === 'accepted')
+        .map((a) => ({
           name: a.technician?.full_name || 'Neznámý',
           role: pos.title || pos.role_type,
           status: 'Potvrzeno',
@@ -191,10 +202,10 @@ export async function PATCH(
     }
 
     // Připravíme data o potvrzených technicích
-    const confirmedTechnicians = (event.positions || []).flatMap((pos: any) =>
+    const confirmedTechnicians = ((event.positions || []) as EventPosition[]).flatMap((pos) =>
       (pos.assignments || [])
-        .filter((a: any) => a.attendance_status === 'accepted')
-        .map((a: any) => ({
+        .filter((a) => a.attendance_status === 'accepted')
+        .map((a) => ({
           name: a.technician?.full_name || 'Neznámý',
           role: pos.title || pos.role_type,
           status: 'Potvrzeno',

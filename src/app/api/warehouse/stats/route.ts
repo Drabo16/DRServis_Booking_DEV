@@ -186,7 +186,7 @@ export async function GET() {
       id: item.id,
       name: item.name,
       sku: item.sku,
-      category_name: (item.category as any)?.name || null,
+      category_name: (item.category as { name?: string } | null)?.name || null,
     }));
 
     const purchaseRecommendations = calculateRecommendations(

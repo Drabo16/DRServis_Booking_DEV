@@ -113,7 +113,7 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
           .filter(Boolean) || [];
         const searchable = [
           event.title,
-          (event as any).location,
+          event.location,
           dateStr,
           shortDate,
           ...techNames,
@@ -167,7 +167,7 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
 
     const eventsWithoutFolder = Array.from(selectedEvents).filter(id => {
       const event = filteredEvents.find(e => e.id === id);
-      return event && !(event as any).drive_folder_id;
+      return event && !event.drive_folder_id;
     });
 
     if (eventsWithoutFolder.length === 0) {
@@ -201,7 +201,7 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
     if (selectedEvents.size === 0) return;
 
     const eligibleEvents = Array.from(selectedEvents).filter(id => {
-      const event = filteredEvents.find(e => e.id === id) as any;
+      const event = filteredEvents.find(e => e.id === id);
       // Allow attaching even if already synced - this will add any new files from the folder
       return event && event.drive_folder_id && event.google_event_id;
     });
@@ -254,7 +254,7 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
     if (selectedEvents.size === 0) return;
 
     const eventsWithFolder = Array.from(selectedEvents).filter(id => {
-      const event = filteredEvents.find(e => e.id === id) as any;
+      const event = filteredEvents.find(e => e.id === id);
       return event && event.drive_folder_id;
     });
 
@@ -509,7 +509,7 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
           </TabsContent>
 
           <TabsContent value="excel" className="mt-4">
-            <ExcelView events={filteredEvents as any} isAdmin={isAdmin} allTechnicians={allTechnicians} userId={userId} />
+            <ExcelView events={filteredEvents as React.ComponentProps<typeof ExcelView>['events']} isAdmin={isAdmin} allTechnicians={allTechnicians} userId={userId} />
           </TabsContent>
 
           {isAdmin && (
@@ -520,7 +520,7 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
                 </div>
               }>
                 <InviteResponsesTab
-                  events={filteredEvents as any}
+                  events={filteredEvents as React.ComponentProps<typeof InviteResponsesTab>['events']}
                   isAdmin={isAdmin}
                   allTechnicians={allTechnicians}
                   onEventClick={handleOpenEvent}

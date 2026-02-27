@@ -1,4 +1,5 @@
 import { google } from 'googleapis';
+import { env } from '@/lib/env';
 
 /**
  * Získání Google Auth klienta pomocí Service Account
@@ -10,18 +11,11 @@ import { google } from 'googleapis';
  * 4. Přidat oprávnění k Drive složce
  */
 export function getGoogleAuth() {
-  const serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  const privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
-
-  if (!serviceAccountEmail || !privateKey) {
-    throw new Error('Google Service Account credentials are not configured');
-  }
-
   // Dekódování private key (může obsahovat \n jako string)
-  const decodedKey = privateKey.replace(/\\n/g, '\n');
+  const decodedKey = env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY.replace(/\\n/g, '\n');
 
   const auth = new google.auth.JWT({
-    email: serviceAccountEmail,
+    email: env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
     key: decodedKey,
     scopes: [
       'https://www.googleapis.com/auth/calendar',

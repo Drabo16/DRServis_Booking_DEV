@@ -87,8 +87,8 @@ export default function PresetEditor({ presetId, onBack }: PresetEditorProps) {
     }
 
     items.sort((a, b) => {
-      const catA = OFFER_CATEGORY_ORDER.indexOf(a.category as any);
-      const catB = OFFER_CATEGORY_ORDER.indexOf(b.category as any);
+      const catA = (OFFER_CATEGORY_ORDER as readonly string[]).indexOf(a.category);
+      const catB = (OFFER_CATEGORY_ORDER as readonly string[]).indexOf(b.category);
       if (catA !== catB) return catA - catB;
       return a.sortOrder - b.sortOrder;
     });

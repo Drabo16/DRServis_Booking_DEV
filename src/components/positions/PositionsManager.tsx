@@ -143,7 +143,7 @@ export default function PositionsManager({
     setLoading(true);
 
     try {
-      const newPositions: any[] = [];
+      const newPositions: (Position & { assignments: (Assignment & { technician: Profile })[] })[] = [];
 
       for (const roleValue of selectedRoles) {
         const role = roleTypes.find(r => r.value === roleValue);
@@ -269,7 +269,7 @@ export default function PositionsManager({
       if (pos.id === positionId) {
         return {
           ...pos,
-          assignments: [...(pos.assignments || []), tempAssignment as any]
+          assignments: [...(pos.assignments || []), tempAssignment as Assignment & { technician: Profile }]
         };
       }
       return pos;
@@ -326,11 +326,11 @@ export default function PositionsManager({
     if (!confirm('Opravdu odebrat přiřazení?')) return;
 
     // Backup pro rollback - extrahuj PŘED optimistic update
-    let backup: any = null;
+    const backupRef: { value: (Assignment & { technician: Profile }) | null } = { value: null };
     setPositions(prev => {
-      backup = prev.find(pos =>
+      backupRef.value = prev.find(pos =>
         pos.assignments?.some(a => a.id === assignmentId)
-      )?.assignments?.find(a => a.id === assignmentId);
+      )?.assignments?.find(a => a.id === assignmentId) ?? null;
 
       // OPTIMISTIC UPDATE - okamžitě odeber z UI
       return prev.map(pos => ({
@@ -350,12 +350,13 @@ export default function PositionsManager({
       await queryClient.invalidateQueries({ queryKey: eventKeys.all });
     } catch (error) {
       // ROLLBACK - vrať assignment zpět - POUŽIJ PREV!
-      if (backup) {
+      if (backupRef.value) {
+        const savedBackup = backupRef.value;
         setPositions(prev => prev.map(pos => {
-          if (pos.id === backup.position_id) {
+          if (pos.id === savedBackup.position_id) {
             return {
               ...pos,
-              assignments: [...(pos.assignments || []), backup]
+              assignments: [...(pos.assignments || []), savedBackup]
             };
           }
           return pos;

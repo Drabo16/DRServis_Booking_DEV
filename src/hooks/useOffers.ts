@@ -385,7 +385,7 @@ export function useCreateOfferPreset() {
 export function useUpdateOfferPreset() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...data }: { id: string; [key: string]: any }) => {
+    mutationFn: async ({ id, ...data }: { id: string; name?: string; description?: string | null; discount_percent?: number; is_vat_payer?: boolean; items?: unknown[] }) => {
       const response = await fetch(`/api/offers/presets/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },

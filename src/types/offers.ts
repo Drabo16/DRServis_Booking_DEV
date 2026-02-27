@@ -311,8 +311,10 @@ export const OFFER_CATEGORY_ORDER = [
 export type OfferCategoryGroup = 'equipment' | 'personnel' | 'transport';
 
 export function getCategoryGroup(category: string): OfferCategoryGroup {
-  if (OFFER_CATEGORY_GROUPS.personnel.includes(category as any)) return 'personnel';
-  if (OFFER_CATEGORY_GROUPS.transport.includes(category as any)) return 'transport';
+  const personnelCategories: readonly string[] = OFFER_CATEGORY_GROUPS.personnel;
+  const transportCategories: readonly string[] = OFFER_CATEGORY_GROUPS.transport;
+  if (personnelCategories.includes(category)) return 'personnel';
+  if (transportCategories.includes(category)) return 'transport';
   return 'equipment';
 }
 

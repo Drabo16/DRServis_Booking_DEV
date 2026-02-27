@@ -151,7 +151,7 @@ export default function PositionTable({ positions, eventId }: PositionTableProps
                   <Select
                     value={newPosition.role_type}
                     onValueChange={(value) =>
-                      setNewPosition({ ...newPosition, role_type: value as any })
+                      setNewPosition({ ...newPosition, role_type: value as typeof newPosition.role_type })
                     }
                     disabled={loading}
                   >

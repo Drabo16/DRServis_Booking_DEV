@@ -89,7 +89,7 @@ export interface SyncLog {
   status: SyncStatus;
   events_processed: number;
   errors_count: number;
-  error_details: any | null;
+  error_details: Record<string, unknown> | null;
   started_at: string;
   completed_at: string | null;
   created_at: string;
@@ -117,7 +117,7 @@ export interface AssignmentWithDetails extends Assignment {
 // API RESPONSE TYPES
 // =====================================================
 
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;

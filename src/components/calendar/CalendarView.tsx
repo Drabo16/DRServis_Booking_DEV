@@ -8,6 +8,12 @@ import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { useRouter } from 'next/navigation';
 import { Event } from '@/types';
 import { Button } from '@/components/ui/button';
+
+interface FillRate {
+  filled: number;
+  total: number;
+  percentage: number;
+}
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import './calendar.css';
 
@@ -144,7 +150,7 @@ export default function CalendarView({ events, onEventClick }: CalendarViewProps
 
   // Memoizovaný handler
   const handleSelectEvent = useCallback((event: BigCalendarEvent) => {
-    const { event: originalEvent } = event.resource as { event: Event; fillRate: any };
+    const { event: originalEvent } = event.resource as { event: Event; fillRate: FillRate };
     if (onEventClick) {
       onEventClick(originalEvent.id);
     } else {
@@ -154,7 +160,7 @@ export default function CalendarView({ events, onEventClick }: CalendarViewProps
 
   // Memoizovaný style getter
   const eventStyleGetter = useCallback((event: BigCalendarEvent) => {
-    const { event: originalEvent, fillRate } = event.resource as { event: Event; fillRate: any };
+    const { event: originalEvent, fillRate } = event.resource as { event: Event; fillRate: FillRate };
 
     let backgroundColor = '#334155'; // slate-700 default
 

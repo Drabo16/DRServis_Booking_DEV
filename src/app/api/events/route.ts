@@ -110,8 +110,8 @@ export async function GET(request: NextRequest) {
     const filteredEvents = canSeeAllEvents
       ? events
       : events?.filter((event) =>
-          event.positions?.some((position: any) =>
-            position.assignments?.some((assignment: any) => assignment.technician_id === profile?.id)
+          event.positions?.some((position: { assignments?: Array<{ technician_id: string }> }) =>
+            position.assignments?.some((assignment) => assignment.technician_id === profile?.id)
           )
         );
 

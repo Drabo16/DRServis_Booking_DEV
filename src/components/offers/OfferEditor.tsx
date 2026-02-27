@@ -239,8 +239,8 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
 
     // Sort by category order then sort_order
     items.sort((a, b) => {
-      const catA = OFFER_CATEGORY_ORDER.indexOf(a.category as any);
-      const catB = OFFER_CATEGORY_ORDER.indexOf(b.category as any);
+      const catA = (OFFER_CATEGORY_ORDER as readonly string[]).indexOf(a.category);
+      const catB = (OFFER_CATEGORY_ORDER as readonly string[]).indexOf(b.category);
       if (catA !== catB) return catA - catB;
       return a.sortOrder - b.sortOrder;
     });
@@ -379,7 +379,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
 
 
       // Execute all operations in parallel
-      const promises: Promise<any>[] = [];
+      const promises: Promise<Response | void>[] = [];
 
       // 1. Update offer (status, discount, set)
       promises.push(
@@ -679,8 +679,8 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
           const newItems = [...prev, newLocalItem];
           // Sort by category order then sort_order
           newItems.sort((a, b) => {
-            const catA = OFFER_CATEGORY_ORDER.indexOf(a.category as any);
-            const catB = OFFER_CATEGORY_ORDER.indexOf(b.category as any);
+            const catA = (OFFER_CATEGORY_ORDER as readonly string[]).indexOf(a.category);
+            const catB = (OFFER_CATEGORY_ORDER as readonly string[]).indexOf(b.category);
             if (catA !== catB) return catA - catB;
             return a.sortOrder - b.sortOrder;
           });

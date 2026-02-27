@@ -109,7 +109,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Copy items if any
     if (originalItems && originalItems.length > 0) {
-      const newItems = originalItems.map((item: any) => ({
+      const newItems = originalItems.map((item) => ({
         offer_id: newOffer!.id,
         template_item_id: item.template_item_id,
         name: item.name,
@@ -135,7 +135,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       // Recalculate totals
       const { data: items } = await db
         .from('offer_items')
-        .select('id, offer_id, category, subcategory, name, days_hours, quantity, unit_price, total_price, sort_order, template_item_id')
+        .select('id, offer_id, category, subcategory, name, days_hours, quantity, unit_price, total_price, sort_order, template_item_id, created_at')
         .eq('offer_id', newOffer.id);
 
       const totals = calculateOfferTotals(items || []);
@@ -176,7 +176,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-async function checkOffersAccess(supabase: any, profileId: string): Promise<boolean> {
+async function checkOffersAccess(supabase: ReturnType<typeof createServiceRoleClient>, profileId: string): Promise<boolean> {
   const { data } = await supabase
     .from('user_module_access')
     .select('id')

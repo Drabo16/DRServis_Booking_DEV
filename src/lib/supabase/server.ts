@@ -1,12 +1,13 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { env } from '@/lib/env'
 
 export async function createClient() {
   const cookieStore = await cookies()
 
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    env.NEXT_PUBLIC_SUPABASE_URL,
+    env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         get(name: string) {
@@ -34,8 +35,8 @@ export async function createClient() {
 // Service role client pro admin operace (POUZE server-side!)
 export function createServiceRoleClient() {
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    env.NEXT_PUBLIC_SUPABASE_URL,
+    env.SUPABASE_SERVICE_ROLE_KEY,
     {
       cookies: {},
     }
@@ -75,20 +76,12 @@ export async function getProfileWithFallback(
   // Use service role client to bypass RLS
   const serviceClient = createServiceRoleClient();
 
-  console.log('[getProfileWithFallback] Looking up profile for user:', { id: user.id, email: user.email });
-
   // First try to find profile by auth_user_id
-  const { data: profile, error: profileError } = await serviceClient
+  const { data: profile } = await serviceClient
     .from('profiles')
     .select(PROFILE_COLUMNS)
     .eq('auth_user_id', user.id)
     .single();
-
-  console.log('[getProfileWithFallback] auth_user_id lookup result:', {
-    found: !!profile,
-    role: profile?.role,
-    error: profileError?.message
-  });
 
   if (profile) {
     return profile as Profile;
@@ -96,22 +89,15 @@ export async function getProfileWithFallback(
 
   // Fallback: try to find profile by email if not linked yet
   if (user.email) {
-    const { data: profileByEmail, error: emailError } = await serviceClient
+    const { data: profileByEmail } = await serviceClient
       .from('profiles')
       .select(PROFILE_COLUMNS)
       .eq('email', user.email)
       .single();
 
-    console.log('[getProfileWithFallback] email lookup result:', {
-      found: !!profileByEmail,
-      role: profileByEmail?.role,
-      error: emailError?.message
-    });
-
     if (profileByEmail) {
       // Try to link auth_user_id if not already set
       if (!profileByEmail.auth_user_id) {
-        console.log('[getProfileWithFallback] Linking auth_user_id to profile:', user.id, 'for email:', user.email);
         await serviceClient
           .from('profiles')
           .update({ auth_user_id: user.id })
@@ -125,7 +111,6 @@ export async function getProfileWithFallback(
     }
   }
 
-  console.log('[getProfileWithFallback] No profile found for user');
   return null;
 }
 
@@ -140,37 +125,18 @@ export async function hasBookingAccess(
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _requiredPermissions?: string[]
 ): Promise<boolean> {
-  console.log('[hasBookingAccess] Checking access for profile:', {
-    id: profile?.id,
-    email: profile?.email,
-    role: profile?.role,
-  });
-
   // Admin always has access
-  if (profile?.role === 'admin') {
-    console.log('[hasBookingAccess] User is admin, granting access');
-    return true;
-  }
+  if (profile?.role === 'admin') return true;
 
   // Manager (Správce) has FULL booking access - same as admin for booking module
-  if (profile?.role === 'manager') {
-    console.log('[hasBookingAccess] User is manager, granting access');
-    return true;
-  }
+  if (profile?.role === 'manager') return true;
 
-  if (!profile?.id) {
-    console.log('[hasBookingAccess] No profile found, denying access');
-    return false;
-  }
+  if (!profile?.id) return false;
 
   // Check supervisor - single query via helper
   const isSupervisor = await checkIsSupervisor(profile.email);
-  if (isSupervisor) {
-    console.log('[hasBookingAccess] User is supervisor, granting access');
-    return true;
-  }
+  if (isSupervisor) return true;
 
-  console.log('[hasBookingAccess] No access granted, denying');
   return false;
 }
 

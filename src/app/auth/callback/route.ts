@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Handle case where data might be stringified (Vercel edge case)
-    let sessionData: any = data;
+    let sessionData = data as { user?: { email?: string; id?: string }; [key: string]: unknown };
     if (typeof data === 'string') {
       console.log('[OAuth Callback] Data is string, parsing JSON...');
       try {

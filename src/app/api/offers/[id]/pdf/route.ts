@@ -73,7 +73,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     // Sort items by category and sort_order
-    const sortedItems = (offer.items || []).sort((a: any, b: any) => {
+    const sortedItems = (offer.items || []).sort((a: { category: string; sort_order?: number }, b: { category: string; sort_order?: number }) => {
       if (a.category !== b.category) {
         return a.category.localeCompare(b.category);
       }

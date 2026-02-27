@@ -82,7 +82,7 @@ export default function TemplatesManager() {
   const itemsByCategory = useMemo(() => {
     const grouped: Record<string, OfferTemplateItemWithCategory[]> = {};
     for (const item of filteredItems) {
-      const catName = (item.category as any)?.name || 'Bez kategorie';
+      const catName = (item.category as { name?: string } | null)?.name || 'Bez kategorie';
       if (!grouped[catName]) {
         grouped[catName] = [];
       }

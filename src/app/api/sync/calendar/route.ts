@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient, getAuthContext, hasPermission, createServiceRoleClient } from '@/lib/supabase/server';
 import { fetchCalendarEvents } from '@/lib/google/calendar';
 import { apiError } from '@/lib/api-response';
+import { env } from '@/lib/env';
 
 /**
  * POST /api/sync/calendar
@@ -150,7 +151,7 @@ export async function POST(request: NextRequest) {
         const { error } = await serviceClient.from('events').upsert(
           {
             google_event_id: calEvent.id,
-            google_calendar_id: process.env.GOOGLE_CALENDAR_ID || 'primary',
+            google_calendar_id: env.GOOGLE_CALENDAR_ID,
             title: calEvent.summary,
             description: calEvent.description || null,
             location: calEvent.location || null,

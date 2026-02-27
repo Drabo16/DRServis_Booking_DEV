@@ -133,8 +133,8 @@ export async function POST(request: NextRequest) {
         quantity_available: Math.max(0, item.quantity_total - quantityReserved),
         conflicting_reservations: itemReservations.map((r) => ({
           reservation_id: r.id,
-          event_title: (r.event as any)?.title || null,
-          event_id: (r.event as any)?.id || null,
+          event_title: (r.event as { title?: string } | null)?.title || null,
+          event_id: (r.event as { id?: string } | null)?.id || null,
           quantity: r.quantity,
           start_date: r.start_date,
           end_date: r.end_date,
@@ -180,7 +180,7 @@ export async function GET(request: NextRequest) {
   const category_id = searchParams.get('category_id');
 
   // Convert to POST request internally
-  const body: any = { start_date, end_date };
+  const body: Record<string, unknown> = { start_date, end_date };
   if (item_id) body.item_ids = [item_id];
   if (category_id) body.category_id = category_id;
 

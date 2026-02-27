@@ -1,7 +1,8 @@
 import { google } from 'googleapis';
 import { getGoogleAuth } from './auth';
+import { env } from '@/lib/env';
 
-const CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID || 'primary';
+const CALENDAR_ID = env.GOOGLE_CALENDAR_ID;
 
 /**
  * Získání Google Calendar API klienta
@@ -102,14 +103,16 @@ export async function addAttendeeToEvent(
     });
 
     return response.data;
-  } catch (error: any) {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    const response = (error as Record<string, unknown>)?.response as Record<string, unknown> | undefined;
     console.error('Error adding attendee to event:', error);
     console.error('Error details:', {
-      message: error?.message,
-      response: error?.response?.data,
-      status: error?.response?.status,
+      message,
+      response: response?.data,
+      status: response?.status,
     });
-    throw new Error(`Failed to add attendee: ${error?.message || 'Unknown error'}`);
+    throw new Error(`Failed to add attendee: ${message}`);
   }
 }
 
@@ -307,14 +310,16 @@ export async function attachDriveFolderToEvent(
     });
 
     return { event: response.data, attachedCount: newAttachments.length };
-  } catch (error: any) {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    const response = (error as Record<string, unknown>)?.response as Record<string, unknown> | undefined;
     console.error('Error attaching Drive folder to event:', error);
     console.error('Error details:', {
-      message: error?.message,
-      response: error?.response?.data,
-      status: error?.response?.status,
+      message,
+      response: response?.data,
+      status: response?.status,
     });
-    throw new Error(`Failed to attach Drive folder: ${error?.message || 'Unknown error'}`);
+    throw new Error(`Failed to attach Drive folder: ${message}`);
   }
 }
 
@@ -374,19 +379,21 @@ export async function removeDriveFolderFromEvent(
 
     console.log('[Calendar] Drive folder attachment removed from calendar event');
     return response.data;
-  } catch (error: any) {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    const response = (error as Record<string, unknown>)?.response as Record<string, unknown> | undefined;
     console.error('[Calendar] Error removing Drive folder from event:', error);
     console.error('[Calendar] Error details:', {
-      message: error?.message,
-      response: error?.response?.data,
-      status: error?.response?.status,
+      message,
+      response: response?.data,
+      status: response?.status,
     });
     // Pokud event neexistuje nebo jiná chyba, jen logujeme
-    if (error?.response?.status === 404) {
+    if (response?.status === 404) {
       console.log('[Calendar] Calendar event not found, skipping attachment removal');
       return null;
     }
-    throw new Error(`Failed to remove Drive folder attachment: ${error?.message || 'Unknown error'}`);
+    throw new Error(`Failed to remove Drive folder attachment: ${message}`);
   }
 }
 
@@ -438,8 +445,9 @@ export async function updateEventDescription(
     });
 
     return response.data;
-  } catch (error: any) {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error updating event description:', error);
-    throw new Error(`Failed to update event description: ${error?.message || 'Unknown error'}`);
+    throw new Error(`Failed to update event description: ${message}`);
   }
 }

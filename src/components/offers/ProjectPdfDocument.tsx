@@ -272,6 +272,7 @@ interface OfferSet {
   offer_number: number;
   year: number;
   discount_percent: number;
+  is_vat_payer: boolean;
   total_equipment: number;
   total_personnel: number;
   total_transport: number;
@@ -301,7 +302,7 @@ interface OfferSetItem {
 
 interface ProjectPdfDocumentProps {
   project: OfferSet;
-  offers: OfferWithItems[];
+  offers: (OfferWithItems & { set_label?: string | null })[];
   directItems?: OfferSetItem[];
   logoBase64?: string;
 }
@@ -477,14 +478,14 @@ export function ProjectPdfDocument({ project, offers, directItems = [], logoBase
             categoryTotals[category] = items.reduce((sum, item) => sum + item.total_price, 0);
           }
 
-          const label = (offer as any).set_label || offer.title;
+          const label = offer.set_label || offer.title;
 
           return (
             <View key={offer.id}>
               {/* Sub-offer header */}
               <View style={styles.subOfferHeader}>
                 <Text style={styles.subOfferTitle}>{label}</Text>
-                {(offer as any).set_label && offer.title !== (offer as any).set_label && (
+                {offer.set_label && offer.title !== offer.set_label && (
                   <Text style={styles.subOfferSubtitle}>{offer.title}</Text>
                 )}
               </View>
@@ -563,7 +564,7 @@ export function ProjectPdfDocument({ project, offers, directItems = [], logoBase
 
         {/* Stages breakdown - only category totals */}
         {offers.map((offer) => {
-          const label = (offer as any).set_label || formatOfferNumber(offer.offer_number, offer.year);
+          const label = offer.set_label || formatOfferNumber(offer.offer_number, offer.year);
           const offerItemsByCategory = groupItemsByCategory(offer.items || []);
 
           return (
@@ -683,13 +684,13 @@ export function ProjectPdfDocument({ project, offers, directItems = [], logoBase
 
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>
-              {(project as any).is_vat_payer !== false ? 'CELKEM BEZ DPH:' : 'CELKOVÁ CENA:'}
+              {project.is_vat_payer !== false ? 'CELKEM BEZ DPH:' : 'CELKOVÁ CENA:'}
             </Text>
             <Text style={styles.totalValue}>{formatCurrency(grandTotal)}</Text>
           </View>
 
           {/* DPH section - only for VAT payers */}
-          {(project as any).is_vat_payer !== false && (
+          {project.is_vat_payer !== false && (
             <>
               <View style={[styles.summaryRow, { marginTop: 6 }]}>
                 <Text style={styles.summaryLabel}>DPH (21%):</Text>

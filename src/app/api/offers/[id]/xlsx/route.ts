@@ -101,7 +101,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     );
 
     const catIdx = (cat: string): number => {
-      const i = OFFER_CATEGORY_ORDER.indexOf(cat as any);
+      const i = (OFFER_CATEGORY_ORDER as readonly string[]).indexOf(cat);
       return i === -1 ? 999 : i;
     };
     activeItems.sort((a, b) => {
@@ -109,18 +109,19 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return d !== 0 ? d : (a.sort_order || 0) - (b.sort_order || 0);
     });
 
-    const offerData = offer as any;
-    const ev = offerData.event;
-    const eventTitle: string = ev?.title || offerData.title || '';
+    const offerData = offer as Record<string, unknown>;
+    const ev = offerData.event as Record<string, unknown> | null;
+    const eventTitle: string = (ev?.title as string) || (offerData.title as string) || '';
 
     // ── Build worksheet ───────────────────────────────────────────────────
     // Columns: A = Položka | B = Počet (ks) | C = Připraveno (empty, for manual checkbox)
     const NUM_COLS = 3;
-    const ws: any = {};
-    const merges: any[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ws: Record<string, any> = {};
+    const merges: Array<{ s: { r: number; c: number }; e: { r: number; c: number } }> = [];
     let r = 0;
 
-    const set = (row: number, col: number, v: any, t: string, s?: any) => {
+    const set = (row: number, col: number, v: string | number, t: string, s?: Record<string, unknown>) => {
       const addr = XLSX.utils.encode_cell({ r: row, c: col });
       ws[addr] = { v, t, ...(s ? { s } : {}) };
     };
