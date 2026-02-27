@@ -39,9 +39,10 @@ import {
 interface OffersListProps {
   onOfferSelect: (id: string) => void;
   isAdmin: boolean;
+  canDuplicate?: boolean;
 }
 
-export default function OffersList({ onOfferSelect, isAdmin }: OffersListProps) {
+export default function OffersList({ onOfferSelect, isAdmin, canDuplicate = false }: OffersListProps) {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -168,6 +169,7 @@ export default function OffersList({ onOfferSelect, isAdmin }: OffersListProps) 
             <SelectItem value="accepted">Přijato</SelectItem>
             <SelectItem value="rejected">Odmítnuto</SelectItem>
             <SelectItem value="expired">Vypršelo</SelectItem>
+            <SelectItem value="cancelled">Storno</SelectItem>
           </SelectContent>
         </Select>
         <Select value={yearFilter} onValueChange={setYearFilter}>
@@ -249,7 +251,7 @@ export default function OffersList({ onOfferSelect, isAdmin }: OffersListProps) 
                       </span>
                     )}
                   </div>
-                  {isAdmin && (
+                  {(isAdmin || canDuplicate) && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                         <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
@@ -264,13 +266,15 @@ export default function OffersList({ onOfferSelect, isAdmin }: OffersListProps) 
                           <Copy className="w-4 h-4 mr-2" />
                           {duplicateOffer.isPending ? 'Duplikuji...' : 'Duplikovat'}
                         </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="text-red-600"
-                          onClick={(e) => handleDelete(offer.id, e)}
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Smazat
-                        </DropdownMenuItem>
+                        {isAdmin && (
+                          <DropdownMenuItem
+                            className="text-red-600"
+                            onClick={(e) => handleDelete(offer.id, e)}
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Smazat
+                          </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   )}

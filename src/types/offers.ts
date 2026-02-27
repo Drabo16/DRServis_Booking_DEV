@@ -37,7 +37,7 @@ export interface OfferTemplateItemWithCategory extends OfferTemplateItem {
 // Offer Types
 // =====================================================
 
-export type OfferStatus = 'draft' | 'sent' | 'accepted' | 'rejected' | 'expired';
+export type OfferStatus = 'draft' | 'sent' | 'accepted' | 'rejected' | 'expired' | 'cancelled';
 
 export interface Offer {
   id: string;
@@ -397,6 +397,7 @@ export const OFFER_STATUS_LABELS: Record<OfferStatus, string> = {
   accepted: 'Přijato',
   rejected: 'Odmítnuto',
   expired: 'Vypršelo',
+  cancelled: 'Storno',
 };
 
 export const OFFER_STATUS_COLORS: Record<OfferStatus, string> = {
@@ -405,4 +406,5 @@ export const OFFER_STATUS_COLORS: Record<OfferStatus, string> = {
   accepted: 'bg-green-100 text-green-700',
   rejected: 'bg-red-100 text-red-700',
   expired: 'bg-amber-100 text-amber-700',
+  cancelled: 'bg-orange-100 text-orange-700',
 };

@@ -209,6 +209,7 @@ export default function OffersMain({ isAdmin }: OffersMainProps) {
           <OffersList
             onOfferSelect={handleOfferSelect}
             isAdmin={isAdmin}
+            canDuplicate={true}
           />
         </TabsContent>
 

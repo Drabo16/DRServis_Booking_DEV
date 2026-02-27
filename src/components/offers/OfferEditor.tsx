@@ -55,6 +55,7 @@ interface OfferData {
   discount_percent: number;
   offer_set_id: string | null;
   set_label: string | null;
+  updated_at: string;
   items: Array<{
     id: string;
     template_item_id: string | null;
@@ -140,6 +141,8 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
   const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
 
   const AUTOSAVE_DELAY = 4000; // 4 seconds - longer delay to batch more changes
+  const SESSION_GAP_MS = 4 * 60 * 60 * 1000; // 4 hours — new session = new version on first save
+  const needsNewVersionRef = useRef(false);
 
   // Keep refs in sync - OPTIMIZED: consolidated into single useEffect
   useEffect(() => {
@@ -481,8 +484,10 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
       setIsDirty(false);
       isDirtyRef.current = false;
 
-      // Save version snapshot on explicit save (not auto-save)
-      if (createVersion) saveVersionSnapshot();
+      // Save version snapshot on explicit save OR on first save of a new session
+      const shouldCreateVersion = createVersion || needsNewVersionRef.current;
+      needsNewVersionRef.current = false;
+      if (shouldCreateVersion) saveVersionSnapshot();
     } catch (e) {
       console.error('Save failed:', e);
     } finally {
@@ -511,6 +516,14 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
 
   // Load versions on mount
   useEffect(() => { loadVersions(); }, [loadVersions]);
+
+  // Detect new session: if last save > SESSION_GAP_MS ago, first autosave creates a new version
+  useEffect(() => {
+    if (!offer?.updated_at) return;
+    if (Date.now() - new Date(offer.updated_at).getTime() > SESSION_GAP_MS) {
+      needsNewVersionRef.current = true;
+    }
+  }, [offer?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // CTRL+S handler - explicit save creates a version
   useEffect(() => {
@@ -1002,6 +1015,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
             <option value="accepted">Přijato</option>
             <option value="rejected">Odmítnuto</option>
             <option value="expired">Vypršelo</option>
+            <option value="cancelled">Storno</option>
           </select>
           <button
             onClick={() => saveChanges(true)}
@@ -1169,9 +1183,9 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
       )}
 
       {/* Table */}
-      <div className="border rounded overflow-hidden text-xs">
+      <div className="border rounded overflow-x-hidden text-xs">
         <table className="w-full">
-          <thead>
+          <thead className="sticky top-0 z-10">
             <tr className="bg-slate-100 text-slate-600">
               <th className="text-left py-1.5 px-2 font-medium">Položka</th>
               <th className="text-center py-1.5 px-1 font-medium w-14">Dny</th>
@@ -1470,7 +1484,11 @@ const ItemRow = memo(function ItemRow({
           min={0.5}
           step={0.5}
           value={item.days}
-          onChange={(e) => onItemChange(index, 'days', parseFloat(e.target.value) || 1)}
+          onChange={(e) => {
+            const raw = e.target.value.replace(',', '.');
+            const val = parseFloat(raw);
+            onItemChange(index, 'days', isNaN(val) || val <= 0 ? 1 : val);
+          }}
           onKeyDown={(e) => onKeyDown(e, index, 'days')}
           onFocus={(e) => e.target.select()}
           className="w-12 h-6 text-center text-xs border rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
