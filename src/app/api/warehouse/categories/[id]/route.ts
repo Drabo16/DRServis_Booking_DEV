@@ -34,7 +34,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     const { data, error } = await supabase
       .from('warehouse_categories')
-      .select('*')
+      .select('id, name, description, color, sort_order, created_at, updated_at')
       .eq('id', id)
       .single();
 

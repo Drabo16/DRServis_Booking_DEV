@@ -60,7 +60,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     const { data: items, error } = await supabase
       .from('offer_set_items')
-      .select('*')
+      .select('id, offer_set_id, template_item_id, name, category, subcategory, unit, unit_price, quantity, days_hours, total_price, sort_order, created_at, updated_at')
       .eq('offer_set_id', id)
       .order('category')
       .order('sort_order');

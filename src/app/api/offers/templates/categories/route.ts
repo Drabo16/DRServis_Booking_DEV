@@ -23,7 +23,7 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from('offer_template_categories')
-      .select('*')
+      .select('id, name, sort_order, created_at, updated_at')
       .order('sort_order', { ascending: true });
 
     if (error) throw error;

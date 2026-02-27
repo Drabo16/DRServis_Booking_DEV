@@ -44,12 +44,12 @@ export async function GET(
       .from('events')
       .select(
         `
-        *,
+        id, google_event_id, google_calendar_id, title, description, location, start_time, end_time, status, drive_folder_url, drive_folder_id, calendar_attachment_synced, html_link, created_by, last_synced_at, created_at, updated_at,
         positions (
-          *,
+          id, event_id, title, role_type, requirements, shift_start, shift_end, created_at, updated_at,
           assignments (
-            *,
-            technician:profiles!assignments_technician_id_fkey (*)
+            id, position_id, event_id, technician_id, attendance_status, response_time, notes, assigned_by, assigned_at, updated_at, start_date, end_date,
+            technician:profiles!assignments_technician_id_fkey (id, auth_user_id, email, full_name, phone, role, specialization, avatar_url, is_active, has_warehouse_access, is_drservis, company, note, created_at, updated_at)
           )
         )
       `

@@ -36,7 +36,7 @@ export async function GET() {
     // Fetch presets with item count
     const { data: presets, error } = await supabase
       .from('offer_presets')
-      .select('*')
+      .select('id, name, description, discount_percent, is_vat_payer, created_by, created_at, updated_at')
       .order('created_at', { ascending: false });
 
     if (error) throw error;

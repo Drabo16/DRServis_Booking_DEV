@@ -29,7 +29,7 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from('warehouse_categories')
-      .select('*')
+      .select('id, name, description, color, sort_order, created_at, updated_at')
       .order('sort_order', { ascending: true })
       .order('name', { ascending: true });
 

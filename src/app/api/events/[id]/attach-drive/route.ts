@@ -41,7 +41,7 @@ export async function POST(
     // Načtení eventu
     const { data: event, error: eventError } = await serviceClient
       .from('events')
-      .select('*')
+      .select('id, google_event_id, google_calendar_id, title, description, location, start_time, end_time, status, drive_folder_url, drive_folder_id, calendar_attachment_synced, html_link, created_by, last_synced_at, created_at, updated_at')
       .eq('id', eventId)
       .single();
 

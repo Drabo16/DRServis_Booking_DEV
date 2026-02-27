@@ -51,7 +51,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const { data: offer, error: offerError } = await supabase
       .from('offers')
       .select(`
-        *,
+        id, offer_number, year, title, event_id, status, valid_until, notes, subtotal_equipment, subtotal_personnel, subtotal_transport, discount_percent, discount_amount, total_amount, is_vat_payer, created_by, created_at, updated_at, offer_set_id, set_label,
         event:events(id, title, start_time, location)
       `)
       .eq('id', id)
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     // Get items
     const { data: items, error: itemsError } = await supabase
       .from('offer_items')
-      .select('*')
+      .select('id, offer_id, category, subcategory, name, days_hours, quantity, unit_price, total_price, sort_order, template_item_id, created_at')
       .eq('offer_id', id)
       .order('sort_order', { ascending: true });
 
@@ -125,7 +125,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
       const { data: items } = await supabase
         .from('offer_items')
-        .select('*')
+        .select('id, offer_id, category, subcategory, name, days_hours, quantity, unit_price, total_price, sort_order, template_item_id, created_at')
         .eq('offer_id', id);
 
       const totals = calculateOfferTotals(items || []);
@@ -212,7 +212,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       .update(updateData)
       .eq('id', id)
       .select(`
-        *,
+        id, offer_number, year, title, event_id, status, valid_until, notes, subtotal_equipment, subtotal_personnel, subtotal_transport, discount_percent, discount_amount, total_amount, is_vat_payer, created_by, created_at, updated_at, offer_set_id, set_label,
         event:events(id, title, start_time, location)
       `)
       .single();

@@ -52,7 +52,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Get original offer
     const { data: originalOffer, error: offerError } = await db
       .from('offers')
-      .select('*')
+      .select('id, offer_number, year, title, event_id, status, valid_until, notes, discount_percent, is_vat_payer, created_by')
       .eq('id', id)
       .single();
 
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Get original items
     const { data: originalItems, error: itemsError } = await db
       .from('offer_items')
-      .select('*')
+      .select('id, offer_id, category, subcategory, name, days_hours, quantity, unit_price, total_price, sort_order, template_item_id')
       .eq('offer_id', id);
 
     if (itemsError) throw itemsError;
@@ -135,7 +135,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       // Recalculate totals
       const { data: items } = await db
         .from('offer_items')
-        .select('*')
+        .select('id, offer_id, category, subcategory, name, days_hours, quantity, unit_price, total_price, sort_order, template_item_id')
         .eq('offer_id', newOffer.id);
 
       const totals = calculateOfferTotals(items || []);
@@ -163,7 +163,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const { data: finalOffer } = await db
       .from('offers')
       .select(`
-        *,
+        id, offer_number, year, title, event_id, status, valid_until, notes, subtotal_equipment, subtotal_personnel, subtotal_transport, discount_percent, discount_amount, total_amount, is_vat_payer, created_by, created_at, updated_at, offer_set_id, set_label,
         event:events(id, title, start_time, location)
       `)
       .eq('id', newOffer.id)

@@ -19,7 +19,7 @@ export async function GET(
     const db = createServiceRoleClient();
     const { data: version, error } = await db
       .from('offer_versions')
-      .select('*')
+      .select('id, offer_id, version_number, title, status, discount_percent, is_vat_payer, notes, items, created_by, created_at')
       .eq('id', versionId)
       .single();
 

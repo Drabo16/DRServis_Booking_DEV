@@ -61,7 +61,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const { data: offerSet, error: setError } = await supabase
       .from('offer_sets')
       .select(`
-        *,
+        id, name, description, event_id, status, valid_until, notes, total_equipment, total_personnel, total_transport, total_discount, total_amount, discount_percent, offer_number, year, is_vat_payer, created_by, created_at, updated_at,
         event:events(id, title, start_time, location)
       `)
       .eq('id', id)
@@ -75,9 +75,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const { data: offers, error: offersError } = await supabase
       .from('offers')
       .select(`
-        *,
+        id, offer_number, year, title, event_id, status, valid_until, notes, subtotal_equipment, subtotal_personnel, subtotal_transport, discount_percent, discount_amount, total_amount, is_vat_payer, created_by, created_at, updated_at, offer_set_id, set_label,
         event:events(id, title, start_time, location),
-        items:offer_items(*)
+        items:offer_items(id, offer_id, category, subcategory, name, days_hours, quantity, unit_price, total_price, sort_order, template_item_id)
       `)
       .eq('offer_set_id', id)
       .order('set_label', { ascending: true });
@@ -91,7 +91,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     try {
       const { data: setItems } = await supabase
         .from('offer_set_items')
-        .select('*')
+        .select('id, offer_set_id, template_item_id, name, category, subcategory, unit, unit_price, quantity, days_hours, total_price, sort_order')
         .eq('offer_set_id', id)
         .order('category')
         .order('sort_order');

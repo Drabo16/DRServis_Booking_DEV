@@ -19,7 +19,7 @@ export async function GET(
 
     const { data: preset, error } = await supabase
       .from('offer_presets')
-      .select('*')
+      .select('id, name, description, discount_percent, is_vat_payer, created_by, created_at, updated_at')
       .eq('id', id)
       .single();
 
@@ -29,7 +29,7 @@ export async function GET(
 
     const { data: items } = await supabase
       .from('offer_preset_items')
-      .select('*')
+      .select('id, preset_id, template_item_id, name, category, subcategory, unit, unit_price, days_hours, quantity, sort_order')
       .eq('preset_id', id)
       .order('sort_order', { ascending: true });
 
@@ -119,13 +119,13 @@ export async function PATCH(
     // Return updated preset with items
     const { data: preset } = await supabase
       .from('offer_presets')
-      .select('*')
+      .select('id, name, description, discount_percent, is_vat_payer, created_by, created_at, updated_at')
       .eq('id', id)
       .single();
 
     const { data: updatedItems } = await supabase
       .from('offer_preset_items')
-      .select('*')
+      .select('id, preset_id, template_item_id, name, category, subcategory, unit, unit_price, days_hours, quantity, sort_order')
       .eq('preset_id', id)
       .order('sort_order', { ascending: true });
 

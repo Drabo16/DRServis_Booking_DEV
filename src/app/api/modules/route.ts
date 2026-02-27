@@ -26,7 +26,7 @@ export async function GET() {
     // Fetch all active modules
     const { data: modules, error } = await supabase
       .from('app_modules')
-      .select('*')
+      .select('code, name, description, icon, route, is_core, is_active, sort_order, created_at')
       .eq('is_active', true)
       .order('sort_order', { ascending: true });
 

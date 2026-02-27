@@ -35,7 +35,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     const { data, error } = await supabase
       .from('offer_items')
-      .select('*')
+      .select('id, offer_id, category, subcategory, name, days_hours, quantity, unit_price, total_price, sort_order, template_item_id, created_at')
       .eq('offer_id', id)
       .order('category')
       .order('sort_order', { ascending: true });
@@ -201,7 +201,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       const itemIds = parsed.data.items.map((item) => item.id);
       const { data: currentItems } = await supabase
         .from('offer_items')
-        .select('*')
+        .select('id, offer_id, category, subcategory, name, days_hours, quantity, unit_price, total_price, sort_order, template_item_id')
         .in('id', itemIds)
         .eq('offer_id', offer_id);
 
@@ -261,7 +261,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     // Get current item
     const { data: currentItem } = await supabase
       .from('offer_items')
-      .select('*')
+      .select('id, offer_id, days_hours, quantity, unit_price, total_price, sort_order')
       .eq('id', item_id)
       .eq('offer_id', offer_id)
       .single();
@@ -352,7 +352,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 async function recalculateOfferTotals(supabase: Awaited<ReturnType<typeof createClient>>, offer_id: string) {
   const { data: items } = await supabase
     .from('offer_items')
-    .select('*')
+    .select('id, offer_id, category, total_price')
     .eq('offer_id', offer_id);
 
   const { data: offer } = await supabase

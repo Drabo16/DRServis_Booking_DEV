@@ -49,7 +49,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     // Supabase relation syntax may not work correctly, so we do it manually
     const { data: set, error } = await supabase
       .from('offer_sets')
-      .select('*')
+      .select('id, name, description, event_id, status, valid_until, notes, total_equipment, total_personnel, total_transport, total_discount, total_amount, discount_percent, offer_number, year, is_vat_payer, created_by, created_at, updated_at')
       .eq('id', id)
       .single();
 
