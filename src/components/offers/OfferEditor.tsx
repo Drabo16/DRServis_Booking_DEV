@@ -1184,14 +1184,21 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
 
       {/* Table */}
       <div className="border rounded text-xs">
-        <table className="w-full">
+        <table className="w-full table-fixed">
+          <colgroup>
+            <col />
+            <col className="w-14" />
+            <col className="w-14" />
+            <col className="w-20" />
+            <col className="w-24" />
+          </colgroup>
           <thead className="sticky -top-4 md:-top-6 z-10 shadow-sm">
             <tr className="bg-slate-100 text-slate-600">
               <th className="text-left py-1.5 px-2 font-medium">Položka</th>
-              <th className="text-center py-1.5 px-1 font-medium w-14">Dny</th>
-              <th className="text-center py-1.5 px-1 font-medium w-14">Ks/km</th>
-              <th className="text-right py-1.5 px-2 font-medium w-20">Kč/j.</th>
-              <th className="text-right py-1.5 px-2 font-medium w-24">Celkem</th>
+              <th className="text-center py-1.5 px-1 font-medium">Dny</th>
+              <th className="text-center py-1.5 px-1 font-medium">Ks/km</th>
+              <th className="text-right py-1.5 px-2 font-medium">Kč/j.</th>
+              <th className="text-right py-1.5 px-2 font-medium">Celkem</th>
             </tr>
           </thead>
           <tbody>
@@ -1468,9 +1475,9 @@ const ItemRow = memo(function ItemRow({
   const hasValue = item.qty > 0;
 
   return (
-    <tr className={`${odd ? 'bg-slate-50' : 'bg-white'} ${!hasValue ? 'text-slate-400' : ''}`}>
-      <td className="py-0.5 px-2">
-        <div className="truncate max-w-[280px]" title={item.name}>
+    <tr className={`${odd ? 'bg-slate-50' : 'bg-white'} ${!hasValue ? 'text-slate-400' : ''} hover:bg-blue-50/70 [&:has(:focus)]:bg-blue-50`}>
+      <td className="py-0.5 px-2 overflow-hidden">
+        <div className="truncate" title={item.name}>
           <span className={hasValue ? 'font-medium' : ''}>{item.name}</span>
           {item.subcategory && (
             <span className="text-slate-400 ml-1">({item.subcategory})</span>
