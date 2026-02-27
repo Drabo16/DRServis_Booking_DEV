@@ -50,7 +50,6 @@ export async function createFolder(folderName: string, parentFolderId?: string) 
           type: 'anyone',
         },
       });
-      console.log(`[Drive] Set public link permission for folder: ${folderId}`);
     } catch (permError) {
       // Na Shared Drive může být omezení na sdílení - to je ok
       console.warn(`[Drive] Could not set public permission (may be Shared Drive restriction): ${permError instanceof Error ? permError.message : permError}`);
@@ -169,13 +168,6 @@ Vygenerováno: ${format(new Date(), 'd. MMMM yyyy HH:mm:ss', { locale: cs })}
 `;
 
   try {
-    console.log('[Drive] Creating info file in folder:', folderId);
-    console.log('[Drive] Content length:', content.length, 'characters');
-
-    // Vytvoříme prázdný Google Doc (nezabírá storage quota)
-    // a pak do něj zapíšeme obsah pomocí Docs API
-    console.log('[Drive] Creating empty Google Doc...');
-
     const response = await drive.files.create({
       requestBody: {
         name: 'info_akce',
@@ -187,7 +179,6 @@ Vygenerováno: ${format(new Date(), 'd. MMMM yyyy HH:mm:ss', { locale: cs })}
     });
 
     const docId = response.data.id!;
-    console.log('[Drive] Empty doc created:', docId);
 
     // Zapíšeme obsah pomocí Google Docs API
     try {
@@ -207,14 +198,10 @@ Vygenerováno: ${format(new Date(), 'd. MMMM yyyy HH:mm:ss', { locale: cs })}
           ],
         },
       });
-      console.log('[Drive] Content written to doc');
     } catch (docsError) {
       console.warn('[Drive] Could not write content to doc:', docsError instanceof Error ? docsError.message : docsError);
       // Doc je vytvořený, jen bez obsahu - to je OK
     }
-
-    console.log('[Drive] API response received:', JSON.stringify(response.data));
-    console.log('[Drive] Text file created successfully with ID:', response.data.id);
 
     // Nastavíme veřejný přístup k souboru
     try {
@@ -226,7 +213,6 @@ Vygenerováno: ${format(new Date(), 'd. MMMM yyyy HH:mm:ss', { locale: cs })}
           type: 'anyone',
         },
       });
-      console.log('[Drive] Public permission set for info file');
     } catch (permError) {
       console.warn('[Drive] Could not set public permission for info file:', permError instanceof Error ? permError.message : permError);
     }
@@ -310,21 +296,15 @@ export async function createEventFolderStructure(
     confirmedTechnicians?: Array<{ name: string; role: string; status: string }>;
   }
 ) {
-  console.log('[Drive] Creating folder structure for:', eventTitle, eventDate);
-
   try {
     // Získáme nebo vytvoříme měsíční složku
-    console.log('[Drive] Getting/creating month folder...');
     const monthFolder = await getOrCreateMonthFolder(eventDate);
-    console.log('[Drive] Month folder:', monthFolder.id, monthFolder.name);
 
     const dateStr = eventDate.toISOString().split('T')[0]; // YYYY-MM-DD
     const mainFolderName = `${dateStr} - ${eventTitle}`;
 
     // Vytvoříme hlavní složku akce v měsíční složce
-    console.log('[Drive] Creating main folder:', mainFolderName);
     const mainFolder = await createFolder(mainFolderName, monthFolder.id);
-    console.log('[Drive] Main folder created:', mainFolder.id);
 
     // INFO SOUBOR DEAKTIVOVÁN
     // Service Account nemá žádnou storage kvótu - nelze vytvářet soubory
@@ -376,7 +356,6 @@ export async function getFolderInfo(folderId: string) {
 
     // Pokud je složka v koši, považujeme ji za neexistující
     if (response.data.trashed) {
-      console.log(`[Drive] Folder ${folderId} is trashed`);
       throw new Error('Folder is trashed');
     }
 
@@ -387,7 +366,6 @@ export async function getFolderInfo(folderId: string) {
     );
 
     if (!hasPublicAccess) {
-      console.log(`[Drive] Folder ${folderId} is not publicly accessible, trying to set permission...`);
       // Zkusíme nastavit veřejné oprávnění
       try {
         await drive.permissions.create({
@@ -398,7 +376,6 @@ export async function getFolderInfo(folderId: string) {
             type: 'anyone',
           },
         });
-        console.log(`[Drive] Public permission set for folder: ${folderId}`);
       } catch (permError) {
         // Pokud se nepodaří nastavit oprávnění, složka není platná pro uživatele
         console.error(`[Drive] Failed to set public permission: ${permError instanceof Error ? permError.message : permError}`);
@@ -494,19 +471,16 @@ export async function deleteFolder(folderId: string) {
   const drive = getDriveClient();
 
   try {
-    console.log(`[Drive] Deleting folder: ${folderId}`);
     await drive.files.delete({
       fileId: folderId,
       supportsAllDrives: true,
     });
-    console.log(`[Drive] Folder deleted successfully: ${folderId}`);
     return { success: true };
   } catch (error) {
     const errObj = error as Record<string, unknown>;
     const response = errObj?.response as Record<string, unknown> | undefined;
     // Pokud složka neexistuje (404), považujeme to za úspěch
     if (errObj?.code === 404 || response?.status === 404) {
-      console.log(`[Drive] Folder not found (already deleted?): ${folderId}`);
       return { success: true, alreadyDeleted: true };
     }
     const message = error instanceof Error ? error.message : 'Unknown error';

@@ -32,8 +32,6 @@ export async function GET(request: NextRequest) {
     // Exchange code for session
     const { data, error: authError } = await supabase.auth.exchangeCodeForSession(code);
 
-    console.log('[OAuth Callback] Raw data type:', typeof data);
-
     if (authError) {
       console.error('[OAuth Callback] Auth error:', authError);
       return NextResponse.redirect(`${requestUrl.origin}/login?error=auth_failed&message=${encodeURIComponent(authError.message)}`);
@@ -42,7 +40,6 @@ export async function GET(request: NextRequest) {
     // Handle case where data might be stringified (Vercel edge case)
     let sessionData = data as { user?: { email?: string; id?: string }; [key: string]: unknown };
     if (typeof data === 'string') {
-      console.log('[OAuth Callback] Data is string, parsing JSON...');
       try {
         sessionData = JSON.parse(data as string);
       } catch (e) {
@@ -58,8 +55,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${requestUrl.origin}/login?error=no_user`);
     }
 
-    console.log('[OAuth Callback] User authenticated:', user.email);
-
     // Use service role client to bypass RLS for profile lookup and linking
     const serviceClient = createServiceRoleClient();
 
@@ -69,8 +64,6 @@ export async function GET(request: NextRequest) {
       .select('id, email, is_active, auth_user_id')
       .eq('email', user.email)
       .single();
-
-    console.log('[OAuth Callback] Profile lookup result:', { profile, profileError });
 
     if (profileError || !profile) {
       console.warn('[OAuth Callback] Profile not found for email:', user.email, profileError);
@@ -85,7 +78,6 @@ export async function GET(request: NextRequest) {
 
     // Link auth.users.id to profile if not already linked (using service role)
     if (!profile.auth_user_id) {
-      console.log('[OAuth Callback] Linking auth_user_id to profile:', user.id);
       const { error: updateError } = await serviceClient
         .from('profiles')
         .update({ auth_user_id: user.id })
@@ -93,12 +85,9 @@ export async function GET(request: NextRequest) {
 
       if (updateError) {
         console.error('[OAuth Callback] Failed to link auth_user_id:', updateError);
-      } else {
-        console.log('[OAuth Callback] Successfully linked auth_user_id');
       }
     }
 
-    console.log('[OAuth Callback] Profile found, redirecting to dashboard');
     // Profile exists and is active → redirect to dashboard
     // Return the response with session cookies attached
     return response;

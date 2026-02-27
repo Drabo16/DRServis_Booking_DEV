@@ -81,7 +81,6 @@ export async function addAttendeeToEvent(
     // Zkontrolujeme, jestli už není přidaný
     const alreadyExists = attendees.some(a => a.email === attendeeEmail);
     if (alreadyExists) {
-      console.log(`Attendee ${attendeeEmail} already exists in event ${eventId}`);
       return event.data;
     }
 
@@ -293,11 +292,8 @@ export async function attachDriveFolderToEvent(
 
     // Pokud nejsou žádné nové přílohy, vrátíme stávající event
     if (newAttachments.length === 0) {
-      console.log('[Calendar] No new attachments to add');
       return { event: event.data, attachedCount: 0 };
     }
-
-    console.log(`[Calendar] Adding ${newAttachments.length} attachments to event`);
 
     // Aktualizujeme event s novými přílohami
     const response = await calendar.events.patch({
@@ -341,31 +337,19 @@ export async function removeDriveFolderFromEvent(
 
     const existingAttachments = event.data.attachments || [];
 
-    console.log('[Calendar] Existing attachments:', JSON.stringify(existingAttachments, null, 2));
-    console.log('[Calendar] Looking for driveFolderId:', driveFolderId);
-
     // Najdeme a odstraníme přílohu - kontrolujeme fileId i fileUrl (obsahuje folder ID)
     const newAttachments = existingAttachments.filter((att) => {
       const matchesFileId = att.fileId === driveFolderId;
       const matchesFileUrl = att.fileUrl?.includes(driveFolderId);
       const shouldRemove = matchesFileId || matchesFileUrl;
 
-      if (shouldRemove) {
-        console.log('[Calendar] Removing attachment:', att.title, att.fileId, att.fileUrl);
-      }
-
       return !shouldRemove;
     });
 
     // Pokud se nic nezměnilo, nic neděláme
     if (newAttachments.length === existingAttachments.length) {
-      console.log('[Calendar] Drive folder attachment not found in event. Attachments:',
-        existingAttachments.map(a => ({ fileId: a.fileId, fileUrl: a.fileUrl, title: a.title }))
-      );
       return event.data;
     }
-
-    console.log('[Calendar] Updating event with', newAttachments.length, 'attachments (was', existingAttachments.length, ')');
 
     // Aktualizujeme event bez přílohy
     const response = await calendar.events.patch({
@@ -377,7 +361,6 @@ export async function removeDriveFolderFromEvent(
       },
     });
 
-    console.log('[Calendar] Drive folder attachment removed from calendar event');
     return response.data;
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
@@ -390,7 +373,6 @@ export async function removeDriveFolderFromEvent(
     });
     // Pokud event neexistuje nebo jiná chyba, jen logujeme
     if (response?.status === 404) {
-      console.log('[Calendar] Calendar event not found, skipping attachment removal');
       return null;
     }
     throw new Error(`Failed to remove Drive folder attachment: ${message}`);

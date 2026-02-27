@@ -17,8 +17,6 @@ export default async function EventDetailPage({
   // V Next.js 14+ jsou params Promise
   const { id } = await params;
 
-  console.log('[EventDetailPage] Loading event:', id);
-
   const supabase = await createClient();
 
   const {
@@ -30,16 +28,12 @@ export default async function EventDetailPage({
     notFound();
   }
 
-  console.log('[EventDetailPage] User:', user.email);
-
   // Načti profil pro kontrolu role
   const { data: profile } = await supabase
     .from('profiles')
     .select('role')
     .eq('auth_user_id', user.id)
     .single();
-
-  console.log('[EventDetailPage] Profile role:', profile?.role);
 
   const isAdmin = profile?.role === 'admin';
 
@@ -71,8 +65,6 @@ export default async function EventDetailPage({
     console.warn('[EventDetailPage] Event not found:', id);
     notFound();
   }
-
-  console.log('[EventDetailPage] Event loaded:', event.title, 'with', event.positions?.length || 0, 'positions');
 
   // Načti všechny aktivní uživatele pro dropdown (mohou být přiřazeni k akcím)
   const { data: allTechnicians } = await supabase

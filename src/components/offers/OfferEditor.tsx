@@ -607,7 +607,6 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
       }
 
       const result = await response.json();
-      console.log('✅ Project assignment saved:', result);
 
       // Invalidate caches immediately
       queryClient.invalidateQueries({ queryKey: ['offerSets'] });

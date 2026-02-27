@@ -106,7 +106,6 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
 
   // Load data
   const loadData = useCallback(async () => {
-    console.log('🔄 Loading project data:', projectId);
     try {
       const [projectRes, itemsRes, templatesRes] = await Promise.all([
         fetch(`/api/offers/sets/${projectId}`, { cache: 'no-store' }),
@@ -118,11 +117,7 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
       const itemsData = await itemsRes.json();
       const templatesData = await templatesRes.json();
 
-      console.log('✅ Project loaded:', {
-        name: projectData.name,
-        offersCount: projectData.offers?.length || 0,
-        offers: projectData.offers?.map((o: { offer_number: number; year: number }) => `${o.offer_number}/${o.year}`) || []
-      });
+
 
       setProject(projectData);
       setDirectItems(itemsData || []);
@@ -143,14 +138,8 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
     // Listen for offer set updates from other components
     const handleOfferSetUpdate = (e: Event) => {
       const customEvent = e as CustomEvent;
-      console.log('📨 ProjectEditor received event:', {
-        eventSetId: customEvent.detail?.setId,
-        myProjectId: projectId,
-        willReload: customEvent.detail?.setId === projectId
-      });
 
       if (customEvent.detail?.setId === projectId) {
-        console.log('🔄 Reloading project data...');
         loadData();
       }
     };
@@ -230,7 +219,7 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
   }, [projectId, project, isDirty, saveChanges]);
 
   const handleAddItem = useCallback(async (templateId: string) => {
-    console.log('📦 Adding item from template:', templateId);
+
     try {
       const res = await fetch(`/api/offers/sets/${projectId}/items`, {
         method: 'POST',
@@ -246,7 +235,7 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
       }
 
       const data = await res.json();
-      console.log('✅ Item added:', data);
+
 
       if (data.item) {
         setDirectItems(prev => [...prev, data.item]);
@@ -265,7 +254,7 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
   const handleAddMultipleItems = useCallback(async () => {
     if (selectedTemplateIds.size === 0) return;
 
-    console.log('📦 Adding multiple items:', Array.from(selectedTemplateIds));
+
     try {
       // Prepare items array for batch insert
       const itemsToAdd = Array.from(selectedTemplateIds).map(templateId => {
@@ -297,7 +286,7 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
       }
 
       const data = await res.json();
-      console.log('✅ Items added:', data);
+
 
       if (data.items && Array.isArray(data.items)) {
         setDirectItems(prev => [...prev, ...data.items]);
@@ -338,7 +327,7 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
   const handleAddCustomItem = useCallback(async () => {
     if (!customItemName.trim()) return;
 
-    console.log('🎨 Adding custom item:', customItemName);
+
     try {
       const res = await fetch(`/api/offers/sets/${projectId}/items`, {
         method: 'POST',
@@ -360,7 +349,7 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
       }
 
       const data = await res.json();
-      console.log('✅ Custom item added:', data);
+
 
       if (data.item) {
         setDirectItems(prev => [...prev, data.item]);
@@ -376,7 +365,7 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
   }, [projectId, customItemName, customItemCategory, customItemPrice, queryClient]);
 
   const handleDeleteItem = useCallback(async (itemId: string) => {
-    console.log('🗑️ Deleting item:', itemId);
+
     setDirectItems(prev => prev.filter(item => item.id !== itemId));
     try {
       const res = await fetch(`/api/offers/sets/${projectId}/items?item_id=${itemId}`, { method: 'DELETE' });
@@ -384,7 +373,7 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
         const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
         console.error('❌ Delete item failed:', res.status, errorData);
       } else {
-        console.log('✅ Item deleted');
+
       }
       queryClient.invalidateQueries({ queryKey: ['offerSets'] });
     } catch (e) {

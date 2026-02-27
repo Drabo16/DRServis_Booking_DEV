@@ -32,13 +32,6 @@ export default function EventsClientWrapper({ isAdmin, userId, canSeeAllEvents }
 
   // canSeeAllEvents is now passed from server - no client-side calculation needed
 
-  // DEBUG: Log permissions state to browser console
-  console.log('[DEBUG EventsClientWrapper]', {
-    canSeeAllEventsFromServer: canSeeAllEvents,
-    isAdmin,
-    eventsCount: events.length,
-  });
-
   // Can manage events like an admin (full booking access)
   const hasFullBookingAccess = isAdmin || hasManageEvents || hasManagePositions || hasInvite || hasManageFolders;
 
