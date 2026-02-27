@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { RefreshCw } from 'lucide-react';
+import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 
 interface SyncStatusButtonProps {
@@ -26,17 +27,17 @@ export default function SyncStatusButton({ eventId, onSync, iconOnly = false }: 
       const data = await response.json();
 
       if (response.ok) {
-        alert(`Aktualizováno ${data.updated} statusů`);
+        toast.success(`Aktualizováno ${data.updated} statusů`);
         if (onSync) {
           onSync();
         } else {
           router.refresh();
         }
       } else {
-        alert('Chyba při synchronizaci statusů');
+        toast.error('Chyba při synchronizaci statusů');
       }
     } catch (error) {
-      alert('Chyba při synchronizaci statusů');
+      toast.error('Chyba při synchronizaci statusů');
     } finally {
       setLoading(false);
     }

@@ -35,6 +35,7 @@ import {
 import { getRoleTypeLabel } from '@/lib/utils';
 import type { Event, Position, Assignment, Profile, AttendanceStatus, RoleType } from '@/types';
 import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { eventKeys } from '@/hooks/useEvents';
 
 interface EventWithPositions extends Event {
@@ -193,7 +194,7 @@ export default function InviteResponsesTab({
       await queryClient.invalidateQueries({ queryKey: eventKeys.all });
     } catch (error) {
       console.error('Error replacing technician:', error);
-      alert('Chyba při nahrazování technika');
+      toast.error('Chyba při nahrazování technika');
     } finally {
       setReplacingId(null);
     }

@@ -24,6 +24,7 @@ import {
   FileDown,
   Edit,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   formatOfferNumber,
   formatCurrency,
@@ -153,7 +154,7 @@ export default function OfferSetsManager({ onOfferSelect, onProjectSelect, isAdm
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error('PDF download failed:', error);
-      alert(error instanceof Error ? error.message : 'Nepodařilo se stáhnout PDF');
+      toast.error(error instanceof Error ? error.message : 'Nepodařilo se stáhnout PDF');
     } finally {
       setDownloadingPdfId(null);
     }

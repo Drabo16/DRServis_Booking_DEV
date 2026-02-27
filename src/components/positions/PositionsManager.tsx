@@ -40,6 +40,7 @@ import { format } from 'date-fns';
 import { cs } from 'date-fns/locale';
 import type { Position, Assignment, Profile, RoleType, AttendanceStatus } from '@/types';
 import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { eventKeys } from '@/hooks/useEvents';
 
 interface RoleTypeDB {
@@ -173,7 +174,7 @@ export default function PositionsManager({
       // Invalidate cache to sync all views
       await queryClient.invalidateQueries({ queryKey: eventKeys.all });
     } catch (error) {
-      alert('Chyba při vytváření pozic');
+      toast.error('Chyba při vytváření pozic');
     } finally {
       setLoading(false);
     }
@@ -195,7 +196,7 @@ export default function PositionsManager({
       // Invalidate cache to sync all views
       await queryClient.invalidateQueries({ queryKey: eventKeys.all });
     } catch (error) {
-      alert('Chyba při mazání pozice');
+      toast.error('Chyba při mazání pozice');
     }
   };
 
@@ -245,7 +246,7 @@ export default function PositionsManager({
       // Invalidate cache to sync all views
       await queryClient.invalidateQueries({ queryKey: eventKeys.all });
     } catch (error) {
-      alert('Chyba při aktualizaci dat');
+      toast.error('Chyba při aktualizaci dat');
     }
   };
 
@@ -318,7 +319,7 @@ export default function PositionsManager({
         }
         return pos;
       }));
-      alert('Chyba při přiřazování technika');
+      toast.error('Chyba při přiřazování technika');
     }
   };
 
@@ -362,7 +363,7 @@ export default function PositionsManager({
           return pos;
         }));
       }
-      alert('Chyba při odebírání přiřazení');
+      toast.error('Chyba při odebírání přiřazení');
     }
   };
 
@@ -404,7 +405,7 @@ export default function PositionsManager({
           )
         })));
       }
-      alert('Chyba při aktualizaci statusu');
+      toast.error('Chyba při aktualizaci statusu');
     }
   };
 
@@ -417,12 +418,12 @@ export default function PositionsManager({
       });
 
       if (response.ok) {
-        alert('Pozvánka odeslána!');
+        toast.success('Pozvánka odeslána!');
       } else {
-        alert('Chyba při odesílání pozvánky');
+        toast.error('Chyba při odesílání pozvánky');
       }
     } catch (error) {
-      alert('Chyba při odesílání pozvánky');
+      toast.error('Chyba při odesílání pozvánky');
     }
   };
 

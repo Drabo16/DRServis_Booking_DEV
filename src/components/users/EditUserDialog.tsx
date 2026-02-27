@@ -27,6 +27,7 @@ import {
   ROLE_DESCRIPTIONS,
   ROLE_PRESETS,
 } from '@/types';
+import { toast } from 'sonner';
 import { useUserPermissions, useUpdateUserPermissions, useMyPermissions } from '@/hooks/usePermissions';
 import { useUpdateUser, useDeleteUser } from '@/hooks/useUsers';
 
@@ -222,7 +223,7 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
         },
       });
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Chyba při ukládání oprávnění');
+      toast.error(error instanceof Error ? error.message : 'Chyba při ukládání oprávnění');
     } finally {
       setPermissionsLoading(false);
     }
@@ -271,7 +272,7 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
 
       setOpen(false);
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Chyba při aktualizaci uživatele');
+      toast.error(error instanceof Error ? error.message : 'Chyba při aktualizaci uživatele');
     }
   };
 
@@ -287,7 +288,7 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
         setOpen(false);
       },
       onError: (error) => {
-        alert(error instanceof Error ? error.message : 'Chyba při mazání uživatele');
+        toast.error(error instanceof Error ? error.message : 'Chyba při mazání uživatele');
       },
     });
   };

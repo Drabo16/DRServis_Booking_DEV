@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { eventKeys } from '@/hooks/useEvents';
 import {
@@ -65,7 +66,7 @@ export default function PositionTable({ positions, eventId }: PositionTableProps
       // Invalidate cache to sync all views
       await queryClient.invalidateQueries({ queryKey: eventKeys.all });
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Chyba při vytváření pozice');
+      toast.error(error instanceof Error ? error.message : 'Chyba při vytváření pozice');
     } finally {
       setLoading(false);
     }
@@ -94,7 +95,7 @@ export default function PositionTable({ positions, eventId }: PositionTableProps
       // Invalidate cache to sync all views
       await queryClient.invalidateQueries({ queryKey: eventKeys.all });
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Chyba při mazání pozice');
+      toast.error(error instanceof Error ? error.message : 'Chyba při mazání pozice');
     }
   };
 

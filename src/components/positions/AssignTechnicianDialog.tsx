@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { useCreateAssignment } from '@/hooks/useAssignments';
 import type { Profile } from '@/types';
@@ -76,7 +77,7 @@ export default function AssignTechnicianDialog({
           setNotes('');
         },
         onError: () => {
-          alert('Chyba při přiřazování technika');
+          toast.error('Chyba při přiřazování technika');
         },
       }
     );

@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Loader2, ArrowLeft, FileDown, Save, Plus, Trash2, ChevronDown, ChevronRight, Share2, Layers } from 'lucide-react';
+import { toast } from 'sonner';
 import { useSaveStatus } from '@/contexts/SaveStatusContext';
 import {
   formatOfferNumber,
@@ -240,7 +241,7 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
         console.error('❌ Add item failed:', res.status, errorData);
-        alert(`Chyba při přidání položky: ${errorData.error || 'Neznámá chyba'}`);
+        toast.error(`Chyba při přidání položky: ${errorData.error || 'Neznámá chyba'}`);
         return;
       }
 
@@ -253,11 +254,11 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
         queryClient.invalidateQueries({ queryKey: ['offerSets'] });
       } else {
         console.error('❌ No item in response:', data);
-        alert('Chyba: položka nebyla vrácena ze serveru');
+        toast.error('Chyba: položka nebyla vrácena ze serveru');
       }
     } catch (e) {
       console.error('❌ Add item exception:', e);
-      alert('Chyba při přidání položky: ' + (e instanceof Error ? e.message : 'Neznámá chyba'));
+      toast.error('Chyba při přidání položky: ' + (e instanceof Error ? e.message : 'Neznámá chyba'));
     }
   }, [projectId, queryClient]);
 
@@ -291,7 +292,7 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
         console.error('❌ Add multiple items failed:', res.status, errorData);
-        alert(`Chyba při přidání položek: ${errorData.error || 'Neznámá chyba'}`);
+        toast.error(`Chyba při přidání položek: ${errorData.error || 'Neznámá chyba'}`);
         return;
       }
 
@@ -305,11 +306,11 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
         queryClient.invalidateQueries({ queryKey: ['offerSets'] });
       } else {
         console.error('❌ No items in response:', data);
-        alert('Chyba: položky nebyly vráceny ze serveru');
+        toast.error('Chyba: položky nebyly vráceny ze serveru');
       }
     } catch (e) {
       console.error('❌ Add multiple items exception:', e);
-      alert('Chyba při přidání položek: ' + (e instanceof Error ? e.message : 'Neznámá chyba'));
+      toast.error('Chyba při přidání položek: ' + (e instanceof Error ? e.message : 'Neznámá chyba'));
     }
   }, [projectId, selectedTemplateIds, templates, queryClient]);
 
@@ -354,7 +355,7 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
         console.error('❌ Add custom item failed:', res.status, errorData);
-        alert(`Chyba při přidání položky: ${errorData.error || 'Neznámá chyba'}`);
+        toast.error(`Chyba při přidání položky: ${errorData.error || 'Neznámá chyba'}`);
         return;
       }
 
@@ -370,7 +371,7 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
       }
     } catch (e) {
       console.error('❌ Add custom item exception:', e);
-      alert('Chyba při přidání položky: ' + (e instanceof Error ? e.message : 'Neznámá chyba'));
+      toast.error('Chyba při přidání položky: ' + (e instanceof Error ? e.message : 'Neznámá chyba'));
     }
   }, [projectId, customItemName, customItemCategory, customItemPrice, queryClient]);
 

@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Plus } from 'lucide-react';
+import { toast } from 'sonner';
 import { ROLE_TYPES } from '@/lib/constants';
 import { useCreatePosition } from '@/hooks/usePositions';
 
@@ -54,7 +55,7 @@ export default function CreatePositionDialog({ eventId }: CreatePositionDialogPr
           setFormData({ title: '', role_type: 'sound', description: '', hourly_rate: '' });
         },
         onError: () => {
-          alert('Chyba při vytváření pozice');
+          toast.error('Chyba při vytváření pozice');
         },
       }
     );

@@ -12,6 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { toast } from 'sonner';
 import { Plus, Trash2, Pencil, Check, X } from 'lucide-react';
 
 interface RoleType {
@@ -34,7 +35,7 @@ export default function RoleTypesManager({ initialRoleTypes }: RoleTypesManagerP
 
   const handleAdd = async () => {
     if (!newRole.value || !newRole.label) {
-      alert('Vyplňte všechna pole');
+      toast.warning('Vyplňte všechna pole');
       return;
     }
 
@@ -57,7 +58,7 @@ export default function RoleTypesManager({ initialRoleTypes }: RoleTypesManagerP
       setNewRole({ value: '', label: '' });
       setIsAdding(false);
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Chyba při vytváření role');
+      toast.error(error instanceof Error ? error.message : 'Chyba při vytváření role');
     } finally {
       setLoading(false);
     }
@@ -65,7 +66,7 @@ export default function RoleTypesManager({ initialRoleTypes }: RoleTypesManagerP
 
   const handleEdit = async (id: string) => {
     if (!editRole.value || !editRole.label) {
-      alert('Vyplňte všechna pole');
+      toast.warning('Vyplňte všechna pole');
       return;
     }
 
@@ -84,7 +85,7 @@ export default function RoleTypesManager({ initialRoleTypes }: RoleTypesManagerP
       setRoleTypes(prev => prev.map(rt => rt.id === id ? data.roleType : rt));
       setEditingId(null);
     } catch (error) {
-      alert('Chyba při aktualizaci role');
+      toast.error('Chyba při aktualizaci role');
     } finally {
       setLoading(false);
     }
@@ -106,7 +107,7 @@ export default function RoleTypesManager({ initialRoleTypes }: RoleTypesManagerP
       // Immediately update local state by removing deleted role
       setRoleTypes(prev => prev.filter(rt => rt.id !== id));
     } catch (error) {
-      alert('Chyba při mazání role');
+      toast.error('Chyba při mazání role');
     } finally {
       setLoading(false);
     }

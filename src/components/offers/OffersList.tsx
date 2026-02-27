@@ -28,6 +28,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { toast } from 'sonner';
 import {
   formatOfferNumber,
   formatCurrency,
@@ -119,7 +120,7 @@ export default function OffersList({ onOfferSelect, isAdmin, canDuplicate = fals
       }
     } catch (error) {
       console.error('Failed to duplicate offer:', error);
-      alert('Při duplikování nastala chyba. Zkontrolujte prosím seznam nabídek — kopie mohla být vytvořena.');
+      toast.error('Při duplikování nastala chyba. Zkontrolujte prosím seznam nabídek — kopie mohla být vytvořena.');
     }
   }, [duplicateOffer, onOfferSelect]);
 

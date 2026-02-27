@@ -9,6 +9,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Plus, Loader2, Check } from 'lucide-react';
+import { toast } from 'sonner';
 import { useCreatePosition } from '@/hooks/usePositions';
 
 interface RoleTypeDB {
@@ -87,7 +88,7 @@ export default function QuickAddPosition({ eventId, variant = 'default', onSucce
       setSelectedRoles(new Set());
       onSuccess?.();
     } catch (error) {
-      alert('Chyba při vytváření pozic');
+      toast.error('Chyba při vytváření pozic');
     } finally {
       setIsAdding(false);
     }

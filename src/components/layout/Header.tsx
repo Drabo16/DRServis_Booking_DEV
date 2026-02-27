@@ -10,6 +10,7 @@ import { useSidebar } from '@/contexts/SidebarContext';
 import { useSaveStatus } from '@/contexts/SaveStatusContext';
 import { useMyPermissions, canPerformAction } from '@/hooks/usePermissions';
 import { eventKeys } from '@/hooks/useEvents';
+import { toast } from 'sonner';
 import type { User } from '@supabase/supabase-js';
 import type { Profile } from '@/types';
 
@@ -56,12 +57,12 @@ export default function Header({ user, profile }: HeaderProps) {
         // Invalidate React Query cache to immediately show new events
         await queryClient.invalidateQueries({ queryKey: eventKeys.all });
         router.refresh();
-        alert(`Synchronizace dokončena! Načteno ${data.processed} akcí, smazáno ${data.deleted} zrušených.`);
+        toast.success(`Synchronizace dokončena! Načteno ${data.processed} akcí, smazáno ${data.deleted} zrušených.`);
       } else {
-        alert('Chyba při synchronizaci');
+        toast.error('Chyba při synchronizaci');
       }
     } catch (error) {
-      alert('Chyba při synchronizaci');
+      toast.error('Chyba při synchronizaci');
     } finally {
       setSyncing(false);
     }

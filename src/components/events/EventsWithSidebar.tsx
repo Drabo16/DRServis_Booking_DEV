@@ -18,6 +18,7 @@ import EventDetailPanel from './EventDetailPanel';
 import type { Event, Profile } from '@/types';
 import { eventKeys } from '@/hooks/useEvents';
 import { Loader2, Filter, X, FolderPlus, Link2, RefreshCw, Trash2, MoreHorizontal, History, CalendarDays, Search } from 'lucide-react';
+import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 
 // Lazy load heavy components for better initial load time
@@ -171,7 +172,7 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
     });
 
     if (eventsWithoutFolder.length === 0) {
-      alert('Všechny vybrané akce již mají Drive složku.');
+      toast.info('Všechny vybrané akce již mají Drive složku.');
       return;
     }
 
@@ -191,7 +192,7 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
 
     setIsProcessing(false);
     queryClient.invalidateQueries({ queryKey: eventKeys.list() });
-    alert(`Úspěšně vytvořeno ${successCount}/${eventsWithoutFolder.length} složek.`);
+    toast.success(`Úspěšně vytvořeno ${successCount}/${eventsWithoutFolder.length} složek.`);
     setSelectedEvents(new Set());
   };
 
@@ -207,7 +208,7 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
     });
 
     if (eligibleEvents.length === 0) {
-      alert('Žádné vybrané akce nemají Drive složku nebo nejsou synchronizovány s kalendářem.');
+      toast.info('Žádné vybrané akce nemají Drive složku nebo nejsou synchronizovány s kalendářem.');
       return;
     }
 
@@ -227,7 +228,7 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
 
     setIsProcessing(false);
     queryClient.invalidateQueries({ queryKey: eventKeys.list() });
-    alert(`Úspěšně připojeno ${successCount}/${eligibleEvents.length} příloh.`);
+    toast.success(`Úspěšně připojeno ${successCount}/${eligibleEvents.length} příloh.`);
     setSelectedEvents(new Set());
   };
 
@@ -239,11 +240,11 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
       if (res.ok) {
         const data = await res.json();
         queryClient.invalidateQueries({ queryKey: eventKeys.list() });
-        alert(`Ověřeno ${data.validated} složek, odstraněno ${data.invalidated} neplatných odkazů.`);
+        toast.success(`Ověřeno ${data.validated} složek, odstraněno ${data.invalidated} neplatných odkazů.`);
       }
     } catch (error) {
       console.error('Error validating drive folders:', error);
-      alert('Chyba při ověřování složek');
+      toast.error('Chyba při ověřování složek');
     } finally {
       setIsValidatingDrive(false);
     }
@@ -259,7 +260,7 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
     });
 
     if (eventsWithFolder.length === 0) {
-      alert('Žádné vybrané akce nemají Drive složku.');
+      toast.info('Žádné vybrané akce nemají Drive složku.');
       return;
     }
 
@@ -279,7 +280,7 @@ export default function EventsWithSidebar({ events, isAdmin, userId, allTechnici
 
     setIsProcessing(false);
     queryClient.invalidateQueries({ queryKey: eventKeys.list() });
-    alert(`Úspěšně smazáno ${successCount}/${eventsWithFolder.length} složek.`);
+    toast.success(`Úspěšně smazáno ${successCount}/${eventsWithFolder.length} složek.`);
     setSelectedEvents(new Set());
   };
 

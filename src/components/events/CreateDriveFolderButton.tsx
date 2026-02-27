@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { FolderPlus } from 'lucide-react';
+import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 
 interface CreateDriveFolderButtonProps {
@@ -36,7 +37,7 @@ export default function CreateDriveFolderButton({
       const data = await response.json();
 
       if (response.ok) {
-        alert('Složka úspěšně vytvořena!');
+        toast.success('Složka úspěšně vytvořena!');
         if (onSuccess) {
           onSuccess();
         } else {
@@ -44,11 +45,11 @@ export default function CreateDriveFolderButton({
         }
       } else {
         console.error('Drive folder creation error:', response.status, data);
-        alert(data.message || data.error || `Chyba při vytváření složky (${response.status})`);
+        toast.error(data.message || data.error || `Chyba při vytváření složky (${response.status})`);
       }
     } catch (error) {
       console.error('Drive folder creation exception:', error);
-      alert('Chyba při vytváření složky - zkontrolujte konzoli pro detaily');
+      toast.error('Chyba při vytváření složky - zkontrolujte konzoli pro detaily');
     } finally {
       setLoading(false);
     }

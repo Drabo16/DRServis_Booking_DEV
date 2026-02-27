@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, Search, Package, Trash2, FolderEdit, X } from 'lucide-react';
+import { toast } from 'sonner';
 import type { WarehouseItemWithCategory } from '@/types/warehouse';
 
 interface ItemsListProps {
@@ -77,7 +78,7 @@ export default function ItemsList({ onItemClick, isAdmin, selectedItemId }: Item
       });
       clearSelection();
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Chyba při úpravě');
+      toast.error(error instanceof Error ? error.message : 'Chyba při úpravě');
     }
   }, [bulkCategoryId, selectedIds, bulkUpdate, clearSelection]);
 
@@ -88,7 +89,7 @@ export default function ItemsList({ onItemClick, isAdmin, selectedItemId }: Item
       await bulkDelete.mutateAsync(Array.from(selectedIds));
       clearSelection();
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Chyba při mazání');
+      toast.error(error instanceof Error ? error.message : 'Chyba při mazání');
     }
   }, [selectedIds, bulkDelete, clearSelection]);
 

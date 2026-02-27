@@ -11,6 +11,7 @@ import CalendarView from '@/components/calendar/CalendarView';
 import EventDetailSheet from './EventDetailSheet';
 import { Event } from '@/types';
 import { eventKeys } from '@/hooks/useEvents';
+import { toast } from 'sonner';
 import { FolderPlus, Link2, RefreshCw, Loader2 } from 'lucide-react';
 
 interface EventsTabsProps {
@@ -79,7 +80,7 @@ export default function EventsTabs({ events, isAdmin }: EventsTabsProps) {
     });
 
     if (eventsWithoutFolder.length === 0) {
-      alert('Všechny vybrané akce již mají Drive složku.');
+      toast.info('Všechny vybrané akce již mají Drive složku.');
       return;
     }
 
@@ -99,7 +100,7 @@ export default function EventsTabs({ events, isAdmin }: EventsTabsProps) {
 
     setIsProcessing(false);
     queryClient.invalidateQueries({ queryKey: eventKeys.list() });
-    alert(`Úspěšně vytvořeno ${successCount}/${eventsWithoutFolder.length} složek.`);
+    toast.success(`Úspěšně vytvořeno ${successCount}/${eventsWithoutFolder.length} složek.`);
     setSelectedEvents(new Set());
   };
 
@@ -113,7 +114,7 @@ export default function EventsTabs({ events, isAdmin }: EventsTabsProps) {
     });
 
     if (eligibleEvents.length === 0) {
-      alert('Žádné vybrané akce nemají Drive složku nebo nejsou v kalendáři, nebo už mají přílohu připojenou.');
+      toast.info('Žádné vybrané akce nemají Drive složku nebo nejsou v kalendáři, nebo už mají přílohu připojenou.');
       return;
     }
 
@@ -133,7 +134,7 @@ export default function EventsTabs({ events, isAdmin }: EventsTabsProps) {
 
     setIsProcessing(false);
     queryClient.invalidateQueries({ queryKey: eventKeys.list() });
-    alert(`Úspěšně připojeno ${successCount}/${eligibleEvents.length} příloh.`);
+    toast.success(`Úspěšně připojeno ${successCount}/${eligibleEvents.length} příloh.`);
     setSelectedEvents(new Set());
   };
 
@@ -145,11 +146,11 @@ export default function EventsTabs({ events, isAdmin }: EventsTabsProps) {
       if (res.ok) {
         const data = await res.json();
         queryClient.invalidateQueries({ queryKey: eventKeys.list() });
-        alert(`Ověřeno ${data.validated} složek, odstraněno ${data.invalidated} neplatných odkazů.`);
+        toast.success(`Ověřeno ${data.validated} složek, odstraněno ${data.invalidated} neplatných odkazů.`);
       }
     } catch (error) {
       console.error('Error validating drive folders:', error);
-      alert('Chyba při ověřování složek');
+      toast.error('Chyba při ověřování složek');
     } finally {
       setIsValidatingDrive(false);
     }

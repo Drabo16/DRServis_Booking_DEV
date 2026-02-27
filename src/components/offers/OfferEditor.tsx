@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, ArrowLeft, FileDown, FileSpreadsheet, Save, FolderKanban, BookTemplate, History } from 'lucide-react';
 import { offerKeys } from '@/hooks/useOffers';
 import type { OfferPresetWithCount, OfferPresetItem } from '@/types/offers';
+import { toast } from 'sonner';
 import { useSaveStatus } from '@/contexts/SaveStatusContext';
 import {
   formatOfferNumber,
@@ -319,7 +320,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
       isDirtyRef.current = true;
     } catch (e) {
       console.error('Failed to restore version:', e);
-      alert('Nepodařilo se obnovit verzi.');
+      toast.error('Nepodařilo se obnovit verzi.');
     } finally {
       setRestoringVersion(false);
     }
@@ -621,7 +622,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
       }
     } catch (e) {
       console.error('Failed to update offer set:', e);
-      alert('Chyba při přiřazení k projektu: ' + (e instanceof Error ? e.message : 'Neznámá chyba'));
+      toast.error('Chyba při přiřazení k projektu: ' + (e instanceof Error ? e.message : 'Neznámá chyba'));
     } finally {
       setIsSaving(false);
       stopSaving();
@@ -803,10 +804,10 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
       setShowSaveAsPreset(false);
       setPresetName('');
       setPresetDescription('');
-      alert('Šablona byla úspěšně uložena.');
+      toast.success('Šablona byla úspěšně uložena.');
     } catch (e) {
       console.error('Failed to save as preset:', e);
-      alert('Nepodařilo se uložit šablonu. Ujistěte se, že byla spuštěna migrace supabase-offer-presets.sql a fix-offer-preset-rls.sql v Supabase.');
+      toast.error('Nepodařilo se uložit šablonu. Ujistěte se, že byla spuštěna migrace supabase-offer-presets.sql a fix-offer-preset-rls.sql v Supabase.');
     } finally {
       setSavingPreset(false);
     }

@@ -14,6 +14,7 @@ import { getRoleTypeLabel, getAttendanceStatusLabel, getAttendanceStatusColor } 
 import { UserPlus, Mail } from 'lucide-react';
 import type { Position, Assignment, Profile, AttendanceStatus } from '@/types';
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { useSendInvite } from '@/hooks/useEvents';
 import { useUpdateAssignment } from '@/hooks/useAssignments';
 import AssignTechnicianDialog from './AssignTechnicianDialog';
@@ -37,10 +38,10 @@ export default function PositionCard({ position, isAdmin }: PositionCardProps) {
       { eventId: position.event_id, assignmentId },
       {
         onSuccess: () => {
-          alert('Pozvánka odeslána!');
+          toast.success('Pozvánka odeslána!');
         },
         onError: () => {
-          alert('Chyba při odesílání pozvánky');
+          toast.error('Chyba při odesílání pozvánky');
         },
       }
     );
@@ -52,7 +53,7 @@ export default function PositionCard({ position, isAdmin }: PositionCardProps) {
       { id: assignmentId, data: { attendance_status: newStatus } },
       {
         onError: () => {
-          alert('Chyba při aktualizaci statusu');
+          toast.error('Chyba při aktualizaci statusu');
         },
         onSettled: () => {
           setUpdatingStatus(null);

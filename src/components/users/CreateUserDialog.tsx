@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { UserPlus, Crown, UserCog, User, Check, AlertTriangle } from 'lucide-react';
 import { ROLE_TYPES } from '@/lib/constants';
+import { toast } from 'sonner';
 import { UserRole, ROLE_LABELS, ROLE_DESCRIPTIONS } from '@/types';
 import { useCreateUser } from '@/hooks/useUsers';
 import { useMyPermissions } from '@/hooks/usePermissions';
@@ -86,7 +87,7 @@ export default function CreateUserDialog() {
           setOpen(false);
         },
         onError: (error) => {
-          alert(error instanceof Error ? error.message : 'Chyba při vytváření uživatele');
+          toast.error(error instanceof Error ? error.message : 'Chyba při vytváření uživatele');
         },
       }
     );

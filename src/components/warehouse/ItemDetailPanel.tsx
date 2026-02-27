@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, X, Edit2, Trash2, Calendar, TrendingUp } from 'lucide-react';
+import { toast } from 'sonner';
 import ItemFormDialog from './ItemFormDialog';
 
 interface ItemDetailPanelProps {
@@ -27,7 +28,7 @@ export default function ItemDetailPanel({ itemId, onClose, isAdmin }: ItemDetail
       await deleteItem.mutateAsync(itemId);
       onClose();
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Chyba při mazání');
+      toast.error(error instanceof Error ? error.message : 'Chyba při mazání');
     }
   };
 

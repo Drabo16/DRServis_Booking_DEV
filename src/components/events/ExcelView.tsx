@@ -25,6 +25,7 @@ import { format } from 'date-fns';
 import { cs } from 'date-fns/locale';
 import type { Event, Position, Assignment, Profile, RoleType, AttendanceStatus } from '@/types';
 import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { eventKeys } from '@/hooks/useEvents';
 
 interface RoleTypeDB {
@@ -645,7 +646,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
     });
 
     if (eligibleEvents.length === 0) {
-      alert('Žádné vybrané akce nemají Drive složku nebo nejsou v kalendáři, nebo už mají přílohu připojenou.');
+      toast.info('Žádné vybrané akce nemají Drive složku nebo nejsou v kalendáři, nebo už mají přílohu připojenou.');
       return;
     }
 
@@ -671,7 +672,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
       queryClient.invalidateQueries({ queryKey: eventKeys.list() });
     }
 
-    alert(`Úspěšně připojeno ${successCount}/${eligibleEvents.length} příloh.`);
+    toast.success(`Úspěšně připojeno ${successCount}/${eligibleEvents.length} příloh.`);
     setSelectedEvents(new Set());
   };
 
@@ -683,11 +684,11 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
       if (res.ok) {
         const data = await res.json();
         queryClient.invalidateQueries({ queryKey: eventKeys.list() });
-        alert(`Ověřeno ${data.validated} složek, odstraněno ${data.invalidated} neplatných odkazů.`);
+        toast.success(`Ověřeno ${data.validated} složek, odstraněno ${data.invalidated} neplatných odkazů.`);
       }
     } catch (error) {
       console.error('Error validating drive folders:', error);
-      alert('Chyba při ověřování složek');
+      toast.error('Chyba při ověřování složek');
     } finally {
       setIsValidatingDrive(false);
     }
@@ -703,7 +704,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
     });
 
     if (eventsWithFolder.length === 0) {
-      alert('Žádné vybrané akce nemají Drive složku.');
+      toast.info('Žádné vybrané akce nemají Drive složku.');
       return;
     }
 
@@ -726,7 +727,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
     }
 
     queryClient.invalidateQueries({ queryKey: eventKeys.list() });
-    alert(`Úspěšně smazáno ${successCount}/${eventsWithFolder.length} složek.`);
+    toast.success(`Úspěšně smazáno ${successCount}/${eventsWithFolder.length} složek.`);
     setSelectedEvents(new Set());
   };
 
