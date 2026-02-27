@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceRoleClient, getProfileWithFallback, hasBookingAccess } from '@/lib/supabase/server';
 import { attachDriveFolderToEvent } from '@/lib/google/calendar';
 import { listFilesInFolder } from '@/lib/google/drive';
+import { apiError } from '@/lib/api-response';
 
 /**
  * POST /api/events/[id]/attach-drive
@@ -74,7 +75,7 @@ export async function POST(
         mimeType: f.mimeType!,
         webViewLink: f.webViewLink!,
       }));
-      console.log(`[Attach Drive] Found ${folderFiles.length} files in folder`);
+      // Files found in folder
     } catch (listError) {
       console.warn('[Attach Drive] Could not list files in folder:', listError);
       // Pokračujeme bez souborů - připojíme alespoň složku
@@ -103,12 +104,6 @@ export async function POST(
     });
   } catch (error) {
     console.error('Attach Drive folder error:', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to attach Drive folder to calendar',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
+    return apiError('Failed to attach Drive folder to calendar');
   }
 }

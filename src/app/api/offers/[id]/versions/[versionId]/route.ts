@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
+import { apiError } from '@/lib/api-response';
 
 /**
  * GET /api/offers/[id]/versions/[versionId]
@@ -29,6 +30,6 @@ export async function GET(
     return NextResponse.json(version);
   } catch (error) {
     console.error('Error fetching version:', error);
-    return NextResponse.json({ error: 'Failed to fetch version' }, { status: 500 });
+    return apiError('Failed to fetch version');
   }
 }

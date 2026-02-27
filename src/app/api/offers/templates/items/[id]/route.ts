@@ -6,6 +6,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { apiError } from '@/lib/api-response';
+import { updateTemplateItemSchema } from '@/lib/validations/offers';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -32,15 +34,20 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       .single();
 
     if (profile?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     const body = await request.json();
-    const { name, subcategory, default_price, unit, sort_order, is_active, category_id } = body;
+    const parsed = updateTemplateItemSchema.safeParse(body);
+    if (!parsed.success) {
+      return apiError('Invalid template item update data', 400);
+    }
 
-    const updateData: Record<string, any> = {};
+    const { name, subcategory, default_price, unit, sort_order, is_active, category_id } = parsed.data;
+
+    const updateData: Record<string, string | number | boolean | null> = {};
     if (name !== undefined) updateData.name = name;
-    if (subcategory !== undefined) updateData.subcategory = subcategory;
+    if (subcategory !== undefined) updateData.subcategory = subcategory ?? null;
     if (default_price !== undefined) updateData.default_price = default_price;
     if (unit !== undefined) updateData.unit = unit;
     if (sort_order !== undefined) updateData.sort_order = sort_order;
@@ -48,7 +55,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (category_id !== undefined) updateData.category_id = category_id;
 
     if (Object.keys(updateData).length === 0) {
-      return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
+      return apiError('No fields to update', 400);
     }
 
     const { data, error } = await supabase
@@ -66,10 +73,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ success: true, item: data });
   } catch (error) {
     console.error('Template item update error:', error);
-    return NextResponse.json(
-      { error: 'Failed to update template item' },
-      { status: 500 }
-    );
+    return apiError('Failed to update template item');
   }
 }
 
@@ -94,7 +98,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       .single();
 
     if (profile?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     const { error } = await supabase
@@ -107,9 +111,6 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Template item delete error:', error);
-    return NextResponse.json(
-      { error: 'Failed to delete template item' },
-      { status: 500 }
-    );
+    return apiError('Failed to delete template item');
   }
 }

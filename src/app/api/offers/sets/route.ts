@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { apiError } from '@/lib/api-response';
+import { createOfferSetSchema } from '@/lib/validations/offers';
 
 // Helper function to check offers module access
-async function checkOffersAccess(supabase: any, profileId: string): Promise<boolean> {
+async function checkOffersAccess(supabase: Awaited<ReturnType<typeof createClient>>, profileId: string): Promise<boolean> {
   const { data } = await supabase
     .from('user_module_access')
     .select('id')
@@ -30,12 +32,12 @@ export async function GET(request: NextRequest) {
       .single();
 
     if (!profile) {
-      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+      return apiError('Profile not found', 404);
     }
 
     const hasAccess = profile.role === 'admin' || await checkOffersAccess(supabase, profile.id);
     if (!hasAccess) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     // Determine if user can view ALL sets (same rules as offers)
@@ -98,12 +100,9 @@ export async function GET(request: NextRequest) {
     }));
 
     return NextResponse.json(setsWithCount);
-  } catch (error: any) {
-    console.error('❌ Error fetching offer sets:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch offer sets' },
-      { status: 500 }
-    );
+  } catch (error) {
+    console.error('Error fetching offer sets:', error);
+    return apiError('Failed to fetch offer sets');
   }
 }
 
@@ -126,20 +125,20 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (!profile) {
-      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+      return apiError('Profile not found', 404);
     }
 
     const hasAccess = profile.role === 'admin' || await checkOffersAccess(supabase, profile.id);
     if (!hasAccess) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
-    const { name, description, event_id, status, valid_until, notes } = body;
-
-    // Input validation
-    if (!name || name.trim().length === 0) {
-      return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+    const parsed = createOfferSetSchema.safeParse(body);
+    if (!parsed.success) {
+      return apiError('Invalid offer set data', 400);
     }
+
+    const { name, description, event_id, status, valid_until, notes } = parsed.data;
 
     const { data: newSet, error } = await supabase
       .from('offer_sets')
@@ -158,11 +157,8 @@ export async function POST(request: NextRequest) {
     if (error) throw error;
 
     return NextResponse.json(newSet, { status: 201 });
-  } catch (error: any) {
-    console.error('❌ Error creating offer set:', error);
-    return NextResponse.json(
-      { error: 'Failed to create offer set' },
-      { status: 500 }
-    );
+  } catch (error) {
+    console.error('Error creating offer set:', error);
+    return apiError('Failed to create offer set');
   }
 }

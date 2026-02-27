@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/server';
 import { renderToBuffer } from '@react-pdf/renderer';
 import { OfferPdfDocument } from '@/components/offers/OfferPdfDocument';
 import { formatOfferNumber } from '@/types/offers';
+import { apiError } from '@/lib/api-response';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -114,9 +115,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     });
   } catch (error) {
     console.error('PDF generation error:', error);
-    return NextResponse.json(
-      { error: 'Failed to generate PDF' },
-      { status: 500 }
-    );
+    return apiError('Failed to generate PDF');
   }
 }

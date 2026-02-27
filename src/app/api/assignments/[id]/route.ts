@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceRoleClient, getProfileWithFallback, hasBookingAccess } from '@/lib/supabase/server';
+import { updateAssignmentSchema } from '@/lib/validations/assignments';
+import { apiError } from '@/lib/api-response';
 
 /**
  * PATCH /api/assignments/[id]
@@ -18,35 +20,33 @@ export async function PATCH(
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return apiError('Unauthorized', 401);
     }
 
-    // Kontrola přístupu - admin, supervisor, nebo manager
+    // Kontrola pristupu - admin, supervisor, nebo manager
     const profile = await getProfileWithFallback(supabase, user);
     const canManagePositions = await hasBookingAccess(supabase, profile, ['booking_manage_positions']);
 
     if (!canManagePositions) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     // Use service role client for database operations to bypass RLS
     const serviceClient = createServiceRoleClient();
 
     const body = await request.json();
-    const { attendance_status, start_date, end_date } = body;
+    const parsed = updateAssignmentSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return apiError('Validation failed', 400);
+    }
+
+    const { attendance_status, start_date, end_date } = parsed.data;
 
     // Build update object with provided fields
-    const updates: Record<string, any> = {};
+    const updates: Record<string, unknown> = {};
 
     if (attendance_status !== undefined) {
-      // Validate attendance_status
-      const validStatuses = ['pending', 'accepted', 'declined', 'tentative'];
-      if (!validStatuses.includes(attendance_status)) {
-        return NextResponse.json(
-          { error: 'Invalid attendance_status' },
-          { status: 400 }
-        );
-      }
       updates.attendance_status = attendance_status;
     }
 
@@ -59,10 +59,7 @@ export async function PATCH(
     }
 
     if (Object.keys(updates).length === 0) {
-      return NextResponse.json(
-        { error: 'No valid fields to update' },
-        { status: 400 }
-      );
+      return apiError('No valid fields to update', 400);
     }
 
     const { data, error } = await serviceClient
@@ -79,13 +76,7 @@ export async function PATCH(
     return NextResponse.json({ success: true, data });
   } catch (error) {
     console.error('Assignment update error:', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to update assignment',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
+    return apiError('Failed to update assignment');
   }
 }
 
@@ -106,15 +97,15 @@ export async function DELETE(
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return apiError('Unauthorized', 401);
     }
 
-    // Kontrola přístupu - admin, supervisor, nebo manager
+    // Kontrola pristupu - admin, supervisor, nebo manager
     const profile = await getProfileWithFallback(supabase, user);
     const canManagePositions = await hasBookingAccess(supabase, profile, ['booking_manage_positions']);
 
     if (!canManagePositions) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     // Use service role client for database operations to bypass RLS
@@ -133,12 +124,6 @@ export async function DELETE(
     return NextResponse.json({ success: true, message: 'Assignment deleted' });
   } catch (error) {
     console.error('Assignment deletion error:', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to delete assignment',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
+    return apiError('Failed to delete assignment');
   }
 }

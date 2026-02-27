@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getFolderInfo } from '@/lib/google/drive';
+import { apiError } from '@/lib/api-response';
 
 /**
  * POST /api/events/validate-drive
@@ -64,7 +65,7 @@ export async function POST() {
 
         invalidatedCount++;
         results.push({ eventId: event.id, title: event.title, valid: false });
-        console.log(`[Validate Drive] Folder not found for event: ${event.title}`);
+        // Folder not found - DB reference cleared
       }
     }
 
@@ -75,14 +76,8 @@ export async function POST() {
       invalidated: invalidatedCount,
       results,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Validate Drive error:', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to validate Drive folders',
-        message: error?.message || 'Unknown error',
-      },
-      { status: 500 }
-    );
+    return apiError('Failed to validate Drive folders');
   }
 }

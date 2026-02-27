@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createWarehouseCategorySchema } from '@/lib/validations/warehouse';
+import { apiError } from '@/lib/api-response';
 
 /**
  * GET /api/warehouse/categories
@@ -11,7 +13,7 @@ export async function GET() {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return apiError('Unauthorized', 401);
     }
 
     // Check warehouse access
@@ -22,7 +24,7 @@ export async function GET() {
       .single();
 
     if (profile?.role !== 'admin' && !profile?.has_warehouse_access) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     const { data, error } = await supabase
@@ -35,10 +37,7 @@ export async function GET() {
     return NextResponse.json(data || []);
   } catch (error) {
     console.error('Warehouse categories fetch error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch categories' },
-      { status: 500 }
-    );
+    return apiError('Failed to fetch categories');
   }
 }
 
@@ -52,7 +51,7 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return apiError('Unauthorized', 401);
     }
 
     // Only admins can create categories
@@ -63,26 +62,25 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (profile?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     const body = await request.json();
-    const { name, description, color, sort_order } = body;
+    const parsed = createWarehouseCategorySchema.safeParse(body);
 
-    if (!name) {
-      return NextResponse.json(
-        { error: 'Missing required field: name' },
-        { status: 400 }
-      );
+    if (!parsed.success) {
+      return apiError('Validation failed', 400);
     }
+
+    const { name, description, color, sort_order } = parsed.data;
 
     const { data, error } = await supabase
       .from('warehouse_categories')
       .insert({
         name,
         description: description || null,
-        color: color || '#6b7280',
-        sort_order: sort_order || 0,
+        color,
+        sort_order,
       })
       .select()
       .single();
@@ -91,9 +89,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, category: data });
   } catch (error) {
     console.error('Warehouse category creation error:', error);
-    return NextResponse.json(
-      { error: 'Failed to create category' },
-      { status: 500 }
-    );
+    return apiError('Failed to create category');
   }
 }

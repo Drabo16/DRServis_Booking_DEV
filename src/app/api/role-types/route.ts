@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceRoleClient, getProfileWithFallback, hasPermission } from '@/lib/supabase/server';
+import { createRoleTypeSchema } from '@/lib/validations/role-types';
+import { apiError } from '@/lib/api-response';
 
-// GET /api/role-types - Načíst všechny typy rolí (veřejné pro všechny přihlášené)
+// GET /api/role-types - Nacist vsechny typy roli (verejne pro vsechny prihlasene)
 export async function GET() {
   try {
     const supabase = await createClient();
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return apiError('Unauthorized', 401);
     }
 
     const { data, error } = await supabase
@@ -21,14 +23,11 @@ export async function GET() {
     return NextResponse.json({ roleTypes: data || [] });
   } catch (error) {
     console.error('[API] Error fetching role types:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch role types' },
-      { status: 500 }
-    );
+    return apiError('Failed to fetch role types');
   }
 }
 
-// POST /api/role-types - Vytvořit nový typ role (pro uživatele s oprávněním users_settings_manage_roles)
+// POST /api/role-types - Vytvorit novy typ role (pro uzivatele s opravnenim users_settings_manage_roles)
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -39,32 +38,31 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return apiError('Unauthorized', 401);
     }
 
     // Get profile with fallback
     const profile = await getProfileWithFallback(supabase, user);
 
     if (!profile) {
-      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+      return apiError('Profile not found', 404);
     }
 
     // Check permission to manage roles
     const canManageRoles = await hasPermission(profile, 'users_settings_manage_roles');
 
     if (!canManageRoles) {
-      return NextResponse.json({ error: 'Forbidden - nemáte oprávnění spravovat typy rolí' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     const body = await request.json();
-    const { value, label } = body;
+    const parsed = createRoleTypeSchema.safeParse(body);
 
-    if (!value || !label) {
-      return NextResponse.json(
-        { error: 'Value and label are required' },
-        { status: 400 }
-      );
+    if (!parsed.success) {
+      return apiError('Validation failed', 400);
     }
+
+    const { value, label } = parsed.data;
 
     // Use service role client to bypass RLS
     const serviceClient = createServiceRoleClient();
@@ -78,10 +76,7 @@ export async function POST(request: NextRequest) {
     if (error) {
       if (error.code === '23505') {
         // Unique violation
-        return NextResponse.json(
-          { error: 'Role type with this value already exists' },
-          { status: 409 }
-        );
+        return apiError('Role type with this value already exists', 409);
       }
       throw error;
     }
@@ -89,9 +84,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ roleType: data });
   } catch (error) {
     console.error('[API] Error creating role type:', error);
-    return NextResponse.json(
-      { error: 'Failed to create role type' },
-      { status: 500 }
-    );
+    return apiError('Failed to create role type');
   }
 }

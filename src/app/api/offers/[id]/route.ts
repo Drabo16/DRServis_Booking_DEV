@@ -6,6 +6,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { apiError } from '@/lib/api-response';
+import { updateOfferSchema } from '@/lib/validations/offers';
 import {
   calculateOfferTotals,
   calculateDiscountAmount,
@@ -71,11 +73,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ ...offer, items: items || [] });
   } catch (error) {
-    console.error('Offer fetch error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch offer' },
-      { status: 500 }
-    );
+    console.error('[API] Offer fetch error:', error);
+    return apiError('Failed to fetch offer');
   }
 }
 
@@ -109,7 +108,11 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     const body = await request.json();
-    const { title, event_id, status, valid_until, notes, discount_percent, is_vat_payer, offer_set_id, set_label, recalculate } = body;
+    const parsed = updateOfferSchema.safeParse(body);
+    if (!parsed.success) {
+      return apiError('Validation failed', 400);
+    }
+    const { title, event_id, status, valid_until, notes, discount_percent, is_vat_payer, offer_set_id, set_label, recalculate } = parsed.data;
 
     // If recalculate is true, recalculate all totals from items
     if (recalculate) {
@@ -152,12 +155,6 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       if (offer_set_id !== undefined) updateData.offer_set_id = offer_set_id;
       if (set_label !== undefined) updateData.set_label = set_label;
 
-      console.log(`💾 Updating offer ${id}:`, {
-        offer_set_id: updateData.offer_set_id,
-        set_label: updateData.set_label,
-        hasSetId: offer_set_id !== undefined
-      });
-
       const { data, error } = await supabase
         .from('offers')
         .update(updateData)
@@ -166,18 +163,9 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         .single();
 
       if (error) {
-        console.error('❌ Update failed:', error);
-        return NextResponse.json(
-          { error: `Database update failed: ${error.message}` },
-          { status: 500 }
-        );
+        console.error('[API] Offer recalculate update failed:', error);
+        return apiError('Failed to update offer');
       }
-
-      console.log('✅ Offer updated successfully:', {
-        id: data.id,
-        offer_set_id: data.offer_set_id,
-        offer_number: data.offer_number
-      });
 
       return NextResponse.json({ success: true, offer: data });
     }
@@ -233,11 +221,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ success: true, offer: data });
   } catch (error) {
-    console.error('Offer update error:', error);
-    return NextResponse.json(
-      { error: 'Failed to update offer' },
-      { status: 500 }
-    );
+    console.error('[API] Offer update error:', error);
+    return apiError('Failed to update offer');
   }
 }
 
@@ -274,15 +259,12 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Offer delete error:', error);
-    return NextResponse.json(
-      { error: 'Failed to delete offer' },
-      { status: 500 }
-    );
+    console.error('[API] Offer delete error:', error);
+    return apiError('Failed to delete offer');
   }
 }
 
-async function checkOffersAccess(supabase: any, profileId: string): Promise<boolean> {
+async function checkOffersAccess(supabase: Awaited<ReturnType<typeof createClient>>, profileId: string): Promise<boolean> {
   const { data } = await supabase
     .from('user_module_access')
     .select('id')

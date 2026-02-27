@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { apiError } from '@/lib/api-response';
 
 /**
  * GET /api/modules/user/[userId]
@@ -81,12 +82,6 @@ export async function GET(
     return NextResponse.json({ modules, user_role: targetUser.role });
   } catch (error) {
     console.error('User module access fetch error:', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to fetch user module access',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
+    return apiError('Failed to fetch user module access');
   }
 }

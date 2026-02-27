@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { google } from 'googleapis';
 import { getGoogleAuth } from '@/lib/google/auth';
+import { apiError } from '@/lib/api-response';
 
 export async function GET(
   request: NextRequest,
@@ -49,12 +50,6 @@ export async function GET(
     return NextResponse.json({ files: response.data.files || [] });
   } catch (error) {
     console.error('[API] Error fetching Drive files:', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to fetch files',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
+    return apiError('Failed to fetch files');
   }
 }

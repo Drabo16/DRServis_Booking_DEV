@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createKitSchema } from '@/lib/validations/warehouse';
+import { apiError } from '@/lib/api-response';
 
 /**
  * GET /api/warehouse/kits
@@ -11,7 +13,7 @@ export async function GET() {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return apiError('Unauthorized', 401);
     }
 
     // Check warehouse access
@@ -22,7 +24,7 @@ export async function GET() {
       .single();
 
     if (profile?.role !== 'admin' && !profile?.has_warehouse_access) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     const { data, error } = await supabase
@@ -44,10 +46,7 @@ export async function GET() {
     return NextResponse.json(data || []);
   } catch (error) {
     console.error('Warehouse kits fetch error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch kits' },
-      { status: 500 }
-    );
+    return apiError('Failed to fetch kits');
   }
 }
 
@@ -61,7 +60,7 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return apiError('Unauthorized', 401);
     }
 
     // Only admins can create kits
@@ -72,18 +71,17 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (profile?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     const body = await request.json();
-    const { name, description, items } = body;
+    const parsed = createKitSchema.safeParse(body);
 
-    if (!name) {
-      return NextResponse.json(
-        { error: 'Missing required field: name' },
-        { status: 400 }
-      );
+    if (!parsed.success) {
+      return apiError('Validation failed', 400);
     }
+
+    const { name, description, items } = parsed.data;
 
     // Create kit
     const { data: kit, error: kitError } = await supabase
@@ -97,9 +95,9 @@ export async function POST(request: NextRequest) {
 
     if (kitError) throw kitError;
 
-    // Add items to kit if provided
-    if (items && Array.isArray(items) && items.length > 0) {
-      const kitItems = items.map((item: { item_id: string; quantity: number }) => ({
+    // Add items to kit
+    if (items && items.length > 0) {
+      const kitItems = items.map((item) => ({
         kit_id: kit.id,
         item_id: item.item_id,
         quantity: item.quantity || 1,
@@ -138,9 +136,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, kit: completeKit });
   } catch (error) {
     console.error('Warehouse kit creation error:', error);
-    return NextResponse.json(
-      { error: 'Failed to create kit' },
-      { status: 500 }
-    );
+    return apiError('Failed to create kit');
   }
 }

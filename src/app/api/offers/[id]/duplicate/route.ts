@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
+import { apiError } from '@/lib/api-response';
 import {
   calculateOfferTotals,
   calculateDiscountAmount,
@@ -171,10 +172,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ success: true, offer: finalOffer });
   } catch (error) {
     console.error('Offer duplicate error:', error);
-    return NextResponse.json(
-      { error: 'Failed to duplicate offer' },
-      { status: 500 }
-    );
+    return apiError('Failed to duplicate offer');
   }
 }
 

@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, getAuthContext, hasPermission, createServiceRoleClient } from '@/lib/supabase/server';
+import { updateUserSchema } from '@/lib/validations/users';
+import { apiError } from '@/lib/api-response';
 
 /**
  * PATCH /api/users/[id]
- * Aktualizace uživatele (pro uživatele s oprávněním users_settings_manage_users)
+ * Aktualizace uzivatele (pro uzivatele s opravnenim users_settings_manage_users)
  *
  * SECURITY RULES:
  * - Admins/Supervisors: Can edit any user, change roles, edit everything
@@ -24,18 +26,18 @@ export async function PATCH(
     const { user, profile, isSupervisor } = await getAuthContext(supabase);
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return apiError('Unauthorized', 401);
     }
 
     if (!profile) {
-      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+      return apiError('Profile not found', 404);
     }
 
     // Check permission to manage users
     const canManageUsers = await hasPermission(profile, 'users_settings_manage_users', isSupervisor);
 
     if (!canManageUsers) {
-      return NextResponse.json({ error: 'Forbidden - nemáte oprávnění spravovat uživatele' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     // SECURITY: Determine if current user is admin or supervisor
@@ -51,40 +53,37 @@ export async function PATCH(
       .single();
 
     if (targetError || !targetUser) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      return apiError('User not found', 404);
     }
 
     const body = await request.json();
-    const { full_name, email, phone, role, specialization, is_active, is_drservis, company, note } = body;
+    const parsed = updateUserSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return apiError('Validation failed', 400);
+    }
+
+    const { full_name, email, phone, role, specialization, is_active, is_drservis, company, note } = parsed.data;
 
     // SECURITY: Manager restrictions
     if (!isPrivileged) {
       // Managers cannot edit themselves
       if (userId === profile.id) {
-        return NextResponse.json(
-          { error: 'Forbidden - nemůžete editovat svůj vlastní účet' },
-          { status: 403 }
-        );
+        return apiError('Forbidden', 403);
       }
 
       // Managers can only edit technicians
       if (targetUser.role !== 'technician') {
-        return NextResponse.json(
-          { error: 'Forbidden - můžete editovat pouze techniky' },
-          { status: 403 }
-        );
+        return apiError('Forbidden', 403);
       }
 
       // Managers cannot change roles
       if (role !== undefined && role !== targetUser.role) {
-        return NextResponse.json(
-          { error: 'Forbidden - nemáte oprávnění měnit role uživatelů' },
-          { status: 403 }
-        );
+        return apiError('Forbidden', 403);
       }
     }
 
-    // Sestavit update objekt pouze s poskytnutými poli
+    // Sestavit update objekt pouze s poskytnutymi poli
     const updates: Record<string, unknown> = {};
     if (full_name !== undefined) updates.full_name = full_name;
     if (phone !== undefined) updates.phone = phone;
@@ -104,10 +103,10 @@ export async function PATCH(
     }
 
     if (Object.keys(updates).length === 0) {
-      return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
+      return apiError('No fields to update', 400);
     }
 
-    // Aktualizace uživatele
+    // Aktualizace uzivatele
     const { data: updatedUser, error } = await serviceClient
       .from('profiles')
       .update(updates)
@@ -122,19 +121,13 @@ export async function PATCH(
     return NextResponse.json({ success: true, user: updatedUser });
   } catch (error) {
     console.error('User update error:', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to update user',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
+    return apiError('Failed to update user');
   }
 }
 
 /**
  * DELETE /api/users/[id]
- * Smazání uživatele (POUZE pro adminy a supervisory)
+ * Smazani uzivatele (POUZE pro adminy a supervisory)
  *
  * SECURITY: Managers CANNOT delete users - only admins and supervisors can
  */
@@ -150,11 +143,11 @@ export async function DELETE(
     const { user, profile, isSupervisor } = await getAuthContext(supabase);
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return apiError('Unauthorized', 401);
     }
 
     if (!profile) {
-      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+      return apiError('Profile not found', 404);
     }
 
     // SECURITY: Only admins and supervisors can delete users
@@ -162,21 +155,15 @@ export async function DELETE(
     const serviceClient = createServiceRoleClient();
 
     if (!isAdmin && !isSupervisor) {
-      return NextResponse.json(
-        { error: 'Forbidden - pouze administrátoři mohou mazat uživatele' },
-        { status: 403 }
-      );
+      return apiError('Forbidden', 403);
     }
 
-    // Zabránit smazání vlastního účtu
+    // Zabranit smazani vlastniho uctu
     if (userId === profile.id) {
-      return NextResponse.json(
-        { error: 'Cannot delete your own account' },
-        { status: 400 }
-      );
+      return apiError('Cannot delete your own account', 400);
     }
 
-    // Smazání uživatele (cascade smaže i všechny assignments)
+    // Smazani uzivatele (cascade smaze i vsechny assignments)
     const { error } = await serviceClient.from('profiles').delete().eq('id', userId);
 
     if (error) {
@@ -186,12 +173,6 @@ export async function DELETE(
     return NextResponse.json({ success: true, message: 'User deleted successfully' });
   } catch (error) {
     console.error('User deletion error:', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to delete user',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
+    return apiError('Failed to delete user');
   }
 }

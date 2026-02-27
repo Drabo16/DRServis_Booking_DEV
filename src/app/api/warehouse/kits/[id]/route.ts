@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { updateKitSchema } from '@/lib/validations/warehouse';
+import { apiError } from '@/lib/api-response';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -16,7 +18,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return apiError('Unauthorized', 401);
     }
 
     // Check warehouse access
@@ -27,7 +29,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       .single();
 
     if (profile?.role !== 'admin' && !profile?.has_warehouse_access) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     const { data, error } = await supabase
@@ -48,7 +50,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     if (error) {
       if (error.code === 'PGRST116') {
-        return NextResponse.json({ error: 'Kit not found' }, { status: 404 });
+        return apiError('Kit not found', 404);
       }
       throw error;
     }
@@ -56,10 +58,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json(data);
   } catch (error) {
     console.error('Warehouse kit fetch error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch kit' },
-      { status: 500 }
-    );
+    return apiError('Failed to fetch kit');
   }
 }
 
@@ -74,7 +73,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return apiError('Unauthorized', 401);
     }
 
     // Only admins can update kits
@@ -85,11 +84,17 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       .single();
 
     if (profile?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     const body = await request.json();
-    const { name, description, items } = body;
+    const parsed = updateKitSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return apiError('Validation failed', 400);
+    }
+
+    const { name, description, items } = parsed.data;
 
     // Update kit basic info if provided
     if (name !== undefined || description !== undefined) {
@@ -117,7 +122,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
       // Insert new items
       if (items.length > 0) {
-        const kitItems = items.map((item: { item_id: string; quantity: number }) => ({
+        const kitItems = items.map((item) => ({
           kit_id: id,
           item_id: item.item_id,
           quantity: item.quantity || 1,
@@ -150,7 +155,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     if (fetchError) {
       if (fetchError.code === 'PGRST116') {
-        return NextResponse.json({ error: 'Kit not found' }, { status: 404 });
+        return apiError('Kit not found', 404);
       }
       throw fetchError;
     }
@@ -158,10 +163,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ success: true, kit });
   } catch (error) {
     console.error('Warehouse kit update error:', error);
-    return NextResponse.json(
-      { error: 'Failed to update kit' },
-      { status: 500 }
-    );
+    return apiError('Failed to update kit');
   }
 }
 
@@ -176,7 +178,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return apiError('Unauthorized', 401);
     }
 
     // Only admins can delete kits
@@ -187,7 +189,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       .single();
 
     if (profile?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     // Delete kit (cascade will delete kit_items)
@@ -201,9 +203,6 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Warehouse kit delete error:', error);
-    return NextResponse.json(
-      { error: 'Failed to delete kit' },
-      { status: 500 }
-    );
+    return apiError('Failed to delete kit');
   }
 }

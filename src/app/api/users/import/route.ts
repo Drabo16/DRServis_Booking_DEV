@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, getAuthContext, createServiceRoleClient } from '@/lib/supabase/server';
+import { apiError } from '@/lib/api-response';
 import * as XLSX from 'xlsx';
 
 interface ImportedUser {
@@ -261,12 +262,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('User import error:', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to import users',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
+    return apiError('Failed to import users');
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceRoleClient, getProfileWithFallback, hasBookingAccess } from '@/lib/supabase/server';
 import { createEventFolderStructure, updateInfoFile, deleteFolder } from '@/lib/google/drive';
 import { removeDriveFolderFromEvent } from '@/lib/google/calendar';
+import { apiError } from '@/lib/api-response';
 
 /**
  * POST /api/events/[id]/drive
@@ -13,8 +14,6 @@ export async function POST(
 ) {
   try {
     const { id: eventId } = await params;
-    console.log('[Drive API] Creating folder for event:', eventId);
-
     const supabase = await createClient();
 
     // Ověření autentizace
@@ -60,10 +59,8 @@ export async function POST(
       .single();
 
     if (eventError || !event) {
-      console.log('[Drive API] Event not found:', eventId, 'Error:', eventError);
-      return NextResponse.json({ error: 'Event not found', details: eventError?.message }, { status: 404 });
+      return apiError('Event not found', 404);
     }
-    console.log('[Drive API] Found event:', event.title);
 
     // Kontrola, jestli už složka neexistuje
     if (event.drive_folder_id) {
@@ -123,13 +120,7 @@ export async function POST(
     });
   } catch (error) {
     console.error('Drive folder creation error:', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to create Drive folder',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
+    return apiError('Failed to create Drive folder');
   }
 }
 
@@ -226,13 +217,7 @@ export async function PATCH(
     });
   } catch (error) {
     console.error('Drive info update error:', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to update info file',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
+    return apiError('Failed to update info file');
   }
 }
 
@@ -246,8 +231,6 @@ export async function DELETE(
 ) {
   try {
     const { id: eventId } = await params;
-    console.log('[Drive API] Deleting folder for event:', eventId);
-
     const supabase = await createClient();
 
     // Ověření autentizace
@@ -295,7 +278,6 @@ export async function DELETE(
       try {
         await removeDriveFolderFromEvent(event.google_event_id, event.drive_folder_id);
         calendarAttachmentRemoved = true;
-        console.log('[Drive API] Calendar attachment removed');
       } catch (calendarError) {
         console.error('[Drive API] Failed to remove calendar attachment:', calendarError);
         // Pokračujeme dál i když se nepodaří odebrat přílohu z kalendáře
@@ -325,12 +307,6 @@ export async function DELETE(
     });
   } catch (error) {
     console.error('Drive folder deletion error:', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to delete Drive folder',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
+    return apiError('Failed to delete Drive folder');
   }
 }

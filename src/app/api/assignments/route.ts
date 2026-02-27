@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceRoleClient, getProfileWithFallback, hasBookingAccess } from '@/lib/supabase/server';
+import { createAssignmentSchema } from '@/lib/validations/assignments';
+import { apiError } from '@/lib/api-response';
 
 /**
  * POST /api/assignments
- * Vytvoření nového assignment (přiřazení technika na pozici)
+ * Vytvoreni noveho assignment (prirazeni technika na pozici)
  */
 export async function POST(request: NextRequest) {
   try {
@@ -14,64 +16,41 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return apiError('Unauthorized', 401);
     }
 
-    // Kontrola přístupu - admin, supervisor, nebo uživatel s booking_manage_positions
+    // Kontrola pristupu - admin, supervisor, nebo uzivatel s booking_manage_positions
     const profile = await getProfileWithFallback(supabase, user);
     const canManagePositions = await hasBookingAccess(supabase, profile, ['booking_manage_positions']);
 
     if (!canManagePositions) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     // Use service role client for database operations to bypass RLS
     const serviceClient = createServiceRoleClient();
 
     const body = await request.json();
-    const { position_id, technician_id, notes, start_date, end_date } = body;
+    const parsed = createAssignmentSchema.safeParse(body);
 
-    if (!position_id || !technician_id) {
-      return NextResponse.json(
-        { error: 'Missing required fields: position_id and technician_id' },
-        { status: 400 }
-      );
+    if (!parsed.success) {
+      return apiError('Validation failed', 400);
     }
 
-    // Získej event_id z pozice
+    const { position_id, technician_id, notes, start_date, end_date } = parsed.data;
+
+    // Ziskej event_id z pozice
     const { data: position, error: positionError } = await serviceClient
       .from('positions')
       .select('event_id')
       .eq('id', position_id)
       .single();
 
-    if (positionError) {
-      console.error('Position lookup error:', {
-        code: positionError.code,
-        message: positionError.message,
-        details: positionError.details,
-        hint: positionError.hint,
-        position_id,
-      });
-      return NextResponse.json(
-        {
-          error: 'Position lookup failed',
-          details: positionError.message,
-          code: positionError.code,
-        },
-        { status: 404 }
-      );
+    if (positionError || !position) {
+      return apiError('Position not found', 404);
     }
 
-    if (!position) {
-      console.error('Position not found:', { position_id });
-      return NextResponse.json(
-        { error: 'Position not found', position_id },
-        { status: 404 }
-      );
-    }
-
-    // Ověř, že technician existuje
+    // Over, ze technician existuje
     const { data: technicianExists, error: techError } = await serviceClient
       .from('profiles')
       .select('id')
@@ -79,21 +58,10 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (techError || !technicianExists) {
-      console.error('Technician validation error:', {
-        technician_id,
-        error: techError,
-      });
-      return NextResponse.json(
-        {
-          error: 'Technician not found',
-          technician_id,
-          details: techError?.message,
-        },
-        { status: 404 }
-      );
+      return apiError('Technician not found', 404);
     }
 
-    // Zkontroluj duplicitní přiřazení
+    // Zkontroluj duplicitni prirazeni
     const { data: existing } = await serviceClient
       .from('assignments')
       .select('id')
@@ -102,26 +70,8 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     if (existing) {
-      console.warn('Duplicate assignment attempt:', {
-        position_id,
-        technician_id,
-        existing_id: existing.id,
-      });
-      return NextResponse.json(
-        {
-          error: 'Assignment already exists',
-          existing_assignment_id: existing.id,
-        },
-        { status: 409 }
-      );
+      return apiError('Assignment already exists', 409);
     }
-
-    console.log('Creating assignment:', {
-      position_id,
-      event_id: position.event_id,
-      technician_id,
-      assigned_by: profile?.id,
-    });
 
     const { data, error } = await serviceClient
       .from('assignments')
@@ -139,36 +89,13 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('Assignment insert error:', {
-        code: error.code,
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        data: {
-          position_id,
-          event_id: position.event_id,
-          technician_id,
-          assigned_by: profile?.id,
-        },
-      });
+      console.error('Assignment insert error:', error);
       throw error;
     }
 
-    console.log('Assignment created successfully:', { assignment_id: data.id });
     return NextResponse.json({ success: true, assignment: data });
-  } catch (error: any) {
-    console.error('Assignment creation error (catch):', {
-      name: error?.name,
-      message: error?.message,
-      code: error?.code,
-      details: error?.details,
-      hint: error?.hint,
-      stack: error?.stack,
-    });
-
-    return NextResponse.json(
-      { error: 'Failed to create assignment' },
-      { status: 500 }
-    );
+  } catch (error) {
+    console.error('Assignment creation error:', error);
+    return apiError('Failed to create assignment');
   }
 }

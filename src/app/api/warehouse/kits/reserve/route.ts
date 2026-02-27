@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { reserveKitSchema } from '@/lib/validations/warehouse';
+import { apiError } from '@/lib/api-response';
 
 /**
  * POST /api/warehouse/kits/reserve
@@ -12,7 +14,7 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return apiError('Unauthorized', 401);
     }
 
     // Check warehouse access
@@ -23,27 +25,23 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (profile?.role !== 'admin' && !profile?.has_warehouse_access) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     const body = await request.json();
-    const { kit_id, event_id, start_date, end_date, notes } = body;
+    const parsed = reserveKitSchema.safeParse(body);
 
-    if (!kit_id || !start_date || !end_date) {
-      return NextResponse.json(
-        { error: 'Missing required fields: kit_id, start_date, end_date' },
-        { status: 400 }
-      );
+    if (!parsed.success) {
+      return apiError('Validation failed', 400);
     }
 
+    const { kit_id, event_id, start_date, end_date, notes } = parsed.data;
+
     // Validate dates
-    const startDate = new Date(start_date);
-    const endDate = new Date(end_date);
-    if (endDate <= startDate) {
-      return NextResponse.json(
-        { error: 'End date must be after start date' },
-        { status: 400 }
-      );
+    const startDateObj = new Date(start_date);
+    const endDateObj = new Date(end_date);
+    if (endDateObj <= startDateObj) {
+      return apiError('End date must be after start date', 400);
     }
 
     // Get kit items
@@ -59,14 +57,8 @@ export async function POST(request: NextRequest) {
     if (kitError) throw kitError;
 
     if (!kitItems || kitItems.length === 0) {
-      return NextResponse.json(
-        { error: 'Kit has no items or does not exist' },
-        { status: 400 }
-      );
+      return apiError('Kit has no items or does not exist', 400);
     }
-
-    // Check availability for each item (optional, for future)
-    // For now, just create reservations
 
     // Create reservations for each item
     const reservations = kitItems.map(ki => ({
@@ -98,9 +90,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Kit reservation error:', error);
-    return NextResponse.json(
-      { error: 'Failed to reserve kit' },
-      { status: 500 }
-    );
+    return apiError('Failed to reserve kit');
   }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, getAuthContext, hasPermission, createServiceRoleClient } from '@/lib/supabase/server';
 import { fetchCalendarEvents } from '@/lib/google/calendar';
+import { apiError } from '@/lib/api-response';
 
 /**
  * POST /api/sync/calendar
@@ -42,17 +43,6 @@ export async function POST(request: NextRequest) {
       canManageEvents = await hasPermission(profile, 'booking_manage_events', isSupervisor);
     }
 
-    console.log('[Sync] Permission check:', {
-      userId: user.id,
-      email: profile.email,
-      role: profile.role,
-      isAdmin,
-      isManager,
-      isSupervisor,
-      hasFullBookingAccess,
-      canManageEvents,
-    });
-
     if (!canManageEvents) {
       return NextResponse.json({
         error: 'Forbidden - nemáte oprávnění spravovat akce (booking_manage_events)'
@@ -81,18 +71,7 @@ export async function POST(request: NextRequest) {
     const syncLogStart = new Date();
 
     // Načtení eventů z Google Calendar
-    console.log('[Sync] Fetching events from Google Calendar:', {
-      timeMin: timeMin.toISOString(),
-      timeMax: timeMax.toISOString(),
-      daysAhead,
-    });
-
     const calendarEvents = await fetchCalendarEvents(timeMin, timeMax);
-
-    console.log('[Sync] Fetched from Google Calendar:', {
-      count: calendarEvents.length,
-      events: calendarEvents.slice(0, 5).map(e => ({ id: e.id, summary: e.summary })),
-    });
 
     let successCount = 0;
     let errorCount = 0;
@@ -141,7 +120,7 @@ export async function POST(request: NextRequest) {
 
           if (!deleteError) {
             deletedCount++;
-            console.log(`[Sync] Deleted event: ${dbEvent.title} (removed from Google Calendar)`);
+            // Event deleted from DB after removal from Google Calendar
           } else {
             console.error(`[Sync] Error deleting event ${dbEvent.id}:`, deleteError);
           }
@@ -222,12 +201,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Calendar sync error:', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to sync calendar',
-        message: 'Internal server error',
-      },
-      { status: 500 }
-    );
+    return apiError('Failed to sync calendar');
   }
 }

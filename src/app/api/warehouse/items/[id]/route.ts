@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { updateWarehouseItemSchema } from '@/lib/validations/warehouse';
+import { apiError } from '@/lib/api-response';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -16,7 +18,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return apiError('Unauthorized', 401);
     }
 
     // Check warehouse access
@@ -27,7 +29,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       .single();
 
     if (profile?.role !== 'admin' && !profile?.has_warehouse_access) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     const { data, error } = await supabase
@@ -41,7 +43,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     if (error) {
       if (error.code === 'PGRST116') {
-        return NextResponse.json({ error: 'Item not found' }, { status: 404 });
+        return apiError('Item not found', 404);
       }
       throw error;
     }
@@ -49,10 +51,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json(data);
   } catch (error) {
     console.error('Warehouse item fetch error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch item' },
-      { status: 500 }
-    );
+    return apiError('Failed to fetch item');
   }
 }
 
@@ -67,7 +66,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return apiError('Unauthorized', 401);
     }
 
     // Only admins can update items
@@ -78,21 +77,17 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       .single();
 
     if (profile?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     const body = await request.json();
-    const {
-      name,
-      category_id,
-      quantity_total,
-      is_rent,
-      description,
-      sku,
-      unit,
-      notes,
-      image_url
-    } = body;
+    const parsed = updateWarehouseItemSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return apiError('Validation failed', 400);
+    }
+
+    const { name, category_id, quantity_total, is_rent, description, sku, unit, notes, image_url } = parsed.data;
 
     const updateData: Record<string, unknown> = {};
     if (name !== undefined) updateData.name = name;
@@ -106,10 +101,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (image_url !== undefined) updateData.image_url = image_url;
 
     if (Object.keys(updateData).length === 0) {
-      return NextResponse.json(
-        { error: 'No fields to update' },
-        { status: 400 }
-      );
+      return apiError('No fields to update', 400);
     }
 
     // Check for duplicate SKU if changing
@@ -122,10 +114,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         .maybeSingle();
 
       if (existing) {
-        return NextResponse.json(
-          { error: 'Another item with this SKU already exists' },
-          { status: 400 }
-        );
+        return apiError('Another item with this SKU already exists', 400);
       }
     }
 
@@ -141,7 +130,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     if (error) {
       if (error.code === 'PGRST116') {
-        return NextResponse.json({ error: 'Item not found' }, { status: 404 });
+        return apiError('Item not found', 404);
       }
       throw error;
     }
@@ -149,10 +138,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ success: true, item: data });
   } catch (error) {
     console.error('Warehouse item update error:', error);
-    return NextResponse.json(
-      { error: 'Failed to update item' },
-      { status: 500 }
-    );
+    return apiError('Failed to update item');
   }
 }
 
@@ -167,7 +153,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return apiError('Unauthorized', 401);
     }
 
     // Only admins can delete items
@@ -178,7 +164,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       .single();
 
     if (profile?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     // Check if item has reservations
@@ -189,10 +175,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       .limit(1);
 
     if (reservations && reservations.length > 0) {
-      return NextResponse.json(
-        { error: 'Cannot delete item with existing reservations' },
-        { status: 400 }
-      );
+      return apiError('Cannot delete item with existing reservations', 400);
     }
 
     const { error } = await supabase
@@ -205,9 +188,6 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Warehouse item delete error:', error);
-    return NextResponse.json(
-      { error: 'Failed to delete item' },
-      { status: 500 }
-    );
+    return apiError('Failed to delete item');
   }
 }

@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { apiError } from '@/lib/api-response';
 
 /**
  * POST /api/warehouse/availability
@@ -163,12 +164,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Availability check error:', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to check availability',
-      },
-      { status: 500 }
-    );
+    return apiError('Failed to check availability');
   }
 }
 

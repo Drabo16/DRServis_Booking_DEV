@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceRoleClient, getProfileWithFallback, hasBookingAccess } from '@/lib/supabase/server';
 import { addAttendeeToEvent } from '@/lib/google/calendar';
+import { inviteSchema } from '@/lib/validations/events';
+import { apiError } from '@/lib/api-response';
 
 /**
  * POST /api/events/[id]/invite
- * Přidání technika jako attendee do Google Calendar eventu
+ * Pridani technika jako attendee do Google Calendar eventu
  */
 export async function POST(
   request: NextRequest,
@@ -15,37 +17,36 @@ export async function POST(
 
     const supabase = await createClient();
 
-    // Ověření autentizace
+    // Overeni autentizace
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return apiError('Unauthorized', 401);
     }
 
-    // Kontrola přístupu - admin, supervisor, nebo manager
+    // Kontrola pristupu - admin, supervisor, nebo manager
     const profile = await getProfileWithFallback(supabase, user);
     const canInvite = await hasBookingAccess(supabase, profile, ['booking_invite']);
 
     if (!canInvite) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     // Use service role client for database operations to bypass RLS
     const serviceClient = createServiceRoleClient();
 
     const body = await request.json();
-    const { assignmentId } = body;
+    const parsed = inviteSchema.safeParse(body);
 
-    if (!assignmentId) {
-      return NextResponse.json(
-        { error: 'Assignment ID is required' },
-        { status: 400 }
-      );
+    if (!parsed.success) {
+      return apiError('Validation failed', 400);
     }
 
-    // Načtení assignment s detaily
+    const { assignmentId } = parsed.data;
+
+    // Nacteni assignment s detaily
     const { data: assignment, error: assignmentError } = await serviceClient
       .from('assignments')
       .select('*, event:events(*), technician:profiles!assignments_technician_id_fkey(*)')
@@ -53,17 +54,17 @@ export async function POST(
       .single();
 
     if (assignmentError || !assignment) {
-      return NextResponse.json({ error: 'Assignment not found' }, { status: 404 });
+      return apiError('Assignment not found', 404);
     }
 
-    // Přidání attendee do Google Calendar
+    // Pridani attendee do Google Calendar
     await addAttendeeToEvent(
       assignment.event.google_event_id,
       assignment.technician.email,
       assignment.technician.full_name
     );
 
-    // Aktualizace assignment statusu na pending (čeká na odpověď)
+    // Aktualizace assignment statusu na pending (ceka na odpoved)
     await serviceClient
       .from('assignments')
       .update({
@@ -83,16 +84,10 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      message: `Invitation sent to ${assignment.technician.email}`,
+      message: 'Invitation sent successfully',
     });
   } catch (error) {
     console.error('Invite error:', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to send invitation',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
+    return apiError('Failed to send invitation');
   }
 }

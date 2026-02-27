@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createReservationSchema } from '@/lib/validations/warehouse';
+import { apiError } from '@/lib/api-response';
 
 /**
  * GET /api/warehouse/reservations
@@ -11,7 +13,7 @@ export async function GET(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return apiError('Unauthorized', 401);
     }
 
     // Check warehouse access
@@ -22,7 +24,7 @@ export async function GET(request: NextRequest) {
       .single();
 
     if (profile?.role !== 'admin' && !profile?.has_warehouse_access) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     const { searchParams } = new URL(request.url);
@@ -63,16 +65,13 @@ export async function GET(request: NextRequest) {
       query = query.lte('end_date', endDate);
     }
 
-    const { data, error } = await query;
+    const { data, error } = await query.limit(100);
 
     if (error) throw error;
     return NextResponse.json(data || []);
   } catch (error) {
     console.error('Warehouse reservations fetch error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch reservations' },
-      { status: 500 }
-    );
+    return apiError('Failed to fetch reservations');
   }
 }
 
@@ -86,7 +85,7 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return apiError('Unauthorized', 401);
     }
 
     // Check warehouse access
@@ -97,34 +96,23 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (profile?.role !== 'admin' && !profile?.has_warehouse_access) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     const body = await request.json();
-    const { event_id, item_id, quantity, start_date, end_date, notes } = body;
+    const parsed = createReservationSchema.safeParse(body);
 
-    if (!item_id || !quantity || !start_date || !end_date) {
-      return NextResponse.json(
-        { error: 'Missing required fields: item_id, quantity, start_date, end_date' },
-        { status: 400 }
-      );
+    if (!parsed.success) {
+      return apiError('Validation failed', 400);
     }
 
-    if (typeof quantity !== 'number' || quantity <= 0 || !Number.isInteger(quantity)) {
-      return NextResponse.json(
-        { error: 'Quantity must be a positive integer' },
-        { status: 400 }
-      );
-    }
+    const { event_id, item_id, quantity, start_date, end_date, notes } = parsed.data;
 
     // Validate dates
     const startDateTime = new Date(start_date);
     const endDateTime = new Date(end_date);
     if (endDateTime <= startDateTime) {
-      return NextResponse.json(
-        { error: 'End date must be after start date' },
-        { status: 400 }
-      );
+      return apiError('End date must be after start date', 400);
     }
 
     // Verify item exists
@@ -135,18 +123,12 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (itemError || !item) {
-      return NextResponse.json(
-        { error: 'Item not found' },
-        { status: 404 }
-      );
+      return apiError('Item not found', 404);
     }
 
     // Check quantity
     if (quantity > item.quantity_total) {
-      return NextResponse.json(
-        { error: `Requested quantity (${quantity}) exceeds available (${item.quantity_total})` },
-        { status: 400 }
-      );
+      return apiError('Requested quantity exceeds available stock', 400);
     }
 
     // Verify event exists if provided
@@ -158,10 +140,7 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (eventError || !event) {
-        return NextResponse.json(
-          { error: 'Event not found' },
-          { status: 404 }
-        );
+        return apiError('Event not found', 404);
       }
     }
 
@@ -188,9 +167,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, reservation: data });
   } catch (error) {
     console.error('Warehouse reservation creation error:', error);
-    return NextResponse.json(
-      { error: 'Failed to create reservation' },
-      { status: 500 }
-    );
+    return apiError('Failed to create reservation');
   }
 }

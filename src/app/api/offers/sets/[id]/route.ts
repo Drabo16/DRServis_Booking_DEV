@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { apiError } from '@/lib/api-response';
+import { updateOfferSetSchema } from '@/lib/validations/offers';
 
 interface RouteContext {
   params: Promise<{ id: string }>;
 }
 
 // Helper function to check offers module access
-async function checkOffersAccess(supabase: any, profileId: string): Promise<boolean> {
+async function checkOffersAccess(supabase: Awaited<ReturnType<typeof createClient>>, profileId: string): Promise<boolean> {
   const { data } = await supabase
     .from('user_module_access')
     .select('id')
@@ -35,12 +37,12 @@ export async function GET(request: NextRequest, context: RouteContext) {
       .single();
 
     if (!profile) {
-      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+      return apiError('Profile not found', 404);
     }
 
     const hasAccess = profile.role === 'admin' || await checkOffersAccess(supabase, profile.id);
     if (!hasAccess) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     // CRITICAL FIX: Explicitly query offers with offer_set_id filter
@@ -53,7 +55,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     if (error) throw error;
     if (!set) {
-      return NextResponse.json({ error: 'Offer set not found' }, { status: 404 });
+      return apiError('Offer set not found', 404);
     }
 
     // Manually fetch offers for this set
@@ -77,16 +79,13 @@ export async function GET(request: NextRequest, context: RouteContext) {
       .order('created_at', { ascending: false });
 
     if (offersError) {
-      console.error('❌ Error fetching offers for set:', offersError);
+      console.error('Error fetching offers for set:', offersError);
     }
 
     return NextResponse.json({ ...set, offers: offers || [] });
-  } catch (error: any) {
-    console.error('❌ Error fetching offer set:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch offer set' },
-      { status: 500 }
-    );
+  } catch (error) {
+    console.error('Error fetching offer set:', error);
+    return apiError('Failed to fetch offer set');
   }
 }
 
@@ -110,12 +109,12 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       .single();
 
     if (!profile) {
-      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+      return apiError('Profile not found', 404);
     }
 
     const hasAccess = profile.role === 'admin' || await checkOffersAccess(supabase, profile.id);
     if (!hasAccess) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     // SECURITY: Check ownership if not admin
@@ -127,19 +126,24 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         .single();
 
       if (!set || set.created_by !== profile.id) {
-        return NextResponse.json({ error: 'Forbidden - not owner' }, { status: 403 });
+        return apiError('Forbidden', 403);
       }
     }
 
-    const { name, description, event_id, status, valid_until, notes, discount_percent, is_vat_payer } = body;
+    const parsed = updateOfferSetSchema.safeParse(body);
+    if (!parsed.success) {
+      return apiError('Invalid offer set update data', 400);
+    }
 
-    const updateData: Record<string, any> = {};
+    const { name, description, event_id, status, valid_until, notes, discount_percent, is_vat_payer } = parsed.data;
+
+    const updateData: Record<string, string | number | boolean | null> = {};
     if (name !== undefined) updateData.name = name;
-    if (description !== undefined) updateData.description = description;
-    if (event_id !== undefined) updateData.event_id = event_id;
+    if (description !== undefined) updateData.description = description ?? null;
+    if (event_id !== undefined) updateData.event_id = event_id ?? null;
     if (status !== undefined) updateData.status = status;
-    if (valid_until !== undefined) updateData.valid_until = valid_until;
-    if (notes !== undefined) updateData.notes = notes;
+    if (valid_until !== undefined) updateData.valid_until = valid_until ?? null;
+    if (notes !== undefined) updateData.notes = notes ?? null;
     if (discount_percent !== undefined) updateData.discount_percent = discount_percent;
     if (is_vat_payer !== undefined) updateData.is_vat_payer = is_vat_payer;
 
@@ -153,12 +157,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (error) throw error;
 
     return NextResponse.json(updated);
-  } catch (error: any) {
-    console.error('❌ Error updating offer set:', error);
-    return NextResponse.json(
-      { error: 'Failed to update offer set' },
-      { status: 500 }
-    );
+  } catch (error) {
+    console.error('Error updating offer set:', error);
+    return apiError('Failed to update offer set');
   }
 }
 
@@ -181,17 +182,17 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       .single();
 
     if (!profile) {
-      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+      return apiError('Profile not found', 404);
     }
 
     const hasAccess = profile.role === 'admin' || await checkOffersAccess(supabase, profile.id);
     if (!hasAccess) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     // SECURITY: Only admin can delete
     if (profile.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden - admin only' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     // First, unlink any offers from this set
@@ -209,11 +210,8 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     if (error) throw error;
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error('❌ Error deleting offer set:', error);
-    return NextResponse.json(
-      { error: 'Failed to delete offer set' },
-      { status: 500 }
-    );
+  } catch (error) {
+    console.error('Error deleting offer set:', error);
+    return apiError('Failed to delete offer set');
   }
 }

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { apiError } from '@/lib/api-response';
+import { createPresetSchema } from '@/lib/validations/offers';
 
-async function checkOffersAccess(supabase: any, profileId: string): Promise<boolean> {
+async function checkOffersAccess(supabase: Awaited<ReturnType<typeof createClient>>, profileId: string): Promise<boolean> {
   const { data } = await supabase
     .from('user_module_access')
     .select('id')
@@ -26,10 +28,10 @@ export async function GET() {
       .select('id, role')
       .eq('auth_user_id', user.id)
       .single();
-    if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+    if (!profile) return apiError('Profile not found', 404);
 
     const hasAccess = profile.role === 'admin' || await checkOffersAccess(supabase, profile.id);
-    if (!hasAccess) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!hasAccess) return apiError('Forbidden', 403);
 
     // Fetch presets with item count
     const { data: presets, error } = await supabase
@@ -40,7 +42,7 @@ export async function GET() {
     if (error) throw error;
 
     // Get item counts in batch
-    const presetIds = (presets || []).map((p: any) => p.id);
+    const presetIds = (presets || []).map((p: { id: string }) => p.id);
     let itemCounts: Record<string, number> = {};
     if (presetIds.length > 0) {
       const { data: counts } = await supabase
@@ -55,7 +57,7 @@ export async function GET() {
       }
     }
 
-    const result = (presets || []).map((p: any) => ({
+    const result = (presets || []).map((p: { id: string }) => ({
       ...p,
       items_count: itemCounts[p.id] || 0,
     }));
@@ -63,7 +65,7 @@ export async function GET() {
     return NextResponse.json(result);
   } catch (error) {
     console.error('Error fetching presets:', error);
-    return NextResponse.json({ error: 'Failed to fetch presets' }, { status: 500 });
+    return apiError('Failed to fetch presets');
   }
 }
 
@@ -82,15 +84,16 @@ export async function POST(request: NextRequest) {
       .select('id, role')
       .eq('auth_user_id', user.id)
       .single();
-    if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
-    if (profile.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!profile) return apiError('Profile not found', 404);
+    if (profile.role !== 'admin') return apiError('Forbidden', 403);
 
     const body = await request.json();
-    const { name, description } = body;
-
-    if (!name) {
-      return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+    const parsed = createPresetSchema.safeParse(body);
+    if (!parsed.success) {
+      return apiError('Invalid preset data', 400);
     }
+
+    const { name, description } = parsed.data;
 
     const { data: preset, error } = await supabase
       .from('offer_presets')
@@ -107,6 +110,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, preset });
   } catch (error) {
     console.error('Error creating preset:', error);
-    return NextResponse.json({ error: 'Failed to create preset' }, { status: 500 });
+    return apiError('Failed to create preset');
   }
 }

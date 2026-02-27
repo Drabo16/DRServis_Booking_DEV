@@ -5,9 +5,27 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { apiError } from '@/lib/api-response';
+import {
+  createSetItemSchema,
+  createSetItemFromTemplateSchema,
+  bulkAddSetItemsSchema,
+  updateSetItemSchema,
+} from '@/lib/validations/offers';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
+}
+
+// Helper function to check offers module access
+async function checkOffersAccess(supabase: Awaited<ReturnType<typeof createClient>>, profileId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('user_module_access')
+    .select('id')
+    .eq('user_id', profileId)
+    .eq('module_code', 'offers')
+    .single();
+  return !!data;
 }
 
 /**
@@ -32,12 +50,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       .single();
 
     if (!profile) {
-      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+      return apiError('Profile not found', 404);
     }
 
     const hasAccess = profile.role === 'admin' || await checkOffersAccess(supabase, profile.id);
     if (!hasAccess) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     const { data: items, error } = await supabase
@@ -52,10 +70,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json(items || []);
   } catch (error) {
     console.error('Fetch set items error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch items' },
-      { status: 500 }
-    );
+    return apiError('Failed to fetch items');
   }
 }
 
@@ -81,20 +96,24 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       .single();
 
     if (!profile) {
-      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+      return apiError('Profile not found', 404);
     }
 
     const hasAccess = profile.role === 'admin' || await checkOffersAccess(supabase, profile.id);
     if (!hasAccess) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     const body = await request.json();
-    const { items, template_item_id, quantity, days_hours } = body;
 
     // Batch create
-    if (items && Array.isArray(items)) {
-      const toInsert = items.map((item: any) => ({
+    if (body.items && Array.isArray(body.items)) {
+      const parsed = bulkAddSetItemsSchema.safeParse(body);
+      if (!parsed.success) {
+        return apiError('Invalid batch items data', 400);
+      }
+
+      const toInsert = parsed.data.items.map((item) => ({
         offer_set_id: id,
         template_item_id: item.template_item_id || null,
         name: item.name,
@@ -117,29 +136,34 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // Single item from template
-    if (template_item_id) {
+    if (body.template_item_id) {
+      const parsed = createSetItemFromTemplateSchema.safeParse(body);
+      if (!parsed.success) {
+        return apiError('Invalid template item data', 400);
+      }
+
       const { data: template } = await supabase
         .from('offer_template_items')
         .select('*, category:offer_template_categories(name)')
-        .eq('id', template_item_id)
+        .eq('id', parsed.data.template_item_id)
         .single();
 
       if (!template) {
-        return NextResponse.json({ error: 'Template not found' }, { status: 404 });
+        return apiError('Template not found', 404);
       }
 
       const { data, error } = await supabase
         .from('offer_set_items')
         .insert({
           offer_set_id: id,
-          template_item_id,
+          template_item_id: parsed.data.template_item_id,
           name: template.name,
-          category: template.category?.name || 'Ostatní',
+          category: (template.category as { name?: string })?.name || 'Ostatní',
           subcategory: template.subcategory,
           unit: template.unit,
           unit_price: template.default_price,
-          quantity: quantity || 1,
-          days_hours: days_hours || 1,
+          quantity: parsed.data.quantity || 1,
+          days_hours: parsed.data.days_hours || 1,
           sort_order: template.sort_order || 0,
         })
         .select()
@@ -150,36 +174,35 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // Custom item without template (e.g., "Ploty na akci")
-    const { name, category, unit_price, unit, subcategory, sort_order } = body;
-    if (name && category) {
-      const { data, error } = await supabase
-        .from('offer_set_items')
-        .insert({
-          offer_set_id: id,
-          template_item_id: null,
-          name,
-          category,
-          subcategory: subcategory || null,
-          unit: unit || 'ks',
-          unit_price: unit_price || 0,
-          quantity: quantity || 1,
-          days_hours: days_hours || 1,
-          sort_order: sort_order || 999, // Put custom items at the end
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      return NextResponse.json({ success: true, item: data });
+    const parsed = createSetItemSchema.safeParse(body);
+    if (!parsed.success) {
+      return apiError('Invalid item data - name and category are required', 400);
     }
 
-    return NextResponse.json({ error: 'Invalid request - name and category required' }, { status: 400 });
+    const { name, category, unit_price, unit, subcategory, sort_order, quantity, days_hours } = parsed.data;
+
+    const { data, error } = await supabase
+      .from('offer_set_items')
+      .insert({
+        offer_set_id: id,
+        template_item_id: null,
+        name,
+        category,
+        subcategory: subcategory || null,
+        unit: unit || 'ks',
+        unit_price: unit_price || 0,
+        quantity: quantity || 1,
+        days_hours: days_hours || 1,
+        sort_order: sort_order || 999,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return NextResponse.json({ success: true, item: data });
   } catch (error) {
     console.error('Create set item error:', error);
-    return NextResponse.json(
-      { error: 'Failed to create item' },
-      { status: 500 }
-    );
+    return apiError('Failed to create item');
   }
 }
 
@@ -205,22 +228,23 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       .single();
 
     if (!profile) {
-      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+      return apiError('Profile not found', 404);
     }
 
     const hasAccess = profile.role === 'admin' || await checkOffersAccess(supabase, profile.id);
     if (!hasAccess) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     const body = await request.json();
-    const { item_id, quantity, days_hours, unit_price } = body;
-
-    if (!item_id) {
-      return NextResponse.json({ error: 'item_id required' }, { status: 400 });
+    const parsed = updateSetItemSchema.safeParse(body);
+    if (!parsed.success) {
+      return apiError('Invalid update data', 400);
     }
 
-    const updateData: Record<string, any> = { updated_at: new Date().toISOString() };
+    const { item_id, quantity, days_hours, unit_price } = parsed.data;
+
+    const updateData: Record<string, string | number> = { updated_at: new Date().toISOString() };
     if (quantity !== undefined) updateData.quantity = quantity;
     if (days_hours !== undefined) updateData.days_hours = days_hours;
     if (unit_price !== undefined) updateData.unit_price = unit_price;
@@ -238,10 +262,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ success: true, item: data });
   } catch (error) {
     console.error('Update set item error:', error);
-    return NextResponse.json(
-      { error: 'Failed to update item' },
-      { status: 500 }
-    );
+    return apiError('Failed to update item');
   }
 }
 
@@ -267,19 +288,19 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       .single();
 
     if (!profile) {
-      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+      return apiError('Profile not found', 404);
     }
 
     const hasAccess = profile.role === 'admin' || await checkOffersAccess(supabase, profile.id);
     if (!hasAccess) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     const { searchParams } = new URL(request.url);
     const itemId = searchParams.get('item_id');
 
     if (!itemId) {
-      return NextResponse.json({ error: 'item_id required' }, { status: 400 });
+      return apiError('item_id required', 400);
     }
 
     const { error } = await supabase
@@ -293,20 +314,6 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Delete set item error:', error);
-    return NextResponse.json(
-      { error: 'Failed to delete item' },
-      { status: 500 }
-    );
+    return apiError('Failed to delete item');
   }
-}
-
-// Helper function to check offers module access
-async function checkOffersAccess(supabase: any, profileId: string): Promise<boolean> {
-  const { data } = await supabase
-    .from('user_module_access')
-    .select('id')
-    .eq('user_id', profileId)
-    .eq('module_code', 'offers')
-    .single();
-  return !!data;
 }

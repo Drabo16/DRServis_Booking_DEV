@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, getAuthContext, hasPermission, createServiceRoleClient } from '@/lib/supabase/server';
+import { createUserSchema } from '@/lib/validations/users';
+import { apiError } from '@/lib/api-response';
 
 /**
  * GET /api/users
- * Načtení všech uživatelů (pro uživatele s oprávněním users_settings_manage_users)
+ * Naciteni vsech uzivatelu (pro uzivatele s opravnenim users_settings_manage_users)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -12,24 +14,24 @@ export async function GET(request: NextRequest) {
     const { user, profile, isSupervisor } = await getAuthContext(supabase);
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return apiError('Unauthorized', 401);
     }
 
     if (!profile) {
-      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+      return apiError('Profile not found', 404);
     }
 
     // Check permission to manage users
     const canManageUsers = await hasPermission(profile, 'users_settings_manage_users', isSupervisor);
 
     if (!canManageUsers) {
-      return NextResponse.json({ error: 'Forbidden - nemáte oprávnění spravovat uživatele' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     // Use service client to bypass RLS for listing all users
     const serviceClient = createServiceRoleClient();
 
-    // Načtení všech uživatelů
+    // Naciteni vsech uzivatelu
     const { data: users, error } = await serviceClient
       .from('profiles')
       .select('id, auth_user_id, email, full_name, phone, role, specialization, avatar_url, is_active, has_warehouse_access, is_drservis, company, note, created_at, updated_at')
@@ -42,19 +44,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ users });
   } catch (error) {
     console.error('Users fetch error:', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to fetch users',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
+    return apiError('Failed to fetch users');
   }
 }
 
 /**
  * POST /api/users
- * Vytvoření nového uživatele (pro uživatele s oprávněním users_settings_manage_users)
+ * Vytvoreni noveho uzivatele (pro uzivatele s opravnenim users_settings_manage_users)
  */
 export async function POST(request: NextRequest) {
   try {
@@ -63,52 +59,41 @@ export async function POST(request: NextRequest) {
     const { user, profile, isSupervisor } = await getAuthContext(supabase);
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return apiError('Unauthorized', 401);
     }
 
     if (!profile) {
-      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+      return apiError('Profile not found', 404);
     }
 
     // Check permission to manage users
     const canManageUsers = await hasPermission(profile, 'users_settings_manage_users', isSupervisor);
 
     if (!canManageUsers) {
-      return NextResponse.json({ error: 'Forbidden - nemáte oprávnění spravovat uživatele' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     const body = await request.json();
-    const { email, full_name, phone, role, specialization, is_drservis, company, note } = body;
+    const parsed = createUserSchema.safeParse(body);
 
-    // Validace povinných polí
-    if (!email || !full_name || !role) {
-      return NextResponse.json(
-        { error: 'Email, full name, and role are required' },
-        { status: 400 }
-      );
+    if (!parsed.success) {
+      return apiError('Validation failed', 400);
     }
 
-    // Validace email formátu
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return NextResponse.json({ error: 'Invalid email format' }, { status: 400 });
-    }
+    const { email, full_name, phone, role, specialization, is_drservis, company, note } = parsed.data;
 
     // SECURITY: Non-admins (managers with users_settings permission) can only create technicians
     const isAdmin = profile.role === 'admin';
 
     // Only admins and supervisors can create admin or manager roles
     if (!isAdmin && !isSupervisor && (role === 'admin' || role === 'manager')) {
-      return NextResponse.json(
-        { error: 'Forbidden - nemáte oprávnění vytvářet uživatele s rolí admin nebo správce' },
-        { status: 403 }
-      );
+      return apiError('Forbidden', 403);
     }
 
     // Use service client to bypass RLS
     const serviceClient = createServiceRoleClient();
 
-    // Kontrola zda email již neexistuje
+    // Kontrola zda email jiz neexistuje
     const { data: existingUser } = await serviceClient
       .from('profiles')
       .select('id')
@@ -116,26 +101,21 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (existingUser) {
-      return NextResponse.json(
-        { error: 'User with this email already exists' },
-        { status: 409 }
-      );
+      return apiError('User with this email already exists', 409);
     }
 
-    // Vytvoření nového profilu
-    // Note: User se vytvoří v profiles tabulce, ale ne v auth.users
-    // Uživatel se bude moci přihlásit přes Google OAuth pomocí tohoto emailu
+    // Vytvoreni noveho profilu
     const { data: newUser, error } = await serviceClient
       .from('profiles')
       .insert({
-        id: crypto.randomUUID(), // Vygeneruj UUID pro profil
+        id: crypto.randomUUID(),
         email,
         full_name,
         phone: phone || null,
         role,
         specialization: specialization || null,
         is_active: true,
-        is_drservis: is_drservis ?? true,
+        is_drservis: is_drservis,
         company: company || null,
         note: note || null,
       })
@@ -149,12 +129,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, user: newUser }, { status: 201 });
   } catch (error) {
     console.error('User creation error:', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to create user',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
+    return apiError('Failed to create user');
   }
 }

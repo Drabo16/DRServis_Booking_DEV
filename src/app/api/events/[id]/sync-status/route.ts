@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, getProfileWithFallback, hasBookingAccess } from '@/lib/supabase/server';
 import { getAttendeeStatuses } from '@/lib/google/calendar';
+import { apiError } from '@/lib/api-response';
 
 /**
  * POST /api/events/[id]/sync-status
@@ -106,12 +107,6 @@ export async function POST(
     });
   } catch (error) {
     console.error('Status sync error:', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to sync statuses',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
+    return apiError('Failed to sync statuses');
   }
 }

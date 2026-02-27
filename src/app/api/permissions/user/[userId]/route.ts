@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, checkIsSupervisor } from '@/lib/supabase/server';
+import { apiError } from '@/lib/api-response';
 
 interface RouteContext {
   params: Promise<{ userId: string }>;
@@ -100,9 +101,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
     };
 
     return NextResponse.json(response);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error fetching user permissions:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return apiError('Failed to fetch user permissions');
   }
 }
 
@@ -213,8 +214,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     }
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error updating user permissions:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return apiError('Failed to update user permissions');
   }
 }

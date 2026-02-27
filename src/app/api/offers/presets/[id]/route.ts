@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { apiError } from '@/lib/api-response';
+import { updatePresetSchema } from '@/lib/validations/offers';
 
 /**
  * GET /api/offers/presets/[id]
@@ -22,7 +24,7 @@ export async function GET(
       .single();
 
     if (error || !preset) {
-      return NextResponse.json({ error: 'Preset not found' }, { status: 404 });
+      return apiError('Preset not found', 404);
     }
 
     const { data: items } = await supabase
@@ -34,7 +36,7 @@ export async function GET(
     return NextResponse.json({ ...preset, items: items || [] });
   } catch (error) {
     console.error('Error fetching preset:', error);
-    return NextResponse.json({ error: 'Failed to fetch preset' }, { status: 500 });
+    return apiError('Failed to fetch preset');
   }
 }
 
@@ -58,16 +60,21 @@ export async function PATCH(
       .eq('auth_user_id', user.id)
       .single();
     if (!profile || profile.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     const body = await request.json();
-    const { name, description, discount_percent, is_vat_payer, items } = body;
+    const parsed = updatePresetSchema.safeParse(body);
+    if (!parsed.success) {
+      return apiError('Invalid preset update data', 400);
+    }
+
+    const { name, description, discount_percent, is_vat_payer, items } = parsed.data;
 
     // Update preset metadata
-    const updateData: Record<string, any> = { updated_at: new Date().toISOString() };
+    const updateData: Record<string, string | number | boolean> = { updated_at: new Date().toISOString() };
     if (name !== undefined) updateData.name = name;
-    if (description !== undefined) updateData.description = description;
+    if (description !== undefined) updateData.description = description ?? '';
     if (discount_percent !== undefined) updateData.discount_percent = discount_percent;
     if (is_vat_payer !== undefined) updateData.is_vat_payer = is_vat_payer;
 
@@ -88,7 +95,7 @@ export async function PATCH(
 
       // Insert new items
       if (items.length > 0) {
-        const itemsToInsert = items.map((item: any, index: number) => ({
+        const itemsToInsert = items.map((item, index: number) => ({
           preset_id: id,
           template_item_id: item.template_item_id || null,
           name: item.name,
@@ -125,7 +132,7 @@ export async function PATCH(
     return NextResponse.json({ success: true, preset: { ...preset, items: updatedItems || [] } });
   } catch (error) {
     console.error('Error updating preset:', error);
-    return NextResponse.json({ error: 'Failed to update preset' }, { status: 500 });
+    return apiError('Failed to update preset');
   }
 }
 
@@ -148,7 +155,7 @@ export async function DELETE(
       .eq('auth_user_id', user.id)
       .single();
     if (!profile || profile.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     const { error } = await supabase
@@ -161,6 +168,6 @@ export async function DELETE(
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error deleting preset:', error);
-    return NextResponse.json({ error: 'Failed to delete preset' }, { status: 500 });
+    return apiError('Failed to delete preset');
   }
 }

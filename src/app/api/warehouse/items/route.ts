@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createWarehouseItemSchema } from '@/lib/validations/warehouse';
+import { apiError } from '@/lib/api-response';
 
 /**
  * GET /api/warehouse/items
@@ -11,7 +13,7 @@ export async function GET(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return apiError('Unauthorized', 401);
     }
 
     // Check warehouse access
@@ -22,7 +24,7 @@ export async function GET(request: NextRequest) {
       .single();
 
     if (profile?.role !== 'admin' && !profile?.has_warehouse_access) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     const { searchParams } = new URL(request.url);
@@ -56,8 +58,8 @@ export async function GET(request: NextRequest) {
     }
 
     if (search) {
-      // Sanitize search input to prevent PostgREST filter injection
-      const sanitized = search.replace(/[%_,.()"'\\]/g, '');
+      // Escape special PostgREST characters instead of removing them
+      const sanitized = search.replace(/[%_\\]/g, '\\$&');
       if (sanitized) {
         query = query.or(`name.ilike.%${sanitized}%,sku.ilike.%${sanitized}%,description.ilike.%${sanitized}%`);
       }
@@ -69,10 +71,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(data || []);
   } catch (error) {
     console.error('Warehouse items fetch error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch items' },
-      { status: 500 }
-    );
+    return apiError('Failed to fetch items');
   }
 }
 
@@ -86,7 +85,7 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return apiError('Unauthorized', 401);
     }
 
     // Only admins can create items
@@ -97,28 +96,17 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (profile?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     const body = await request.json();
-    const {
-      name,
-      category_id,
-      quantity_total,
-      is_rent,
-      description,
-      sku,
-      unit,
-      notes,
-      image_url
-    } = body;
+    const parsed = createWarehouseItemSchema.safeParse(body);
 
-    if (!name || quantity_total === undefined) {
-      return NextResponse.json(
-        { error: 'Missing required fields: name, quantity_total' },
-        { status: 400 }
-      );
+    if (!parsed.success) {
+      return apiError('Validation failed', 400);
     }
+
+    const { name, category_id, quantity_total, is_rent, description, sku, unit, notes, image_url } = parsed.data;
 
     // Check for duplicate SKU if provided
     if (sku) {
@@ -129,10 +117,7 @@ export async function POST(request: NextRequest) {
         .maybeSingle();
 
       if (existing) {
-        return NextResponse.json(
-          { error: 'Item with this SKU already exists' },
-          { status: 400 }
-        );
+        return apiError('Item with this SKU already exists', 400);
       }
     }
 
@@ -142,10 +127,10 @@ export async function POST(request: NextRequest) {
         name,
         category_id: category_id || null,
         quantity_total,
-        is_rent: is_rent || false,
+        is_rent,
         description: description || null,
         sku: sku || null,
-        unit: unit || 'ks',
+        unit,
         notes: notes || null,
         image_url: image_url || null,
       })
@@ -159,9 +144,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, item: data });
   } catch (error) {
     console.error('Warehouse item creation error:', error);
-    return NextResponse.json(
-      { error: 'Failed to create item' },
-      { status: 500 }
-    );
+    return apiError('Failed to create item');
   }
 }

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { updateWarehouseCategorySchema } from '@/lib/validations/warehouse';
+import { apiError } from '@/lib/api-response';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -16,7 +18,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return apiError('Unauthorized', 401);
     }
 
     // Check warehouse access
@@ -27,7 +29,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       .single();
 
     if (profile?.role !== 'admin' && !profile?.has_warehouse_access) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     const { data, error } = await supabase
@@ -38,7 +40,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     if (error) {
       if (error.code === 'PGRST116') {
-        return NextResponse.json({ error: 'Category not found' }, { status: 404 });
+        return apiError('Category not found', 404);
       }
       throw error;
     }
@@ -46,10 +48,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json(data);
   } catch (error) {
     console.error('Warehouse category fetch error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch category' },
-      { status: 500 }
-    );
+    return apiError('Failed to fetch category');
   }
 }
 
@@ -64,7 +63,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return apiError('Unauthorized', 401);
     }
 
     // Only admins can update categories
@@ -75,11 +74,17 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       .single();
 
     if (profile?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     const body = await request.json();
-    const { name, description, color, sort_order } = body;
+    const parsed = updateWarehouseCategorySchema.safeParse(body);
+
+    if (!parsed.success) {
+      return apiError('Validation failed', 400);
+    }
+
+    const { name, description, color, sort_order } = parsed.data;
 
     const updateData: Record<string, unknown> = {};
     if (name !== undefined) updateData.name = name;
@@ -88,10 +93,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (sort_order !== undefined) updateData.sort_order = sort_order;
 
     if (Object.keys(updateData).length === 0) {
-      return NextResponse.json(
-        { error: 'No fields to update' },
-        { status: 400 }
-      );
+      return apiError('No fields to update', 400);
     }
 
     const { data, error } = await supabase
@@ -103,7 +105,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     if (error) {
       if (error.code === 'PGRST116') {
-        return NextResponse.json({ error: 'Category not found' }, { status: 404 });
+        return apiError('Category not found', 404);
       }
       throw error;
     }
@@ -111,10 +113,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ success: true, category: data });
   } catch (error) {
     console.error('Warehouse category update error:', error);
-    return NextResponse.json(
-      { error: 'Failed to update category' },
-      { status: 500 }
-    );
+    return apiError('Failed to update category');
   }
 }
 
@@ -129,7 +128,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return apiError('Unauthorized', 401);
     }
 
     // Only admins can delete categories
@@ -140,7 +139,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       .single();
 
     if (profile?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     const { error } = await supabase
@@ -153,9 +152,6 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Warehouse category delete error:', error);
-    return NextResponse.json(
-      { error: 'Failed to delete category' },
-      { status: 500 }
-    );
+    return apiError('Failed to delete category');
   }
 }

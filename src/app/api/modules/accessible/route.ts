@@ -5,6 +5,7 @@
 
 import { NextResponse } from 'next/server';
 import { createClient, getAuthContext } from '@/lib/supabase/server';
+import { apiError } from '@/lib/api-response';
 
 /**
  * GET /api/modules/accessible
@@ -103,12 +104,6 @@ export async function GET() {
     return NextResponse.json({ modules });
   } catch (error) {
     console.error('Accessible modules fetch error:', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to fetch accessible modules',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
+    return apiError('Failed to fetch accessible modules');
   }
 }

@@ -6,6 +6,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { apiError } from '@/lib/api-response';
+import { createTemplateItemSchema } from '@/lib/validations/offers';
 
 /**
  * GET /api/offers/templates/items
@@ -53,10 +55,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(data || []);
   } catch (error) {
     console.error('Template items fetch error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch template items' },
-      { status: 500 }
-    );
+    return apiError('Failed to fetch template items');
   }
 }
 
@@ -80,18 +79,16 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (profile?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     const body = await request.json();
-    const { category_id, name, subcategory, default_price, unit, sort_order, is_active } = body;
-
-    if (!category_id || !name) {
-      return NextResponse.json(
-        { error: 'category_id and name are required' },
-        { status: 400 }
-      );
+    const parsed = createTemplateItemSchema.safeParse(body);
+    if (!parsed.success) {
+      return apiError('Invalid template item data', 400);
     }
+
+    const { category_id, name, subcategory, default_price, unit, sort_order, is_active } = parsed.data;
 
     const { data, error } = await supabase
       .from('offer_template_items')
@@ -115,9 +112,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, item: data });
   } catch (error) {
     console.error('Template item creation error:', error);
-    return NextResponse.json(
-      { error: 'Failed to create template item' },
-      { status: 500 }
-    );
+    return apiError('Failed to create template item');
   }
 }

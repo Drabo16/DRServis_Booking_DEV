@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { apiError } from '@/lib/api-response';
 
 interface RentPurchaseRecommendation {
   item_id: string;
@@ -208,9 +209,6 @@ export async function GET() {
     });
   } catch (error) {
     console.error('Warehouse stats fetch error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch warehouse stats' },
-      { status: 500 }
-    );
+    return apiError('Failed to fetch warehouse stats');
   }
 }

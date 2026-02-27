@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { apiError } from '@/lib/api-response';
 
 /**
  * GET /api/offers/templates/categories
@@ -30,10 +31,7 @@ export async function GET() {
     return NextResponse.json(data || []);
   } catch (error) {
     console.error('Template categories fetch error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch template categories' },
-      { status: 500 }
-    );
+    return apiError('Failed to fetch template categories');
   }
 }
 
@@ -81,9 +79,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, category: data });
   } catch (error) {
     console.error('Template category creation error:', error);
-    return NextResponse.json(
-      { error: 'Failed to create template category' },
-      { status: 500 }
-    );
+    return apiError('Failed to create template category');
   }
 }

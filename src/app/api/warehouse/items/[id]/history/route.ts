@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { apiError } from '@/lib/api-response';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -45,9 +46,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json(data || []);
   } catch (error) {
     console.error('Warehouse item history fetch error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch item history' },
-      { status: 500 }
-    );
+    return apiError('Failed to fetch item history');
   }
 }

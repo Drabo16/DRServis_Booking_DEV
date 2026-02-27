@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { apiError } from '@/lib/api-response';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -16,7 +17,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return apiError('Unauthorized', 401);
     }
 
     // Check warehouse access
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       .single();
 
     if (profile?.role !== 'admin' && !profile?.has_warehouse_access) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     const { data, error } = await supabase
@@ -44,7 +45,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     if (error) {
       if (error.code === 'PGRST116') {
-        return NextResponse.json({ error: 'Reservation not found' }, { status: 404 });
+        return apiError('Reservation not found', 404);
       }
       throw error;
     }
@@ -52,10 +53,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json(data);
   } catch (error) {
     console.error('Warehouse reservation fetch error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch reservation' },
-      { status: 500 }
-    );
+    return apiError('Failed to fetch reservation');
   }
 }
 
@@ -70,7 +68,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return apiError('Unauthorized', 401);
     }
 
     // Check warehouse access
@@ -81,7 +79,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       .single();
 
     if (profile?.role !== 'admin' && !profile?.has_warehouse_access) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     // Get existing reservation to check ownership
@@ -93,14 +91,14 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     if (existingError) {
       if (existingError.code === 'PGRST116') {
-        return NextResponse.json({ error: 'Reservation not found' }, { status: 404 });
+        return apiError('Reservation not found', 404);
       }
       throw existingError;
     }
 
     // Non-admins can only update their own reservations
     if (profile?.role !== 'admin' && existing.created_by !== profile?.id) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     const body = await request.json();
@@ -109,7 +107,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const updateData: Record<string, unknown> = {};
     if (quantity !== undefined) {
       if (typeof quantity !== 'number' || quantity < 1 || !Number.isInteger(quantity)) {
-        return NextResponse.json({ error: 'Quantity must be a positive integer' }, { status: 400 });
+        return apiError('Quantity must be a positive integer', 400);
       }
       updateData.quantity = quantity;
     }
@@ -118,10 +116,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (notes !== undefined) updateData.notes = notes;
 
     if (Object.keys(updateData).length === 0) {
-      return NextResponse.json(
-        { error: 'No fields to update' },
-        { status: 400 }
-      );
+      return apiError('No fields to update', 400);
     }
 
     // Validate dates if both provided
@@ -129,10 +124,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       const startDateTime = new Date(start_date);
       const endDateTime = new Date(end_date);
       if (endDateTime <= startDateTime) {
-        return NextResponse.json(
-          { error: 'End date must be after start date' },
-          { status: 400 }
-        );
+        return apiError('End date must be after start date', 400);
       }
     }
 
@@ -154,10 +146,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ success: true, reservation: data });
   } catch (error) {
     console.error('Warehouse reservation update error:', error);
-    return NextResponse.json(
-      { error: 'Failed to update reservation' },
-      { status: 500 }
-    );
+    return apiError('Failed to update reservation');
   }
 }
 
@@ -172,7 +161,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return apiError('Unauthorized', 401);
     }
 
     // Only admins can delete reservations
@@ -183,7 +172,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       .single();
 
     if (profile?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return apiError('Forbidden', 403);
     }
 
     const { error } = await supabase
@@ -196,9 +185,6 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Warehouse reservation delete error:', error);
-    return NextResponse.json(
-      { error: 'Failed to delete reservation' },
-      { status: 500 }
-    );
+    return apiError('Failed to delete reservation');
   }
 }

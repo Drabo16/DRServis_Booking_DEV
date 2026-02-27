@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { apiError } from '@/lib/api-response';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const XLSX = require('xlsx-js-style');
 import { OFFER_CATEGORY_ORDER } from '@/types/offers';
@@ -91,7 +92,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     if (itemsError) {
       console.error('XLSX: items fetch error', itemsError);
-      return NextResponse.json({ error: 'Failed to fetch items' }, { status: 500 });
+      return apiError('Failed to fetch items');
     }
 
     const EXCLUDED_CATEGORIES = ['Technický personál', 'Doprava'];
@@ -194,6 +195,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     });
   } catch (error) {
     console.error('XLSX generation error:', error);
-    return NextResponse.json({ error: 'Failed to generate XLSX' }, { status: 500 });
+    return apiError('Failed to generate XLSX');
   }
 }

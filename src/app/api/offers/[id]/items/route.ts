@@ -6,7 +6,14 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { apiError } from '@/lib/api-response';
 import { calculateItemTotal } from '@/types/offers';
+import {
+  createOfferItemSchema,
+  bulkAddOfferItemsSchema,
+  updateOfferItemSchema,
+  batchUpdateOfferItemsSchema,
+} from '@/lib/validations/offers';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -38,10 +45,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json(data || []);
   } catch (error) {
     console.error('Offer items fetch error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch offer items' },
-      { status: 500 }
-    );
+    return apiError('Failed to fetch offer items');
   }
 }
 
@@ -63,8 +67,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Support both single item and bulk add
     if (Array.isArray(body.items)) {
+      // Bulk mode
+      const parsed = bulkAddOfferItemsSchema.safeParse(body);
+      if (!parsed.success) {
+        return apiError('Invalid bulk items data', 400);
+      }
+
       // OPTIMIZED: Batch fetch templates to avoid N+1 query problem
-      const templateIds = body.items.map((item: any) => item.template_item_id).filter(Boolean);
+      const templateIds = parsed.data.items.map((item) => item.template_item_id).filter(Boolean);
 
       // Single query to get all templates at once
       const { data: templates } = await supabase
@@ -73,41 +83,41 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         .in('id', templateIds);
 
       // Create a map for quick lookup
-      const templatesMap = new Map();
-      (templates || []).forEach((t: any) => {
-        templatesMap.set(t.id, t);
+      const templatesMap = new Map<string, Record<string, unknown>>();
+      (templates || []).forEach((t: Record<string, unknown>) => {
+        templatesMap.set(t.id as string, t);
       });
 
       // Build items array with template data
-      const items = body.items.map((item: any) => {
+      const items = parsed.data.items.map((item) => {
         const template = templatesMap.get(item.template_item_id);
         if (!template) return null;
 
-        const categoryName = (template.category as any)?.name || 'Ostatní';
+        const categoryName = (template.category as { name?: string })?.name || 'Ostatní';
         const days_hours = item.days_hours ?? 1;
         const quantity = item.quantity ?? 1;
         // Use custom unit_price if provided, otherwise use template default
-        const unit_price = item.unit_price ?? template.default_price;
+        const unit_price = item.unit_price ?? (template.default_price as number);
         const total_price = calculateItemTotal({ days_hours, quantity, unit_price });
 
         return {
           offer_id,
           category: categoryName,
-          subcategory: template.subcategory,
-          name: template.name,
+          subcategory: template.subcategory as string | null,
+          name: template.name as string,
           days_hours,
           quantity,
           unit_price,
           total_price,
-          template_item_id: template.id,
-          sort_order: template.sort_order,
+          template_item_id: template.id as string,
+          sort_order: template.sort_order as number,
         };
       });
 
       const validItems = items.filter(Boolean);
 
       if (validItems.length === 0) {
-        return NextResponse.json({ error: 'No valid items to add' }, { status: 400 });
+        return apiError('No valid items to add', 400);
       }
 
       const { data, error } = await supabase
@@ -123,14 +133,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ success: true, items: data });
     } else {
       // Single item add
-      const { category, subcategory, name, days_hours = 1, quantity = 0, unit_price = 0, sort_order = 0, template_item_id } = body;
-
-      if (!category || !name) {
-        return NextResponse.json(
-          { error: 'Category and name are required' },
-          { status: 400 }
-        );
+      const parsed = createOfferItemSchema.safeParse(body);
+      if (!parsed.success) {
+        return apiError('Invalid item data', 400);
       }
+
+      const { category, subcategory, name, days_hours, quantity, unit_price, sort_order, template_item_id } = parsed.data;
 
       const total_price = calculateItemTotal({ days_hours, quantity, unit_price });
 
@@ -160,10 +168,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
   } catch (error) {
     console.error('Offer item creation error:', error);
-    return NextResponse.json(
-      { error: 'Failed to add offer item' },
-      { status: 500 }
-    );
+    return apiError('Failed to add offer item');
   }
 }
 
@@ -187,21 +192,26 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     // BATCH UPDATE - OPTIMIZED: parallel updates instead of sequential
     if (Array.isArray(body.items)) {
+      const parsed = batchUpdateOfferItemsSchema.safeParse(body);
+      if (!parsed.success) {
+        return apiError('Invalid batch update data', 400);
+      }
+
       // First, get all current items in one query
-      const itemIds = body.items.map((item: any) => item.id);
+      const itemIds = parsed.data.items.map((item) => item.id);
       const { data: currentItems } = await supabase
         .from('offer_items')
         .select('*')
         .in('id', itemIds)
         .eq('offer_id', offer_id);
 
-      const currentItemsMap = new Map();
-      (currentItems || []).forEach((item: any) => {
-        currentItemsMap.set(item.id, item);
+      const currentItemsMap = new Map<string, Record<string, number>>();
+      (currentItems || []).forEach((item: Record<string, number>) => {
+        currentItemsMap.set(item.id as unknown as string, item);
       });
 
       // Prepare all updates in parallel
-      const updatePromises = body.items.map(async (item: any) => {
+      const updatePromises = parsed.data.items.map(async (item) => {
         const { id: item_id, days_hours, quantity, unit_price } = item;
         const currentItem = currentItemsMap.get(item_id);
 
@@ -217,7 +227,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
           unit_price: newUnitPrice,
         });
 
-        const updateData: Record<string, any> = { total_price };
+        const updateData: Record<string, number> = { total_price };
         if (days_hours !== undefined) updateData.days_hours = days_hours;
         if (quantity !== undefined) updateData.quantity = quantity;
         if (unit_price !== undefined) updateData.unit_price = unit_price;
@@ -241,11 +251,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     // SINGLE UPDATE (original logic)
-    const { item_id, days_hours, quantity, unit_price, sort_order } = body;
-
-    if (!item_id) {
-      return NextResponse.json({ error: 'item_id is required' }, { status: 400 });
+    const parsed = updateOfferItemSchema.safeParse(body);
+    if (!parsed.success) {
+      return apiError('Invalid update data', 400);
     }
+
+    const { item_id, days_hours, quantity, unit_price, sort_order } = parsed.data;
 
     // Get current item
     const { data: currentItem } = await supabase
@@ -256,7 +267,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       .single();
 
     if (!currentItem) {
-      return NextResponse.json({ error: 'Item not found' }, { status: 404 });
+      return apiError('Item not found', 404);
     }
 
     // Calculate new total
@@ -269,7 +280,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       unit_price: newUnitPrice,
     });
 
-    const updateData: Record<string, any> = { total_price };
+    const updateData: Record<string, number> = { total_price };
     if (days_hours !== undefined) updateData.days_hours = days_hours;
     if (quantity !== undefined) updateData.quantity = quantity;
     if (unit_price !== undefined) updateData.unit_price = unit_price;
@@ -290,10 +301,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ success: true, item: data });
   } catch (error) {
     console.error('Offer item update error:', error);
-    return NextResponse.json(
-      { error: 'Failed to update offer item' },
-      { status: 500 }
-    );
+    return apiError('Failed to update offer item');
   }
 }
 
@@ -320,7 +328,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     if (!item_id) {
-      return NextResponse.json({ error: 'item_id is required' }, { status: 400 });
+      return apiError('item_id is required', 400);
     }
 
     const { error } = await supabase
@@ -337,14 +345,11 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Offer item delete error:', error);
-    return NextResponse.json(
-      { error: 'Failed to delete offer item' },
-      { status: 500 }
-    );
+    return apiError('Failed to delete offer item');
   }
 }
 
-async function recalculateOfferTotals(supabase: any, offer_id: string) {
+async function recalculateOfferTotals(supabase: Awaited<ReturnType<typeof createClient>>, offer_id: string) {
   const { data: items } = await supabase
     .from('offer_items')
     .select('*')

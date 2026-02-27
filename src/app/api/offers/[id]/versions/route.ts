@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
+import { apiError } from '@/lib/api-response';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -31,7 +32,7 @@ export async function GET(
     return NextResponse.json(versions || []);
   } catch (error) {
     console.error('Error fetching versions:', error);
-    return NextResponse.json({ error: 'Failed to fetch versions' }, { status: 500 });
+    return apiError('Failed to fetch versions');
   }
 }
 
@@ -106,6 +107,6 @@ export async function POST(
     return NextResponse.json({ success: true, version });
   } catch (error) {
     console.error('Error saving version:', error);
-    return NextResponse.json({ error: 'Failed to save version' }, { status: 500 });
+    return apiError('Failed to save version');
   }
 }

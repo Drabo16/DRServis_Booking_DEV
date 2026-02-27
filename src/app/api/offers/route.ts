@@ -6,6 +6,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createOfferSchema } from '@/lib/validations/offers';
+import { apiSuccess, apiError } from '@/lib/api-response';
 
 /**
  * GET /api/offers
@@ -123,7 +125,7 @@ export async function GET(request: NextRequest) {
 
     // Count items per offer
     const countsMap = new Map<string, number>();
-    (itemsCounts || []).forEach((item: any) => {
+    (itemsCounts || []).forEach((item: { offer_id: string }) => {
       countsMap.set(item.offer_id, (countsMap.get(item.offer_id) || 0) + 1);
     });
 
@@ -135,11 +137,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(offersWithCount);
   } catch (error) {
-    console.error('Offers fetch error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch offers' },
-      { status: 500 }
-    );
+    console.error('[API] Offers fetch error:', error);
+    return apiError('Failed to fetch offers');
   }
 }
 
@@ -172,14 +171,11 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, event_id, valid_until, notes } = body;
-
-    if (!title) {
-      return NextResponse.json(
-        { error: 'Title is required' },
-        { status: 400 }
-      );
+    const parsed = createOfferSchema.safeParse(body);
+    if (!parsed.success) {
+      return apiError('Validation failed', 400);
     }
+    const { title, event_id, valid_until, notes } = parsed.data;
 
     // Get next offer number for current year (with retry on unique constraint violation)
     const currentYear = new Date().getFullYear();
@@ -221,15 +217,12 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, offer: data });
   } catch (error) {
-    console.error('Offer creation error:', error);
-    return NextResponse.json(
-      { error: 'Failed to create offer' },
-      { status: 500 }
-    );
+    console.error('[API] Offer creation error:', error);
+    return apiError('Failed to create offer');
   }
 }
 
-async function checkOffersAccess(supabase: any, profileId: string): Promise<boolean> {
+async function checkOffersAccess(supabase: Awaited<ReturnType<typeof createClient>>, profileId: string): Promise<boolean> {
   const { data } = await supabase
     .from('user_module_access')
     .select('id')

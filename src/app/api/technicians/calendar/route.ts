@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient, getProfileWithFallback, hasBookingAccess } from '@/lib/supabase/server';
+import { apiError } from '@/lib/api-response';
 
 export async function GET(request: Request) {
   try {
@@ -104,9 +105,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ assignments: transformedAssignments });
   } catch (error) {
     console.error('[API] Error fetching technician calendar:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch technician calendar' },
-      { status: 500 }
-    );
+    return apiError('Failed to fetch technician calendar');
   }
 }
