@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createOfferSchema } from '@/lib/validations/offers';
-import { apiSuccess, apiError } from '@/lib/api-response';
+import { apiError } from '@/lib/api-response';
 
 /**
  * GET /api/offers
@@ -70,6 +70,7 @@ export async function GET(request: NextRequest) {
         year,
         title,
         status,
+        visibility,
         valid_until,
         subtotal_equipment,
         subtotal_personnel,
@@ -101,9 +102,9 @@ export async function GET(request: NextRequest) {
       query = query.ilike('title', `%${sanitizedSearch}%`);
     }
 
-    // Non-supervisors/non-admins see only their own offers
+    // Non-supervisors/non-admins see their own offers OR offers shared with all users
     if (!canViewAll) {
-      query = query.eq('created_by', profile.id);
+      query = query.or(`created_by.eq.${profile.id},visibility.eq.all`);
     }
 
     const { data, error } = await query;

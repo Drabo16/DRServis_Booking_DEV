@@ -51,7 +51,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const { data: offer, error: offerError } = await supabase
       .from('offers')
       .select(`
-        id, offer_number, year, title, event_id, status, valid_until, notes, subtotal_equipment, subtotal_personnel, subtotal_transport, discount_percent, discount_amount, total_amount, is_vat_payer, created_by, created_at, updated_at, offer_set_id, set_label,
+        id, offer_number, year, title, event_id, status, visibility, valid_until, notes, subtotal_equipment, subtotal_personnel, subtotal_transport, discount_percent, discount_amount, total_amount, is_vat_payer, created_by, created_at, updated_at, offer_set_id, set_label,
         event:events(id, title, start_time, location)
       `)
       .eq('id', id)
@@ -112,7 +112,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (!parsed.success) {
       return apiError('Validation failed', 400);
     }
-    const { title, event_id, status, valid_until, notes, discount_percent, is_vat_payer, offer_set_id, set_label, recalculate } = parsed.data;
+    const { title, event_id, status, valid_until, notes, discount_percent, is_vat_payer, offer_set_id, set_label, recalculate, visibility } = parsed.data;
 
     // If recalculate is true, recalculate all totals from items
     if (recalculate) {
@@ -154,6 +154,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       if (is_vat_payer !== undefined) updateData.is_vat_payer = is_vat_payer;
       if (offer_set_id !== undefined) updateData.offer_set_id = offer_set_id;
       if (set_label !== undefined) updateData.set_label = set_label;
+      if (visibility !== undefined) updateData.visibility = visibility;
 
       const { data, error } = await supabase
         .from('offers')
@@ -180,6 +181,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (is_vat_payer !== undefined) updateData.is_vat_payer = is_vat_payer;
     if (offer_set_id !== undefined) updateData.offer_set_id = offer_set_id;
     if (set_label !== undefined) updateData.set_label = set_label;
+    if (visibility !== undefined) updateData.visibility = visibility;
 
     // If discount changed, recalculate
     if (discount_percent !== undefined) {
@@ -212,7 +214,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       .update(updateData)
       .eq('id', id)
       .select(`
-        id, offer_number, year, title, event_id, status, valid_until, notes, subtotal_equipment, subtotal_personnel, subtotal_transport, discount_percent, discount_amount, total_amount, is_vat_payer, created_by, created_at, updated_at, offer_set_id, set_label,
+        id, offer_number, year, title, event_id, status, visibility, valid_until, notes, subtotal_equipment, subtotal_personnel, subtotal_transport, discount_percent, discount_amount, total_amount, is_vat_payer, created_by, created_at, updated_at, offer_set_id, set_label,
         event:events(id, title, start_time, location)
       `)
       .single();

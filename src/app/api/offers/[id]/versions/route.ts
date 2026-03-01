@@ -23,7 +23,7 @@ export async function GET(
     const db = createServiceRoleClient();
     const { data: versions, error } = await db
       .from('offer_versions')
-      .select('id, version_number, title, status, discount_percent, created_at, created_by')
+      .select('id, version_number, title, status, discount_percent, name, created_at, created_by')
       .eq('offer_id', id)
       .order('version_number', { ascending: false });
 
@@ -58,7 +58,7 @@ export async function POST(
     if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
 
     const body = await request.json();
-    const { title, status, discount_percent, is_vat_payer, notes, items } = body;
+    const { title, status, discount_percent, is_vat_payer, notes, items, name } = body;
 
     const db = createServiceRoleClient();
 
@@ -97,6 +97,7 @@ export async function POST(
         is_vat_payer: is_vat_payer ?? true,
         notes: notes || null,
         items: items || [],
+        name: name || null,
         created_by: profile.id,
       })
       .select()

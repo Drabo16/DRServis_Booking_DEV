@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ArrowLeft, FileDown, FileSpreadsheet, Save, FolderKanban, BookTemplate, History } from 'lucide-react';
+import { Loader2, ArrowLeft, FileDown, FileSpreadsheet, Save, FolderKanban, BookTemplate, Eye, Tag, X, Check } from 'lucide-react';
 import { offerKeys } from '@/hooks/useOffers';
 import type { OfferPresetWithCount, OfferPresetItem } from '@/types/offers';
 import { toast } from 'sonner';
@@ -53,6 +53,7 @@ interface OfferData {
   year: number;
   title: string;
   status: OfferStatus;
+  visibility: 'private' | 'all';
   discount_percent: number;
   offer_set_id: string | null;
   set_label: string | null;
@@ -120,8 +121,13 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
   const [savingPreset, setSavingPreset] = useState(false);
 
   // Version history
-  const [versions, setVersions] = useState<Array<{ id: string; version_number: number; created_at: string }>>([]);
+  const [versions, setVersions] = useState<Array<{ id: string; version_number: number; name: string | null; created_at: string }>>([]);
   const [restoringVersion, setRestoringVersion] = useState(false);
+  const [showVersionManager, setShowVersionManager] = useState(false);
+  const [editingVersionName, setEditingVersionName] = useState<{ id: string; name: string } | null>(null);
+
+  // Visibility
+  const [localVisibility, setLocalVisibility] = useState<'private' | 'all'>('private');
 
   // Refs for auto-save (to avoid stale closures)
   const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
@@ -186,6 +192,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
         setLocalSetId(offerData.offer_set_id || null);
         setLocalSetLabel(offerData.set_label || '');
         setLocalTitle(offerData.title || '');
+        setLocalVisibility(offerData.visibility ?? 'private');
 
         // Build local items from templates + offer
         buildLocalItems(templatesData, offerData);
@@ -640,6 +647,37 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     markDirty();
   }, [markDirty]);
 
+  // Handle visibility change - immediate save (security-sensitive)
+  const handleVisibilityChange = useCallback(async (visibility: 'private' | 'all') => {
+    setLocalVisibility(visibility);
+    try {
+      await fetch(`/api/offers/${offerId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ visibility }),
+      });
+    } catch (e) {
+      console.error('Failed to update visibility:', e);
+      toast.error('Nepodařilo se uložit viditelnost.');
+    }
+  }, [offerId]);
+
+  // Handle version rename
+  const handleRenameVersion = useCallback(async (versionId: string, name: string) => {
+    try {
+      await fetch(`/api/offers/${offerId}/versions/${versionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim() || null }),
+      });
+      setVersions(prev => prev.map(v => v.id === versionId ? { ...v, name: name.trim() || null } : v));
+      setEditingVersionName(null);
+    } catch (e) {
+      console.error('Failed to rename version:', e);
+      toast.error('Nepodařilo se přejmenovat verzi.');
+    }
+  }, [offerId]);
+
   // Handle add custom item - OPTIMIZED: optimistic update instead of full reload
   const handleAddCustomItem = useCallback(async () => {
     if (!customItemName.trim()) return;
@@ -1034,7 +1072,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
             }}
             disabled={restoringVersion || versions.length === 0}
             className="h-7 text-xs border rounded px-1.5 text-slate-600 disabled:opacity-50"
-            title={versions.length === 0 ? 'Uložte Ctrl+S pro vytvoření první verze' : 'Historie verzí'}
+            title={versions.length === 0 ? 'Uložte Ctrl+S pro vytvoření první verze' : 'Obnovit verzi'}
             defaultValue=""
           >
             <option value="" disabled>
@@ -1042,10 +1080,18 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
             </option>
             {versions.map(v => (
               <option key={v.id} value={v.id}>
-                Verze {v.version_number} · {new Date(v.created_at).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'short' })} {new Date(v.created_at).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' })}
+                {v.name ? `${v.name} – ` : ''}Verze {v.version_number} · {new Date(v.created_at).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'short' })} {new Date(v.created_at).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' })}
               </option>
             ))}
           </select>
+          <button
+            onClick={() => setShowVersionManager(true)}
+            disabled={versions.length === 0}
+            className="h-7 px-2 border rounded hover:bg-slate-50 disabled:opacity-50 flex items-center gap-1"
+            title="Spravovat verze (přejmenovat)"
+          >
+            <Tag className="w-3.5 h-3.5" />
+          </button>
           <button
             onClick={handleDownloadPdf}
             disabled={isDownloadingPdf}
@@ -1066,10 +1112,10 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
         </div>
       </div>
 
-      {/* Project assignment + VAT payer */}
-      <div className="flex items-center justify-between p-2 bg-slate-50 border rounded text-xs">
-        <div className="flex items-center gap-3">
-          <FolderKanban className="w-4 h-4 text-slate-400" />
+      {/* Project assignment + visibility */}
+      <div className="flex items-center justify-between p-2 bg-slate-50 border rounded text-xs flex-wrap gap-2">
+        <div className="flex items-center gap-3 flex-wrap">
+          <FolderKanban className="w-4 h-4 text-slate-400 shrink-0" />
           <div className="flex items-center gap-2">
             <span className="text-slate-600">Projekt:</span>
             <select
@@ -1096,6 +1142,19 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
               />
             </div>
           )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Eye className="w-3.5 h-3.5 text-slate-400" />
+          <span className="text-slate-600">Viditelnost:</span>
+          <select
+            value={localVisibility}
+            onChange={(e) => handleVisibilityChange(e.target.value as 'private' | 'all')}
+            className="h-6 text-xs border rounded px-2"
+            title="Kdo může vidět tuto nabídku"
+          >
+            <option value="private">Soukromá (jen admin)</option>
+            <option value="all">Sdílená (všichni uživatelé)</option>
+          </select>
         </div>
       </div>
 
@@ -1327,6 +1386,74 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
                 className="w-full h-8 text-sm border rounded hover:bg-slate-50"
               >
                 Zrušit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Version Manager Dialog */}
+      {showVersionManager && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => { setShowVersionManager(false); setEditingVersionName(null); }}>
+          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="p-4 border-b flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-lg">Správa verzí</h3>
+                <p className="text-sm text-slate-500 mt-0.5">Pojmenujte verze pro snadnější orientaci</p>
+              </div>
+              <button onClick={() => { setShowVersionManager(false); setEditingVersionName(null); }} className="p-1 hover:bg-slate-100 rounded">
+                <X className="w-5 h-5 text-slate-500" />
+              </button>
+            </div>
+            <div className="overflow-y-auto max-h-[60vh] divide-y">
+              {versions.map(v => (
+                <div key={v.id} className="px-4 py-2.5 flex items-center gap-3">
+                  <div className="text-xs text-slate-400 w-16 shrink-0">
+                    Ver. {v.version_number}
+                  </div>
+                  {editingVersionName?.id === v.id ? (
+                    <div className="flex items-center gap-2 flex-1">
+                      <input
+                        type="text"
+                        value={editingVersionName.name}
+                        onChange={(e) => setEditingVersionName({ id: v.id, name: e.target.value })}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleRenameVersion(v.id, editingVersionName.name);
+                          if (e.key === 'Escape') setEditingVersionName(null);
+                        }}
+                        placeholder="Název verze..."
+                        className="flex-1 h-7 text-xs border rounded px-2 focus:ring-1 focus:ring-blue-500"
+                        autoFocus
+                      />
+                      <button onClick={() => handleRenameVersion(v.id, editingVersionName.name)} className="p-1 hover:bg-green-50 rounded text-green-600">
+                        <Check className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => setEditingVersionName(null)} className="p-1 hover:bg-slate-100 rounded text-slate-500">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      className="flex-1 text-left text-xs hover:bg-slate-50 rounded px-2 py-1 group"
+                      onClick={() => setEditingVersionName({ id: v.id, name: v.name || '' })}
+                    >
+                      {v.name
+                        ? <span className="font-medium text-slate-700">{v.name}</span>
+                        : <span className="text-slate-400 italic">Klikněte pro pojmenování...</span>
+                      }
+                    </button>
+                  )}
+                  <div className="text-xs text-slate-400 shrink-0">
+                    {new Date(v.created_at).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'short' })}
+                    {' '}
+                    {new Date(v.created_at).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="p-4 border-t">
+              <button onClick={() => { setShowVersionManager(false); setEditingVersionName(null); }} className="w-full h-8 text-sm border rounded hover:bg-slate-50">
+                Zavřít
               </button>
             </div>
           </div>
