@@ -31,7 +31,6 @@ export const updateOfferSchema = z.object({
   offer_set_id: z.string().uuid().optional().nullable(),
   set_label: z.string().max(200).optional().nullable(),
   recalculate: z.boolean().optional(),
-  visibility: z.enum(['private', 'all']).optional(),
 });
 
 // =====================================================

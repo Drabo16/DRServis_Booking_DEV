@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ArrowLeft, FileDown, FileSpreadsheet, Save, FolderKanban, BookTemplate, Eye, Tag, X, Check } from 'lucide-react';
+import { Loader2, ArrowLeft, FileDown, FileSpreadsheet, Save, FolderKanban, BookTemplate, Tag, X, Check, UserPlus, Users } from 'lucide-react';
 import { offerKeys } from '@/hooks/useOffers';
 import type { OfferPresetWithCount, OfferPresetItem } from '@/types/offers';
 import { toast } from 'sonner';
@@ -53,7 +53,6 @@ interface OfferData {
   year: number;
   title: string;
   status: OfferStatus;
-  visibility: 'private' | 'all';
   discount_percent: number;
   offer_set_id: string | null;
   set_label: string | null;
@@ -75,6 +74,12 @@ interface OfferData {
 interface OfferSet {
   id: string;
   name: string;
+}
+
+interface ShareUser {
+  id: string;
+  full_name: string;
+  email: string;
 }
 
 export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorProps) {
@@ -126,8 +131,10 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
   const [showVersionManager, setShowVersionManager] = useState(false);
   const [editingVersionName, setEditingVersionName] = useState<{ id: string; name: string } | null>(null);
 
-  // Visibility
-  const [localVisibility, setLocalVisibility] = useState<'private' | 'all'>('private');
+  // Sharing
+  const [sharedWith, setSharedWith] = useState<ShareUser[]>([]);
+  const [usersWithAccess, setUsersWithAccess] = useState<ShareUser[]>([]);
+  const [showShareDropdown, setShowShareDropdown] = useState(false);
 
   // Refs for auto-save (to avoid stale closures)
   const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
@@ -168,17 +175,21 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
   useEffect(() => {
     async function loadData() {
       try {
-        const [offerRes, templatesRes, setsRes, itemsRes] = await Promise.all([
+        const [offerRes, templatesRes, setsRes, itemsRes, sharesRes, usersRes] = await Promise.all([
           fetch(`/api/offers/${offerId}`),
           fetch('/api/offers/templates/items'),
           fetch('/api/offers/sets'),
           fetch(`/api/offers/${offerId}/items`),
+          fetch(`/api/offers/${offerId}/shares`),
+          fetch('/api/offers/users-with-access'),
         ]);
 
         const offerData = await offerRes.json();
         const templatesData = await templatesRes.json();
         const setsData = await setsRes.json();
         const itemsData = await itemsRes.json();
+        const sharesData = sharesRes.ok ? await sharesRes.json() : [];
+        const usersData = usersRes.ok ? await usersRes.json() : [];
 
         // Enhance offer data with full items
         offerData.items = itemsData;
@@ -192,7 +203,10 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
         setLocalSetId(offerData.offer_set_id || null);
         setLocalSetLabel(offerData.set_label || '');
         setLocalTitle(offerData.title || '');
-        setLocalVisibility(offerData.visibility ?? 'private');
+        // Load shares: each row has a `profiles` object nested
+        const shared = sharesData.map((s: { profiles: ShareUser | null }) => s.profiles).filter(Boolean);
+        setSharedWith(shared);
+        setUsersWithAccess(usersData);
 
         // Build local items from templates + offer
         buildLocalItems(templatesData, offerData);
@@ -647,18 +661,38 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     markDirty();
   }, [markDirty]);
 
-  // Handle visibility change - immediate save (security-sensitive)
-  const handleVisibilityChange = useCallback(async (visibility: 'private' | 'all') => {
-    setLocalVisibility(visibility);
+  // Add share
+  const handleAddShare = useCallback(async (user: ShareUser) => {
+    setShowShareDropdown(false);
     try {
-      await fetch(`/api/offers/${offerId}`, {
-        method: 'PATCH',
+      const res = await fetch(`/api/offers/${offerId}/shares`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ visibility }),
+        body: JSON.stringify({ user_id: user.id }),
       });
+      if (res.ok) {
+        setSharedWith(prev => [...prev, user]);
+      } else {
+        toast.error('Nepodařilo se sdílet nabídku.');
+      }
     } catch (e) {
-      console.error('Failed to update visibility:', e);
-      toast.error('Nepodařilo se uložit viditelnost.');
+      console.error('Failed to add share:', e);
+      toast.error('Nepodařilo se sdílet nabídku.');
+    }
+  }, [offerId]);
+
+  // Remove share
+  const handleRemoveShare = useCallback(async (userId: string) => {
+    try {
+      const res = await fetch(`/api/offers/${offerId}/shares?user_id=${userId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setSharedWith(prev => prev.filter(u => u.id !== userId));
+      } else {
+        toast.error('Nepodařilo se odebrat sdílení.');
+      }
+    } catch (e) {
+      console.error('Failed to remove share:', e);
+      toast.error('Nepodařilo se odebrat sdílení.');
     }
   }, [offerId]);
 
@@ -1143,19 +1177,51 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <Eye className="w-3.5 h-3.5 text-slate-400" />
-          <span className="text-slate-600">Viditelnost:</span>
-          <select
-            value={localVisibility}
-            onChange={(e) => handleVisibilityChange(e.target.value as 'private' | 'all')}
-            className="h-6 text-xs border rounded px-2"
-            title="Kdo může vidět tuto nabídku"
-          >
-            <option value="private">Soukromá (jen admin)</option>
-            <option value="all">Sdílená (všichni uživatelé)</option>
-          </select>
-        </div>
+        {/* Per-user sharing (admin only) */}
+        {isAdmin && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <Users className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <span className="text-slate-600">Sdílet s:</span>
+            {sharedWith.map(u => (
+              <span key={u.id} className="inline-flex items-center gap-1 bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full">
+                {u.full_name || u.email}
+                <button onClick={() => handleRemoveShare(u.id)} className="hover:text-red-600 ml-0.5">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            ))}
+            {/* Add user dropdown */}
+            {usersWithAccess.filter(u => !sharedWith.some(s => s.id === u.id)).length > 0 && (
+              <div className="relative">
+                <button
+                  onClick={() => setShowShareDropdown(v => !v)}
+                  className="inline-flex items-center gap-1 h-5 px-2 text-xs border border-dashed border-slate-400 text-slate-500 hover:border-blue-400 hover:text-blue-600 rounded-full"
+                >
+                  <UserPlus className="w-3 h-3" />
+                  Přidat
+                </button>
+                {showShareDropdown && (
+                  <div className="absolute left-0 top-6 z-20 bg-white border rounded shadow-lg py-1 min-w-[160px]">
+                    {usersWithAccess
+                      .filter(u => !sharedWith.some(s => s.id === u.id))
+                      .map(u => (
+                        <button
+                          key={u.id}
+                          onClick={() => handleAddShare(u)}
+                          className="w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50"
+                        >
+                          {u.full_name || u.email}
+                        </button>
+                      ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {sharedWith.length === 0 && (
+              <span className="text-slate-400 italic text-xs">nikdo</span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Add custom item button + VAT payer checkbox + Load preset */}

@@ -70,7 +70,6 @@ export async function GET(request: NextRequest) {
         year,
         title,
         status,
-        visibility,
         valid_until,
         subtotal_equipment,
         subtotal_personnel,
@@ -102,9 +101,19 @@ export async function GET(request: NextRequest) {
       query = query.ilike('title', `%${sanitizedSearch}%`);
     }
 
-    // Non-supervisors/non-admins see their own offers OR offers shared with all users
+    // Non-supervisors/non-admins see their own offers OR offers explicitly shared with them
     if (!canViewAll) {
-      query = query.or(`created_by.eq.${profile.id},visibility.eq.all`);
+      const { data: sharedRows } = await supabase
+        .from('offer_shares')
+        .select('offer_id')
+        .eq('user_id', profile.id);
+      const sharedIds = (sharedRows || []).map((r: { offer_id: string }) => r.offer_id);
+
+      if (sharedIds.length > 0) {
+        query = query.or(`created_by.eq.${profile.id},id.in.(${sharedIds.join(',')})`);
+      } else {
+        query = query.eq('created_by', profile.id);
+      }
     }
 
     const { data, error } = await query;
