@@ -71,12 +71,13 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
     staleTime: 10 * 60 * 1000, // 10 minutes - role types rarely change
   });
 
-  // Column order & visibility (persisted to localStorage)
-  const STORAGE_KEY = 'excelView-columnConfig';
+  // Column order & visibility (persisted to localStorage per user)
+  const STORAGE_KEY = `excelView-columnConfig-${userId}`;
   const [columnOrder, setColumnOrder] = useState<string[]>([]);
   const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
   const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null);
+  const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
 
   // Load column config from localStorage
   useEffect(() => {
@@ -143,6 +144,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
   const handleColumnDragOver = (e: React.DragEvent, targetValue: string) => {
     e.preventDefault();
     if (!draggedColumn || draggedColumn === targetValue) return;
+    setDragOverColumn(targetValue);
 
     const currentOrder = orderedRoleTypes.map(r => r.value);
     const fromIdx = currentOrder.indexOf(draggedColumn);
@@ -158,6 +160,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
 
   const handleColumnDragEnd = () => {
     setDraggedColumn(null);
+    setDragOverColumn(null);
   };
 
   // Pagination - load 10 events at a time
@@ -1160,8 +1163,20 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                 ))
               ) : (
                 visibleRoleTypes.map(role => (
-                  <th key={role.id} className="h-12 px-4 text-left align-middle font-medium text-muted-foreground min-w-[150px]">
-                    {role.label}
+                  <th
+                    key={role.id}
+                    draggable
+                    onDragStart={() => handleColumnDragStart(role.value)}
+                    onDragOver={(e) => handleColumnDragOver(e, role.value)}
+                    onDragEnd={handleColumnDragEnd}
+                    className={`h-12 px-4 text-left align-middle font-medium text-muted-foreground min-w-[150px] cursor-grab active:cursor-grabbing select-none ${
+                      draggedColumn === role.value ? 'opacity-50 bg-blue-50' : ''
+                    }${dragOverColumn === role.value && draggedColumn !== role.value ? ' bg-blue-50/50' : ''}`}
+                  >
+                    <span className="flex items-center gap-1">
+                      <GripVertical className="w-3 h-3 text-slate-300 shrink-0" />
+                      {role.label}
+                    </span>
                   </th>
                 ))
               )}

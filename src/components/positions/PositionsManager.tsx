@@ -83,7 +83,7 @@ export default function PositionsManager({
   const [positions, setPositions] = useState(initialPositions);
   const [sections, setSections] = useState<EventSection[]>(initialSections);
   const [selectedRoles, setSelectedRoles] = useState<Set<string>>(new Set());
-  const [selectedSection, setSelectedSection] = useState<string>('');
+  const [addingToSection, setAddingToSection] = useState<string | null>(null); // section id or '__general__' for no section
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [selectedTechnician, setSelectedTechnician] = useState<{ [key: string]: string }>({});
@@ -203,7 +203,7 @@ export default function PositionsManager({
             event_id: eventId,
             title: role.label,
             role_type: roleValue,
-            section_id: selectedSection || null,
+            section_id: addingToSection === '__general__' ? null : addingToSection || null,
           }),
         });
 
@@ -591,259 +591,346 @@ export default function PositionsManager({
     </TableRow>
   );
 
+  // Build section groups for rendering
+  const sectionGroups = (() => {
+    const groups: { section: EventSection | null; positions: typeof positions }[] = [];
+    for (const section of sections) {
+      groups.push({ section, positions: positions.filter(p => p.section_id === section.id) });
+    }
+    const unsectioned = positions.filter(p => !p.section_id);
+    if (unsectioned.length > 0 || sections.length === 0) {
+      groups.push({ section: null, positions: unsectioned });
+    }
+    return groups;
+  })();
+
+  // Inline add-positions popover for a section
+  const renderAddPositionsPopover = (sectionId: string | null, align: 'start' | 'end' = 'end') => {
+    const targetKey = sectionId || '__general__';
+    const isOpen = popoverOpen && addingToSection === targetKey;
+    return (
+      <Popover
+        open={isOpen}
+        onOpenChange={(open) => {
+          setPopoverOpen(open);
+          if (open) {
+            setAddingToSection(targetKey);
+            setSelectedRoles(new Set());
+          }
+        }}
+      >
+        <PopoverTrigger asChild>
+          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Přidat pozici">
+            <Plus className="w-4 h-4" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align={align} className="w-56 p-0">
+          <div className="text-xs font-medium text-slate-500 px-3 py-2 border-b">
+            Vyberte role
+          </div>
+          <div className="py-1 px-1 max-h-60 overflow-y-auto">
+            {roleTypes.map((role) => (
+              <label
+                key={role.id}
+                className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-100 cursor-pointer rounded"
+              >
+                <Checkbox
+                  checked={selectedRoles.has(role.value)}
+                  onCheckedChange={() => toggleRole(role.value)}
+                />
+                <span className="text-sm">{role.label}</span>
+              </label>
+            ))}
+          </div>
+          {selectedRoles.size > 0 && (
+            <div className="border-t px-2 py-2">
+              <Button
+                size="sm"
+                className="w-full gap-1"
+                onClick={handleAddPositions}
+                disabled={loading}
+              >
+                {loading ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Check className="h-3 w-3" />
+                )}
+                Přidat {selectedRoles.size} {selectedRoles.size === 1 ? 'pozici' : selectedRoles.size < 5 ? 'pozice' : 'pozic'}
+              </Button>
+            </div>
+          )}
+        </PopoverContent>
+      </Popover>
+    );
+  };
+
+  // Render mobile card for a single position
+  const renderMobilePositionCard = (position: typeof positions[0]) => (
+    <div key={position.id} className="border rounded-lg p-3 bg-slate-50">
+      <div className="flex items-center justify-between mb-2">
+        <Badge variant="outline" className="text-xs">{getRoleTypeLabel(position.role_type)}</Badge>
+        {isAdmin && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => handleDeletePosition(position.id)}
+            className="h-9 w-9 p-0"
+          >
+            <Trash2 className="w-4 h-4 text-red-600" />
+          </Button>
+        )}
+      </div>
+      <div className="space-y-2">
+        {position.assignments.map((assignment) => (
+          <div
+            key={assignment.id}
+            className="flex flex-col gap-2 p-2 bg-white rounded-md border"
+          >
+            <div className="flex items-center justify-between">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-slate-900 truncate">
+                  {assignment.technician.full_name}
+                </p>
+                {(assignment.start_date || assignment.end_date) && (
+                  <Badge variant="outline" className="text-xs gap-1 mt-1">
+                    <CalendarDays className="w-3 h-3" />
+                    {assignment.start_date && format(new Date(assignment.start_date), 'd.M.', { locale: cs })}
+                    {assignment.start_date && assignment.end_date && ' - '}
+                    {assignment.end_date && format(new Date(assignment.end_date), 'd.M.', { locale: cs })}
+                  </Badge>
+                )}
+              </div>
+              {isAdmin && (
+                <div className="flex items-center gap-1 ml-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => openEditDatesDialog(assignment)}
+                    className="h-9 w-9 p-0"
+                    title="Upravit období"
+                  >
+                    <CalendarDays className="w-4 h-4" />
+                  </Button>
+                  {assignment.attendance_status === 'pending' && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleInvite(assignment.id)}
+                      className="h-9 w-9 p-0"
+                    >
+                      <Mail className="w-4 h-4" />
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleRemoveAssignment(assignment.id)}
+                    className="h-9 w-9 p-0"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
+            {isAdmin ? (
+              <Select
+                value={assignment.attendance_status}
+                onValueChange={(value) =>
+                  handleStatusChange(assignment.id, value as AttendanceStatus)
+                }
+                disabled={updatingStatus === assignment.id}
+              >
+                <SelectTrigger className="w-full h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Čeká</SelectItem>
+                  <SelectItem value="accepted">Přijato</SelectItem>
+                  <SelectItem value="declined">Odmítnuto</SelectItem>
+                  <SelectItem value="tentative">Předběžně</SelectItem>
+                </SelectContent>
+              </Select>
+            ) : (
+              <Badge className={`${getAttendanceStatusColor(assignment.attendance_status)} text-xs`}>
+                {getAttendanceStatusLabel(assignment.attendance_status)}
+              </Badge>
+            )}
+          </div>
+        ))}
+        {isAdmin && (
+          <div className="flex items-center gap-2 pt-1">
+            <Select
+              value={selectedTechnician[position.id] || ''}
+              onValueChange={(value) =>
+                setSelectedTechnician({ ...selectedTechnician, [position.id]: value })
+              }
+            >
+              <SelectTrigger className="flex-1 h-8 text-xs">
+                <SelectValue placeholder="Přidat technika..." />
+              </SelectTrigger>
+              <SelectContent>
+                {allTechnicians
+                  .filter(
+                    (tech) =>
+                      !position.assignments.some((a) => a.technician_id === tech.id)
+                  )
+                  .map((tech) => (
+                    <SelectItem key={tech.id} value={tech.id}>
+                      {tech.full_name}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+            <Button
+              size="sm"
+              onClick={() => {
+                if (selectedTechnician[position.id]) {
+                  handleAssignTechnician(position.id, selectedTechnician[position.id]);
+                }
+              }}
+              disabled={!selectedTechnician[position.id]}
+              className="h-8 w-8 p-0"
+            >
+              <UserPlus className="w-4 h-4" />
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  // Render a section group (mobile)
+  const renderMobileSectionGroup = (group: { section: EventSection | null; positions: typeof positions }) => (
+    <div key={group.section?.id || 'general'} className="space-y-2">
+      <div className="flex items-center justify-between px-1">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
+            {group.section?.name || 'Obecné'}
+          </span>
+          {isAdmin && group.section && (
+            <button onClick={() => handleDeleteSection(group.section!.id)} className="text-slate-400 hover:text-red-600">
+              <X className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+        {isAdmin && renderAddPositionsPopover(group.section?.id || null, 'end')}
+      </div>
+      {group.positions.map(renderMobilePositionCard)}
+      {group.positions.length === 0 && (
+        <p className="text-xs text-slate-400 pl-1">Žádné pozice</p>
+      )}
+    </div>
+  );
+
   return (
     <Card>
       <CardHeader className="pb-2 md:pb-6">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base md:text-xl">Pozice a přiřazení</CardTitle>
           {isAdmin && (
-            <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-xs md:text-sm"
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <Loader2 className="w-4 h-4 md:mr-2 animate-spin" />
-                  ) : (
-                    <Plus className="w-4 h-4 md:mr-2" />
-                  )}
-                  <span className="hidden md:inline">Přidat pozice</span>
+            <div className="flex items-center gap-2">
+              {addingSectionOpen ? (
+                <div className="flex items-center gap-1">
+                  <Input
+                    value={newSectionName}
+                    onChange={e => setNewSectionName(e.target.value)}
+                    placeholder="Název sekce..."
+                    className="h-7 w-32 text-xs"
+                    onKeyDown={e => { if (e.key === 'Enter') handleAddSection(); if (e.key === 'Escape') setAddingSectionOpen(false); }}
+                    autoFocus
+                  />
+                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={handleAddSection}>
+                    <Check className="w-3 h-3" />
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setAddingSectionOpen(false)}>
+                    <X className="w-3 h-3" />
+                  </Button>
+                </div>
+              ) : (
+                <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => setAddingSectionOpen(true)}>
+                  <Plus className="w-3 h-3" />
+                  Sekce
                 </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-56 p-0">
-                <div className="text-xs font-medium text-slate-500 px-3 py-2 border-b">
-                  Vyberte role
-                </div>
-                {sections.length > 0 && (
-                  <div className="px-2 py-2 border-b">
-                    <Select value={selectedSection} onValueChange={setSelectedSection}>
-                      <SelectTrigger className="h-7 text-xs">
-                        <SelectValue placeholder="Bez sekce" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="">Bez sekce</SelectItem>
-                        {sections.map(s => (
-                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-                <div className="py-1 px-1 max-h-60 overflow-y-auto">
-                  {roleTypes.map((role) => (
-                    <label
-                      key={role.id}
-                      className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-100 cursor-pointer rounded"
-                    >
-                      <Checkbox
-                        checked={selectedRoles.has(role.value)}
-                        onCheckedChange={() => toggleRole(role.value)}
-                      />
-                      <span className="text-sm">{role.label}</span>
-                    </label>
-                  ))}
-                </div>
-                {selectedRoles.size > 0 && (
-                  <div className="border-t px-2 py-2">
+              )}
+              {/* Top-level add positions button (adds to "general" / no section) */}
+              {sections.length === 0 && (
+                <Popover
+                  open={popoverOpen && addingToSection === '__general__'}
+                  onOpenChange={(open) => {
+                    setPopoverOpen(open);
+                    if (open) {
+                      setAddingToSection('__general__');
+                      setSelectedRoles(new Set());
+                    }
+                  }}
+                >
+                  <PopoverTrigger asChild>
                     <Button
                       size="sm"
-                      className="w-full gap-1"
-                      onClick={handleAddPositions}
+                      variant="outline"
+                      className="text-xs md:text-sm"
                       disabled={loading}
                     >
                       {loading ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <Loader2 className="w-4 h-4 md:mr-2 animate-spin" />
                       ) : (
-                        <Check className="h-3 w-3" />
+                        <Plus className="w-4 h-4 md:mr-2" />
                       )}
-                      Přidat {selectedRoles.size} {selectedRoles.size === 1 ? 'pozici' : selectedRoles.size < 5 ? 'pozice' : 'pozic'}
+                      <span className="hidden md:inline">Přidat pozice</span>
                     </Button>
-                  </div>
-                )}
-              </PopoverContent>
-            </Popover>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-56 p-0">
+                    <div className="text-xs font-medium text-slate-500 px-3 py-2 border-b">
+                      Vyberte role
+                    </div>
+                    <div className="py-1 px-1 max-h-60 overflow-y-auto">
+                      {roleTypes.map((role) => (
+                        <label
+                          key={role.id}
+                          className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-100 cursor-pointer rounded"
+                        >
+                          <Checkbox
+                            checked={selectedRoles.has(role.value)}
+                            onCheckedChange={() => toggleRole(role.value)}
+                          />
+                          <span className="text-sm">{role.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                    {selectedRoles.size > 0 && (
+                      <div className="border-t px-2 py-2">
+                        <Button
+                          size="sm"
+                          className="w-full gap-1"
+                          onClick={handleAddPositions}
+                          disabled={loading}
+                        >
+                          {loading ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Check className="h-3 w-3" />
+                          )}
+                          Přidat {selectedRoles.size} {selectedRoles.size === 1 ? 'pozici' : selectedRoles.size < 5 ? 'pozice' : 'pozic'}
+                        </Button>
+                      </div>
+                    )}
+                  </PopoverContent>
+                </Popover>
+              )}
+            </div>
           )}
         </div>
       </CardHeader>
       <CardContent className="p-2 md:p-6">
-        {/* Section management */}
-        {isAdmin && (
-          <div className="mb-4 flex flex-wrap items-center gap-2">
-            {sections.map(section => (
-              <Badge key={section.id} variant="secondary" className="gap-1 text-xs">
-                {section.name}
-                <button onClick={() => handleDeleteSection(section.id)} className="ml-0.5 hover:text-red-600">
-                  <X className="w-3 h-3" />
-                </button>
-              </Badge>
-            ))}
-            {addingSectionOpen ? (
-              <div className="flex items-center gap-1">
-                <Input
-                  value={newSectionName}
-                  onChange={e => setNewSectionName(e.target.value)}
-                  placeholder="Název sekce..."
-                  className="h-7 w-32 text-xs"
-                  onKeyDown={e => { if (e.key === 'Enter') handleAddSection(); if (e.key === 'Escape') setAddingSectionOpen(false); }}
-                  autoFocus
-                />
-                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={handleAddSection}>
-                  <Check className="w-3 h-3" />
-                </Button>
-                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setAddingSectionOpen(false)}>
-                  <X className="w-3 h-3" />
-                </Button>
-              </div>
-            ) : (
-              <Button size="sm" variant="outline" className="h-6 text-xs gap-1" onClick={() => setAddingSectionOpen(true)}>
-                <Plus className="w-3 h-3" />
-                Sekce
-              </Button>
-            )}
-          </div>
-        )}
-
-        {/* Mobile: Card layout */}
-        <div className="md:hidden space-y-3">
-          {positions.map((position) => (
-            <div key={position.id} className="border rounded-lg p-3 bg-slate-50">
-              <div className="flex items-center justify-between mb-2">
-                <Badge variant="outline" className="text-xs">{getRoleTypeLabel(position.role_type)}</Badge>
-                {isAdmin && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => handleDeletePosition(position.id)}
-                    className="h-9 w-9 p-0"
-                  >
-                    <Trash2 className="w-4 h-4 text-red-600" />
-                  </Button>
-                )}
-              </div>
-              <div className="space-y-2">
-                {position.assignments.map((assignment) => (
-                  <div
-                    key={assignment.id}
-                    className="flex flex-col gap-2 p-2 bg-white rounded-md border"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-slate-900 truncate">
-                          {assignment.technician.full_name}
-                        </p>
-                        {(assignment.start_date || assignment.end_date) && (
-                          <Badge variant="outline" className="text-xs gap-1 mt-1">
-                            <CalendarDays className="w-3 h-3" />
-                            {assignment.start_date && format(new Date(assignment.start_date), 'd.M.', { locale: cs })}
-                            {assignment.start_date && assignment.end_date && ' - '}
-                            {assignment.end_date && format(new Date(assignment.end_date), 'd.M.', { locale: cs })}
-                          </Badge>
-                        )}
-                      </div>
-                      {isAdmin && (
-                        <div className="flex items-center gap-1 ml-2">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => openEditDatesDialog(assignment)}
-                            className="h-9 w-9 p-0"
-                            title="Upravit období"
-                          >
-                            <CalendarDays className="w-4 h-4" />
-                          </Button>
-                          {assignment.attendance_status === 'pending' && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleInvite(assignment.id)}
-                              className="h-9 w-9 p-0"
-                            >
-                              <Mail className="w-4 h-4" />
-                            </Button>
-                          )}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleRemoveAssignment(assignment.id)}
-                            className="h-9 w-9 p-0"
-                          >
-                            <X className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                    {isAdmin ? (
-                      <Select
-                        value={assignment.attendance_status}
-                        onValueChange={(value) =>
-                          handleStatusChange(assignment.id, value as AttendanceStatus)
-                        }
-                        disabled={updatingStatus === assignment.id}
-                      >
-                        <SelectTrigger className="w-full h-8 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="pending">Čeká</SelectItem>
-                          <SelectItem value="accepted">Přijato</SelectItem>
-                          <SelectItem value="declined">Odmítnuto</SelectItem>
-                          <SelectItem value="tentative">Předběžně</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Badge className={`${getAttendanceStatusColor(assignment.attendance_status)} text-xs`}>
-                        {getAttendanceStatusLabel(assignment.attendance_status)}
-                      </Badge>
-                    )}
-                  </div>
-                ))}
-                {isAdmin && (
-                  <div className="flex items-center gap-2 pt-1">
-                    <Select
-                      value={selectedTechnician[position.id] || ''}
-                      onValueChange={(value) =>
-                        setSelectedTechnician({ ...selectedTechnician, [position.id]: value })
-                      }
-                    >
-                      <SelectTrigger className="flex-1 h-8 text-xs">
-                        <SelectValue placeholder="Přidat technika..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {allTechnicians
-                          .filter(
-                            (tech) =>
-                              !position.assignments.some((a) => a.technician_id === tech.id)
-                          )
-                          .map((tech) => (
-                            <SelectItem key={tech.id} value={tech.id}>
-                              {tech.full_name}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        if (selectedTechnician[position.id]) {
-                          handleAssignTechnician(position.id, selectedTechnician[position.id]);
-                        }
-                      }}
-                      disabled={!selectedTechnician[position.id]}
-                      className="h-8 w-8 p-0"
-                    >
-                      <UserPlus className="w-4 h-4" />
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
+        {/* Mobile: Card layout with section groups */}
+        <div className="md:hidden space-y-4">
+          {sections.length > 0
+            ? sectionGroups.map(renderMobileSectionGroup)
+            : positions.map(renderMobilePositionCard)
+          }
         </div>
 
-        {/* Desktop: Table layout */}
+        {/* Desktop: Table layout with section groups */}
         <div className="hidden md:block">
           <Table>
             <TableHeader>
@@ -854,41 +941,43 @@ export default function PositionsManager({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {/* Group by sections if any exist */}
-              {sections.length > 0 && (() => {
-                const groups: { section: EventSection | null; positions: typeof positions }[] = [];
-                // Positions with section
-                for (const section of sections) {
-                  const sectionPositions = positions.filter(p => p.section_id === section.id);
-                  if (sectionPositions.length > 0) {
-                    groups.push({ section, positions: sectionPositions });
-                  }
-                }
-                // Positions without section
-                const unsectioned = positions.filter(p => !p.section_id);
-                if (unsectioned.length > 0) {
-                  groups.push({ section: null, positions: unsectioned });
-                }
-                return groups.map(group => (
-                  <React.Fragment key={group.section?.id || 'general'}>
-                    <TableRow className="bg-slate-100 hover:bg-slate-100">
-                      <TableCell colSpan={isAdmin ? 3 : 2} className="py-1.5">
-                        <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
-                          {group.section?.name || 'Obecné'}
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                    {group.positions.map((position) => renderPositionRow(position))}
-                  </React.Fragment>
-                ));
-              })()}
-              {/* No sections - render flat list */}
-              {sections.length === 0 && positions.map(renderPositionRow)}
+              {sections.length > 0
+                ? sectionGroups.map(group => (
+                    <React.Fragment key={group.section?.id || 'general'}>
+                      <TableRow className="bg-slate-100 hover:bg-slate-100">
+                        <TableCell colSpan={isAdmin ? 3 : 2} className="py-1.5">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                                {group.section?.name || 'Obecné'}
+                              </span>
+                              {isAdmin && group.section && (
+                                <button onClick={() => handleDeleteSection(group.section!.id)} className="text-slate-400 hover:text-red-600">
+                                  <X className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                            {isAdmin && renderAddPositionsPopover(group.section?.id || null, 'end')}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      {group.positions.map(renderPositionRow)}
+                      {group.positions.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={isAdmin ? 3 : 2} className="py-2 text-xs text-slate-400 text-center">
+                            Žádné pozice
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </React.Fragment>
+                  ))
+                : positions.map(renderPositionRow)
+              }
             </TableBody>
           </Table>
         </div>
 
-        {positions.length === 0 && (
+        {positions.length === 0 && sections.length === 0 && (
           <div className="text-center py-6 md:py-8 text-slate-500 text-sm">
             {isAdmin ? 'Zatím nejsou vytvořené žádné pozice.' : 'Pro tuto akci zatím nejsou vytvořené žádné pozice.'}
           </div>
