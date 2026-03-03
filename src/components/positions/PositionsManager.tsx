@@ -50,6 +50,102 @@ interface RoleTypeDB {
   label: string;
 }
 
+// Standalone component - each instance has its own open/selectedRoles state
+function AddPositionsPopover({
+  sectionId,
+  roleTypes,
+  onAdd,
+  variant = 'ghost',
+  showLabel = false,
+}: {
+  sectionId: string | null;
+  roleTypes: RoleTypeDB[];
+  onAdd: (roles: string[], sectionId: string | null) => Promise<void>;
+  variant?: 'ghost' | 'outline';
+  showLabel?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [saving, setSaving] = useState(false);
+
+  const toggle = (value: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(value)) next.delete(value);
+      else next.add(value);
+      return next;
+    });
+  };
+
+  const handleAdd = async () => {
+    if (selected.size === 0) return;
+    setSaving(true);
+    try {
+      await onAdd(Array.from(selected), sectionId);
+      setSelected(new Set());
+      setOpen(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (o) setSelected(new Set()); }}>
+      <PopoverTrigger asChild>
+        <Button
+          size="sm"
+          variant={variant}
+          className={showLabel ? 'text-xs md:text-sm' : 'h-7 w-7 p-0'}
+          title="Přidat pozici"
+        >
+          {saving ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Plus className={showLabel ? 'w-4 h-4 md:mr-1' : 'w-4 h-4'} />
+          )}
+          {showLabel && <span className="hidden md:inline">Přidat pozice</span>}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-56 p-0">
+        <div className="text-xs font-medium text-slate-500 px-3 py-2 border-b">
+          Vyberte role
+        </div>
+        <div className="py-1 px-1 max-h-60 overflow-y-auto">
+          {roleTypes.map((role) => (
+            <label
+              key={role.id}
+              className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-100 cursor-pointer rounded"
+            >
+              <Checkbox
+                checked={selected.has(role.value)}
+                onCheckedChange={() => toggle(role.value)}
+              />
+              <span className="text-sm">{role.label}</span>
+            </label>
+          ))}
+        </div>
+        {selected.size > 0 && (
+          <div className="border-t px-2 py-2">
+            <Button
+              size="sm"
+              className="w-full gap-1"
+              onClick={handleAdd}
+              disabled={saving}
+            >
+              {saving ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Check className="h-3 w-3" />
+              )}
+              Přidat {selected.size} {selected.size === 1 ? 'pozici' : selected.size < 5 ? 'pozice' : 'pozic'}
+            </Button>
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 interface PositionsManagerProps {
   positions: (Position & {
     assignments: (Assignment & { technician: Profile })[];
@@ -82,9 +178,6 @@ export default function PositionsManager({
   const queryClient = useQueryClient();
   const [positions, setPositions] = useState(initialPositions);
   const [sections, setSections] = useState<EventSection[]>(initialSections);
-  const [selectedRoles, setSelectedRoles] = useState<Set<string>>(new Set());
-  const [addingToSection, setAddingToSection] = useState<string | null>(null); // section id or '__general__' for no section
-  const [popoverOpen, setPopoverOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [selectedTechnician, setSelectedTechnician] = useState<{ [key: string]: string }>({});
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
@@ -170,61 +263,36 @@ export default function PositionsManager({
     }
   };
 
-  // Toggle role selection
-  const toggleRole = (roleValue: string) => {
-    setSelectedRoles(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(roleValue)) {
-        newSet.delete(roleValue);
-      } else {
-        newSet.add(roleValue);
+  // Add multiple positions at once (called from AddPositionsPopover)
+  const handleAddPositionsToSection = async (roles: string[], sectionId: string | null) => {
+    const newPositions: (Position & { assignments: (Assignment & { technician: Profile })[] })[] = [];
+
+    for (const roleValue of roles) {
+      const role = roleTypes.find(r => r.value === roleValue);
+      if (!role) continue;
+
+      const response = await fetch('/api/positions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event_id: eventId,
+          title: role.label,
+          role_type: roleValue,
+          section_id: sectionId,
+        }),
+      });
+
+      if (response.ok) {
+        const { position } = await response.json();
+        newPositions.push({ ...position, assignments: [] });
       }
-      return newSet;
-    });
-  };
-
-  // Add multiple positions at once
-  const handleAddPositions = async () => {
-    if (selectedRoles.size === 0) return;
-
-    setLoading(true);
-
-    try {
-      const newPositions: (Position & { assignments: (Assignment & { technician: Profile })[] })[] = [];
-
-      for (const roleValue of selectedRoles) {
-        const role = roleTypes.find(r => r.value === roleValue);
-        if (!role) continue;
-
-        const response = await fetch('/api/positions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            event_id: eventId,
-            title: role.label,
-            role_type: roleValue,
-            section_id: addingToSection === '__general__' ? null : addingToSection || null,
-          }),
-        });
-
-        if (response.ok) {
-          const { position } = await response.json();
-          newPositions.push({ ...position, assignments: [] });
-        }
-      }
-
-      // Update UI with all new positions
-      setPositions([...positions, ...newPositions]);
-      setSelectedRoles(new Set());
-      setPopoverOpen(false);
-
-      // Invalidate cache to sync all views
-      await queryClient.invalidateQueries({ queryKey: eventKeys.all });
-    } catch (error) {
-      toast.error('Chyba při vytváření pozic');
-    } finally {
-      setLoading(false);
     }
+
+    // Update UI with all new positions
+    setPositions(prev => [...prev, ...newPositions]);
+
+    // Invalidate cache to sync all views
+    await queryClient.invalidateQueries({ queryKey: eventKeys.all });
   };
 
   const handleDeletePosition = async (positionId: string) => {
@@ -604,65 +672,7 @@ export default function PositionsManager({
     return groups;
   })();
 
-  // Inline add-positions popover for a section
-  const renderAddPositionsPopover = (sectionId: string | null, align: 'start' | 'end' = 'end') => {
-    const targetKey = sectionId || '__general__';
-    const isOpen = popoverOpen && addingToSection === targetKey;
-    return (
-      <Popover
-        open={isOpen}
-        onOpenChange={(open) => {
-          setPopoverOpen(open);
-          if (open) {
-            setAddingToSection(targetKey);
-            setSelectedRoles(new Set());
-          }
-        }}
-      >
-        <PopoverTrigger asChild>
-          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Přidat pozici">
-            <Plus className="w-4 h-4" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent align={align} className="w-56 p-0">
-          <div className="text-xs font-medium text-slate-500 px-3 py-2 border-b">
-            Vyberte role
-          </div>
-          <div className="py-1 px-1 max-h-60 overflow-y-auto">
-            {roleTypes.map((role) => (
-              <label
-                key={role.id}
-                className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-100 cursor-pointer rounded"
-              >
-                <Checkbox
-                  checked={selectedRoles.has(role.value)}
-                  onCheckedChange={() => toggleRole(role.value)}
-                />
-                <span className="text-sm">{role.label}</span>
-              </label>
-            ))}
-          </div>
-          {selectedRoles.size > 0 && (
-            <div className="border-t px-2 py-2">
-              <Button
-                size="sm"
-                className="w-full gap-1"
-                onClick={handleAddPositions}
-                disabled={loading}
-              >
-                {loading ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  <Check className="h-3 w-3" />
-                )}
-                Přidat {selectedRoles.size} {selectedRoles.size === 1 ? 'pozici' : selectedRoles.size < 5 ? 'pozice' : 'pozic'}
-              </Button>
-            </div>
-          )}
-        </PopoverContent>
-      </Popover>
-    );
-  };
+  // (AddPositionsPopover is now a standalone component above)
 
   // Render mobile card for a single position
   const renderMobilePositionCard = (position: typeof positions[0]) => (
@@ -813,7 +823,13 @@ export default function PositionsManager({
             </button>
           )}
         </div>
-        {isAdmin && renderAddPositionsPopover(group.section?.id || null, 'end')}
+        {isAdmin && (
+            <AddPositionsPopover
+              sectionId={group.section?.id || null}
+              roleTypes={roleTypes}
+              onAdd={handleAddPositionsToSection}
+            />
+          )}
       </div>
       {group.positions.map(renderMobilePositionCard)}
       {group.positions.length === 0 && (
@@ -854,68 +870,13 @@ export default function PositionsManager({
               )}
               {/* Top-level add positions button (adds to "general" / no section) */}
               {sections.length === 0 && (
-                <Popover
-                  open={popoverOpen && addingToSection === '__general__'}
-                  onOpenChange={(open) => {
-                    setPopoverOpen(open);
-                    if (open) {
-                      setAddingToSection('__general__');
-                      setSelectedRoles(new Set());
-                    }
-                  }}
-                >
-                  <PopoverTrigger asChild>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-xs md:text-sm"
-                      disabled={loading}
-                    >
-                      {loading ? (
-                        <Loader2 className="w-4 h-4 md:mr-2 animate-spin" />
-                      ) : (
-                        <Plus className="w-4 h-4 md:mr-2" />
-                      )}
-                      <span className="hidden md:inline">Přidat pozice</span>
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent align="end" className="w-56 p-0">
-                    <div className="text-xs font-medium text-slate-500 px-3 py-2 border-b">
-                      Vyberte role
-                    </div>
-                    <div className="py-1 px-1 max-h-60 overflow-y-auto">
-                      {roleTypes.map((role) => (
-                        <label
-                          key={role.id}
-                          className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-100 cursor-pointer rounded"
-                        >
-                          <Checkbox
-                            checked={selectedRoles.has(role.value)}
-                            onCheckedChange={() => toggleRole(role.value)}
-                          />
-                          <span className="text-sm">{role.label}</span>
-                        </label>
-                      ))}
-                    </div>
-                    {selectedRoles.size > 0 && (
-                      <div className="border-t px-2 py-2">
-                        <Button
-                          size="sm"
-                          className="w-full gap-1"
-                          onClick={handleAddPositions}
-                          disabled={loading}
-                        >
-                          {loading ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <Check className="h-3 w-3" />
-                          )}
-                          Přidat {selectedRoles.size} {selectedRoles.size === 1 ? 'pozici' : selectedRoles.size < 5 ? 'pozice' : 'pozic'}
-                        </Button>
-                      </div>
-                    )}
-                  </PopoverContent>
-                </Popover>
+                <AddPositionsPopover
+                  sectionId={null}
+                  roleTypes={roleTypes}
+                  onAdd={handleAddPositionsToSection}
+                  variant="outline"
+                  showLabel
+                />
               )}
             </div>
           )}
@@ -957,7 +918,13 @@ export default function PositionsManager({
                                 </button>
                               )}
                             </div>
-                            {isAdmin && renderAddPositionsPopover(group.section?.id || null, 'end')}
+                            {isAdmin && (
+                              <AddPositionsPopover
+                                sectionId={group.section?.id || null}
+                                roleTypes={roleTypes}
+                                onAdd={handleAddPositionsToSection}
+                              />
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
