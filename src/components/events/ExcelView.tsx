@@ -561,6 +561,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
 
   // Remove assignment
   const removeAssignment = useCallback((assignmentId: string, positionId: string, eventId: string) => {
+    if (!confirm('Opravdu odebrat přiřazení?')) return;
     setLocalData(prev => prev.map(event => {
       if (event.id !== eventId) return event;
       return {
@@ -630,6 +631,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
 
   // Remove empty position
   const removeEmptyPosition = useCallback((positionId: string, eventId: string) => {
+    if (!confirm('Opravdu odebrat volnou pozici?')) return;
     setLocalData(prev => prev.map(event => {
       if (event.id !== eventId) return event;
       return {
