@@ -331,6 +331,7 @@ export default function EventDetailPanel({ eventId, onClose, isAdmin }: EventDet
       {/* Positions Section */}
       <PositionsManager
         positions={event.positions || []}
+        sections={event.sections || []}
         eventId={event.id}
         isAdmin={isAdmin}
         allTechnicians={technicians}

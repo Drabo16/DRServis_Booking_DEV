@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Calendar } from '@/components/ui/calendar';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Table,
@@ -38,7 +39,7 @@ import { Plus, Trash2, X, Mail, UserPlus, Loader2, Check, CalendarDays } from 'l
 import { getRoleTypeLabel, getAttendanceStatusLabel, getAttendanceStatusColor, cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { cs } from 'date-fns/locale';
-import type { Position, Assignment, Profile, RoleType, AttendanceStatus } from '@/types';
+import type { Position, Assignment, Profile, RoleType, AttendanceStatus, EventSection } from '@/types';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { eventKeys } from '@/hooks/useEvents';
@@ -53,6 +54,7 @@ interface PositionsManagerProps {
   positions: (Position & {
     assignments: (Assignment & { technician: Profile })[];
   })[];
+  sections?: EventSection[];
   eventId: string;
   isAdmin: boolean;
   allTechnicians?: Profile[];
@@ -70,6 +72,7 @@ interface EditDatesDialogState {
 
 export default function PositionsManager({
   positions: initialPositions,
+  sections: initialSections = [],
   eventId,
   isAdmin,
   allTechnicians = [],
@@ -78,11 +81,15 @@ export default function PositionsManager({
 }: PositionsManagerProps) {
   const queryClient = useQueryClient();
   const [positions, setPositions] = useState(initialPositions);
+  const [sections, setSections] = useState<EventSection[]>(initialSections);
   const [selectedRoles, setSelectedRoles] = useState<Set<string>>(new Set());
+  const [selectedSection, setSelectedSection] = useState<string>('');
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [selectedTechnician, setSelectedTechnician] = useState<{ [key: string]: string }>({});
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
+  const [newSectionName, setNewSectionName] = useState('');
+  const [addingSectionOpen, setAddingSectionOpen] = useState(false);
 
   // Dialog for editing assignment dates
   const [editDatesDialog, setEditDatesDialog] = useState<EditDatesDialogState>({
@@ -124,6 +131,45 @@ export default function PositionsManager({
     setPositions(initialPositions);
   }, [initialPositions]);
 
+  useEffect(() => {
+    setSections(initialSections);
+  }, [initialSections]);
+
+  // Add a new section
+  const handleAddSection = async () => {
+    if (!newSectionName.trim()) return;
+    try {
+      const res = await fetch(`/api/events/${eventId}/sections`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newSectionName.trim() }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      const { section } = await res.json();
+      setSections(prev => [...prev, section]);
+      setNewSectionName('');
+      setAddingSectionOpen(false);
+      await queryClient.invalidateQueries({ queryKey: eventKeys.all });
+    } catch {
+      toast.error('Chyba při vytváření sekce');
+    }
+  };
+
+  // Delete a section
+  const handleDeleteSection = async (sectionId: string) => {
+    if (!confirm('Opravdu smazat tuto sekci? Pozice v ní zůstanou bez přiřazení k sekci.')) return;
+    try {
+      const res = await fetch(`/api/events/${eventId}/sections?section_id=${sectionId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed');
+      setSections(prev => prev.filter(s => s.id !== sectionId));
+      // Update positions that had this section
+      setPositions(prev => prev.map(p => p.section_id === sectionId ? { ...p, section_id: null } : p));
+      await queryClient.invalidateQueries({ queryKey: eventKeys.all });
+    } catch {
+      toast.error('Chyba při mazání sekce');
+    }
+  };
+
   // Toggle role selection
   const toggleRole = (roleValue: string) => {
     setSelectedRoles(prev => {
@@ -157,6 +203,7 @@ export default function PositionsManager({
             event_id: eventId,
             title: role.label,
             role_type: roleValue,
+            section_id: selectedSection || null,
           }),
         });
 
@@ -427,6 +474,123 @@ export default function PositionsManager({
     }
   };
 
+  // Render a single position row (desktop table)
+  const renderPositionRow = (position: typeof positions[0]) => (
+    <TableRow key={position.id}>
+      <TableCell className="font-medium">
+        <Badge variant="outline">{getRoleTypeLabel(position.role_type)}</Badge>
+      </TableCell>
+      <TableCell>
+        <div className="space-y-2">
+          {position.assignments.map((assignment) => (
+            <div
+              key={assignment.id}
+              className="flex items-center justify-between gap-2 p-2 bg-slate-50 rounded-md"
+            >
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-slate-900">
+                  {assignment.technician.full_name}
+                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-xs text-slate-500 truncate">
+                    {assignment.technician.email}
+                  </p>
+                  {(assignment.start_date || assignment.end_date) && (
+                    <Badge variant="outline" className="text-xs gap-1">
+                      <CalendarDays className="w-3 h-3" />
+                      {assignment.start_date && format(new Date(assignment.start_date), 'd.M.', { locale: cs })}
+                      {assignment.start_date && assignment.end_date && ' - '}
+                      {assignment.end_date && format(new Date(assignment.end_date), 'd.M.', { locale: cs })}
+                    </Badge>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {isAdmin ? (
+                  <>
+                    <Select
+                      value={assignment.attendance_status}
+                      onValueChange={(value) =>
+                        handleStatusChange(assignment.id, value as AttendanceStatus)
+                      }
+                      disabled={updatingStatus === assignment.id}
+                    >
+                      <SelectTrigger className="w-32 h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pending">Čeká</SelectItem>
+                        <SelectItem value="accepted">Přijato</SelectItem>
+                        <SelectItem value="declined">Odmítnuto</SelectItem>
+                        <SelectItem value="tentative">Předběžně</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button size="sm" variant="ghost" onClick={() => openEditDatesDialog(assignment)} title="Upravit období">
+                      <CalendarDays className="w-4 h-4" />
+                    </Button>
+                    {assignment.attendance_status === 'pending' && (
+                      <Button size="sm" variant="ghost" onClick={() => handleInvite(assignment.id)}>
+                        <Mail className="w-4 h-4" />
+                      </Button>
+                    )}
+                    <Button size="sm" variant="ghost" onClick={() => handleRemoveAssignment(assignment.id)}>
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </>
+                ) : (
+                  <Badge className={getAttendanceStatusColor(assignment.attendance_status)}>
+                    {getAttendanceStatusLabel(assignment.attendance_status)}
+                  </Badge>
+                )}
+              </div>
+            </div>
+          ))}
+          {isAdmin && (
+            <div className="flex items-center gap-2">
+              <Select
+                value={selectedTechnician[position.id] || ''}
+                onValueChange={(value) =>
+                  setSelectedTechnician({ ...selectedTechnician, [position.id]: value })
+                }
+              >
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Vyberte technika..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {allTechnicians
+                    .filter((tech) => !position.assignments.some((a) => a.technician_id === tech.id))
+                    .map((tech) => (
+                      <SelectItem key={tech.id} value={tech.id}>
+                        {tech.full_name} ({tech.email})
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              <Button
+                size="sm"
+                onClick={() => {
+                  if (selectedTechnician[position.id]) {
+                    handleAssignTechnician(position.id, selectedTechnician[position.id]);
+                  }
+                }}
+                disabled={!selectedTechnician[position.id]}
+              >
+                <UserPlus className="w-4 h-4" />
+              </Button>
+            </div>
+          )}
+        </div>
+      </TableCell>
+      {isAdmin && (
+        <TableCell>
+          <Button size="sm" variant="ghost" onClick={() => handleDeletePosition(position.id)}>
+            <Trash2 className="w-4 h-4 text-red-600" />
+          </Button>
+        </TableCell>
+      )}
+    </TableRow>
+  );
+
   return (
     <Card>
       <CardHeader className="pb-2 md:pb-6">
@@ -449,11 +613,26 @@ export default function PositionsManager({
                   <span className="hidden md:inline">Přidat pozice</span>
                 </Button>
               </PopoverTrigger>
-              <PopoverContent align="end" className="w-52 p-0">
+              <PopoverContent align="end" className="w-56 p-0">
                 <div className="text-xs font-medium text-slate-500 px-3 py-2 border-b">
                   Vyberte role
                 </div>
-                <div className="py-1 px-1">
+                {sections.length > 0 && (
+                  <div className="px-2 py-2 border-b">
+                    <Select value={selectedSection} onValueChange={setSelectedSection}>
+                      <SelectTrigger className="h-7 text-xs">
+                        <SelectValue placeholder="Bez sekce" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Bez sekce</SelectItem>
+                        {sections.map(s => (
+                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                <div className="py-1 px-1 max-h-60 overflow-y-auto">
                   {roleTypes.map((role) => (
                     <label
                       key={role.id}
@@ -490,6 +669,43 @@ export default function PositionsManager({
         </div>
       </CardHeader>
       <CardContent className="p-2 md:p-6">
+        {/* Section management */}
+        {isAdmin && (
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            {sections.map(section => (
+              <Badge key={section.id} variant="secondary" className="gap-1 text-xs">
+                {section.name}
+                <button onClick={() => handleDeleteSection(section.id)} className="ml-0.5 hover:text-red-600">
+                  <X className="w-3 h-3" />
+                </button>
+              </Badge>
+            ))}
+            {addingSectionOpen ? (
+              <div className="flex items-center gap-1">
+                <Input
+                  value={newSectionName}
+                  onChange={e => setNewSectionName(e.target.value)}
+                  placeholder="Název sekce..."
+                  className="h-7 w-32 text-xs"
+                  onKeyDown={e => { if (e.key === 'Enter') handleAddSection(); if (e.key === 'Escape') setAddingSectionOpen(false); }}
+                  autoFocus
+                />
+                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={handleAddSection}>
+                  <Check className="w-3 h-3" />
+                </Button>
+                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setAddingSectionOpen(false)}>
+                  <X className="w-3 h-3" />
+                </Button>
+              </div>
+            ) : (
+              <Button size="sm" variant="outline" className="h-6 text-xs gap-1" onClick={() => setAddingSectionOpen(true)}>
+                <Plus className="w-3 h-3" />
+                Sekce
+              </Button>
+            )}
+          </div>
+        )}
+
         {/* Mobile: Card layout */}
         <div className="md:hidden space-y-3">
           {positions.map((position) => (
@@ -501,7 +717,7 @@ export default function PositionsManager({
                     size="sm"
                     variant="ghost"
                     onClick={() => handleDeletePosition(position.id)}
-                    className="h-7 w-7 p-0"
+                    className="h-9 w-9 p-0"
                   >
                     <Trash2 className="w-4 h-4 text-red-600" />
                   </Button>
@@ -533,7 +749,7 @@ export default function PositionsManager({
                             size="sm"
                             variant="ghost"
                             onClick={() => openEditDatesDialog(assignment)}
-                            className="h-7 w-7 p-0"
+                            className="h-9 w-9 p-0"
                             title="Upravit období"
                           >
                             <CalendarDays className="w-4 h-4" />
@@ -543,7 +759,7 @@ export default function PositionsManager({
                               size="sm"
                               variant="ghost"
                               onClick={() => handleInvite(assignment.id)}
-                              className="h-7 w-7 p-0"
+                              className="h-9 w-9 p-0"
                             >
                               <Mail className="w-4 h-4" />
                             </Button>
@@ -552,7 +768,7 @@ export default function PositionsManager({
                             size="sm"
                             variant="ghost"
                             onClick={() => handleRemoveAssignment(assignment.id)}
-                            className="h-7 w-7 p-0"
+                            className="h-9 w-9 p-0"
                           >
                             <X className="w-4 h-4" />
                           </Button>
@@ -638,141 +854,36 @@ export default function PositionsManager({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {positions.map((position) => (
-                <TableRow key={position.id}>
-                  <TableCell className="font-medium">
-                    <Badge variant="outline">{getRoleTypeLabel(position.role_type)}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="space-y-2">
-                      {position.assignments.map((assignment) => (
-                        <div
-                          key={assignment.id}
-                          className="flex items-center justify-between gap-2 p-2 bg-slate-50 rounded-md"
-                        >
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-slate-900">
-                              {assignment.technician.full_name}
-                            </p>
-                            <div className="flex items-center gap-2">
-                              <p className="text-xs text-slate-500 truncate">
-                                {assignment.technician.email}
-                              </p>
-                              {(assignment.start_date || assignment.end_date) && (
-                                <Badge variant="outline" className="text-xs gap-1">
-                                  <CalendarDays className="w-3 h-3" />
-                                  {assignment.start_date && format(new Date(assignment.start_date), 'd.M.', { locale: cs })}
-                                  {assignment.start_date && assignment.end_date && ' - '}
-                                  {assignment.end_date && format(new Date(assignment.end_date), 'd.M.', { locale: cs })}
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 flex-shrink-0">
-                            {isAdmin ? (
-                              <>
-                                <Select
-                                  value={assignment.attendance_status}
-                                  onValueChange={(value) =>
-                                    handleStatusChange(assignment.id, value as AttendanceStatus)
-                                  }
-                                  disabled={updatingStatus === assignment.id}
-                                >
-                                  <SelectTrigger className="w-32 h-8 text-xs">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="pending">Čeká</SelectItem>
-                                    <SelectItem value="accepted">Přijato</SelectItem>
-                                    <SelectItem value="declined">Odmítnuto</SelectItem>
-                                    <SelectItem value="tentative">Předběžně</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => openEditDatesDialog(assignment)}
-                                  title="Upravit období"
-                                >
-                                  <CalendarDays className="w-4 h-4" />
-                                </Button>
-                                {assignment.attendance_status === 'pending' && (
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => handleInvite(assignment.id)}
-                                  >
-                                    <Mail className="w-4 h-4" />
-                                  </Button>
-                                )}
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => handleRemoveAssignment(assignment.id)}
-                                >
-                                  <X className="w-4 h-4" />
-                                </Button>
-                              </>
-                            ) : (
-                              <Badge className={getAttendanceStatusColor(assignment.attendance_status)}>
-                                {getAttendanceStatusLabel(assignment.attendance_status)}
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                      {isAdmin && (
-                        <div className="flex items-center gap-2">
-                          <Select
-                            value={selectedTechnician[position.id] || ''}
-                            onValueChange={(value) =>
-                              setSelectedTechnician({ ...selectedTechnician, [position.id]: value })
-                            }
-                          >
-                            <SelectTrigger className="flex-1">
-                              <SelectValue placeholder="Vyberte technika..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {allTechnicians
-                                .filter(
-                                  (tech) =>
-                                    !position.assignments.some((a) => a.technician_id === tech.id)
-                                )
-                                .map((tech) => (
-                                  <SelectItem key={tech.id} value={tech.id}>
-                                    {tech.full_name} ({tech.email})
-                                  </SelectItem>
-                                ))}
-                            </SelectContent>
-                          </Select>
-                          <Button
-                            size="sm"
-                            onClick={() => {
-                              if (selectedTechnician[position.id]) {
-                                handleAssignTechnician(position.id, selectedTechnician[position.id]);
-                              }
-                            }}
-                            disabled={!selectedTechnician[position.id]}
-                          >
-                            <UserPlus className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </TableCell>
-                  {isAdmin && (
-                    <TableCell>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleDeletePosition(position.id)}
-                      >
-                        <Trash2 className="w-4 h-4 text-red-600" />
-                      </Button>
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))}
+              {/* Group by sections if any exist */}
+              {sections.length > 0 && (() => {
+                const groups: { section: EventSection | null; positions: typeof positions }[] = [];
+                // Positions with section
+                for (const section of sections) {
+                  const sectionPositions = positions.filter(p => p.section_id === section.id);
+                  if (sectionPositions.length > 0) {
+                    groups.push({ section, positions: sectionPositions });
+                  }
+                }
+                // Positions without section
+                const unsectioned = positions.filter(p => !p.section_id);
+                if (unsectioned.length > 0) {
+                  groups.push({ section: null, positions: unsectioned });
+                }
+                return groups.map(group => (
+                  <React.Fragment key={group.section?.id || 'general'}>
+                    <TableRow className="bg-slate-100 hover:bg-slate-100">
+                      <TableCell colSpan={isAdmin ? 3 : 2} className="py-1.5">
+                        <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                          {group.section?.name || 'Obecné'}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                    {group.positions.map((position) => renderPositionRow(position))}
+                  </React.Fragment>
+                ));
+              })()}
+              {/* No sections - render flat list */}
+              {sections.length === 0 && positions.map(renderPositionRow)}
             </TableBody>
           </Table>
         </div>

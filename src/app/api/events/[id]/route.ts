@@ -40,28 +40,40 @@ export async function GET(
     }
 
     // Načti detail akce s pozicemi a assignments
-    const { data: event, error } = await supabase
-      .from('events')
-      .select(
-        `
-        id, google_event_id, google_calendar_id, title, description, location, start_time, end_time, status, drive_folder_url, drive_folder_id, calendar_attachment_synced, html_link, created_by, last_synced_at, created_at, updated_at,
-        positions (
-          id, event_id, title, role_type, requirements, shift_start, shift_end, created_at, updated_at,
-          assignments (
-            id, position_id, event_id, technician_id, attendance_status, response_time, notes, assigned_by, assigned_at, updated_at, start_date, end_date,
-            technician:profiles!assignments_technician_id_fkey (id, auth_user_id, email, full_name, phone, role, specialization, avatar_url, is_active, has_warehouse_access, is_drservis, company, note, created_at, updated_at)
+    const [eventResult, sectionsResult] = await Promise.all([
+      supabase
+        .from('events')
+        .select(
+          `
+          id, google_event_id, google_calendar_id, title, description, location, start_time, end_time, status, drive_folder_url, drive_folder_id, calendar_attachment_synced, html_link, created_by, last_synced_at, created_at, updated_at,
+          positions (
+            id, event_id, title, role_type, section_id, requirements, shift_start, shift_end, created_at, updated_at,
+            assignments (
+              id, position_id, event_id, technician_id, attendance_status, response_time, notes, assigned_by, assigned_at, updated_at, start_date, end_date,
+              technician:profiles!assignments_technician_id_fkey (id, auth_user_id, email, full_name, phone, role, specialization, avatar_url, is_active, has_warehouse_access, is_drservis, company, note, created_at, updated_at)
+            )
           )
+        `
         )
-      `
-      )
-      .eq('id', id)
-      .single();
+        .eq('id', id)
+        .single(),
+      supabase
+        .from('event_sections')
+        .select('id, event_id, name, sort_order, created_at')
+        .eq('event_id', id)
+        .order('sort_order', { ascending: true }),
+    ]);
 
-    if (error || !event) {
+    if (eventResult.error || !eventResult.data) {
       return apiError('Event not found', 404);
     }
 
-    return NextResponse.json({ event });
+    return NextResponse.json({
+      event: {
+        ...eventResult.data,
+        sections: sectionsResult.data || [],
+      },
+    });
   } catch (error) {
     console.error('[API] Error fetching event:', error);
     return apiError('Failed to fetch event');

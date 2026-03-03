@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
       return apiError('Validation failed', 400);
     }
 
-    const { event_id, title, role_type, requirements, shift_start, shift_end } = parsed.data;
+    const { event_id, title, role_type, section_id, requirements, shift_start, shift_end } = parsed.data;
 
     const { data, error } = await serviceClient
       .from('positions')
@@ -45,6 +45,7 @@ export async function POST(request: NextRequest) {
         event_id,
         title,
         role_type,
+        section_id: section_id || null,
         requirements,
         shift_start,
         shift_end,

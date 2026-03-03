@@ -56,11 +56,20 @@ export interface Event {
   updated_at: string;
 }
 
+export interface EventSection {
+  id: string;
+  event_id: string;
+  name: string;
+  sort_order: number;
+  created_at: string;
+}
+
 export interface Position {
   id: string;
   event_id: string;
   title: string;
   role_type: RoleType;
+  section_id: string | null;
   requirements: string[] | null;
   shift_start: string | null;
   shift_end: string | null;
@@ -105,6 +114,7 @@ export interface EventWithAssignments extends Event {
       technician: Profile;
     })[];
   })[];
+  sections?: EventSection[];
 }
 
 export interface AssignmentWithDetails extends Assignment {

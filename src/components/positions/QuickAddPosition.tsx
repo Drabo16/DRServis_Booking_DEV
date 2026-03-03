@@ -99,7 +99,7 @@ export default function QuickAddPosition({ eventId, variant = 'default', onSucce
       <div className="text-xs font-medium text-slate-500 px-2 py-1.5 border-b">
         Vyberte role
       </div>
-      <div className="py-1">
+      <div className="py-1 max-h-60 overflow-y-auto">
         {roleTypes.map((type) => (
           <label
             key={type.value}

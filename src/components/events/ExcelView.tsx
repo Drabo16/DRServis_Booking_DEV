@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { X, Plus, Check, Loader2, Save, Users, FolderPlus, Settings, FolderOpen, Calendar, Link2, RefreshCw, Trash2 } from 'lucide-react';
+import { X, Plus, Check, Loader2, Save, Users, FolderPlus, Settings, FolderOpen, Calendar, Link2, RefreshCw, Trash2, GripVertical, Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { cs } from 'date-fns/locale';
@@ -70,6 +70,95 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
     },
     staleTime: 10 * 60 * 1000, // 10 minutes - role types rarely change
   });
+
+  // Column order & visibility (persisted to localStorage)
+  const STORAGE_KEY = 'excelView-columnConfig';
+  const [columnOrder, setColumnOrder] = useState<string[]>([]);
+  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
+  const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
+  const [draggedColumn, setDraggedColumn] = useState<string | null>(null);
+
+  // Load column config from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const config = JSON.parse(saved);
+        if (config.order) setColumnOrder(config.order);
+        if (config.hidden) setHiddenColumns(new Set(config.hidden));
+      }
+    } catch {}
+  }, []);
+
+  // Save column config to localStorage
+  const saveColumnConfig = useCallback((order: string[], hidden: Set<string>) => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        order,
+        hidden: Array.from(hidden),
+      }));
+    } catch {}
+  }, []);
+
+  // Compute ordered & visible role types
+  const orderedRoleTypes = (() => {
+    if (!roleTypes.length) return [];
+    // Merge saved order with current role types (handle new/removed roles)
+    const roleMap = new Map(roleTypes.map(r => [r.value, r]));
+    const ordered: RoleTypeDB[] = [];
+    // First add roles in saved order
+    for (const val of columnOrder) {
+      const role = roleMap.get(val);
+      if (role) {
+        ordered.push(role);
+        roleMap.delete(val);
+      }
+    }
+    // Then add any new roles not in saved order
+    for (const role of roleMap.values()) {
+      ordered.push(role);
+    }
+    return ordered;
+  })();
+
+  const visibleRoleTypes = orderedRoleTypes.filter(r => !hiddenColumns.has(r.value));
+
+  const toggleColumnVisibility = (roleValue: string) => {
+    setHiddenColumns(prev => {
+      const next = new Set(prev);
+      if (next.has(roleValue)) {
+        next.delete(roleValue);
+      } else {
+        next.add(roleValue);
+      }
+      saveColumnConfig(orderedRoleTypes.map(r => r.value), next);
+      return next;
+    });
+  };
+
+  const handleColumnDragStart = (roleValue: string) => {
+    setDraggedColumn(roleValue);
+  };
+
+  const handleColumnDragOver = (e: React.DragEvent, targetValue: string) => {
+    e.preventDefault();
+    if (!draggedColumn || draggedColumn === targetValue) return;
+
+    const currentOrder = orderedRoleTypes.map(r => r.value);
+    const fromIdx = currentOrder.indexOf(draggedColumn);
+    const toIdx = currentOrder.indexOf(targetValue);
+    if (fromIdx === -1 || toIdx === -1) return;
+
+    const newOrder = [...currentOrder];
+    newOrder.splice(fromIdx, 1);
+    newOrder.splice(toIdx, 0, draggedColumn);
+    setColumnOrder(newOrder);
+    saveColumnConfig(newOrder, hiddenColumns);
+  };
+
+  const handleColumnDragEnd = () => {
+    setDraggedColumn(null);
+  };
 
   // Pagination - load 10 events at a time
   const PAGE_SIZE = 10;
@@ -392,6 +481,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
           event_id: eventId,
           title: roleLabel,
           role_type: roleType as RoleType,
+          section_id: null,
           requirements: null,
           shift_start: null,
           shift_end: null,
@@ -457,6 +547,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
         event_id: eventId,
         title: roleLabel,
         role_type: roleType as RoleType,
+        section_id: null,
         requirements: null,
         shift_start: null,
         shift_end: null,
@@ -571,17 +662,13 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
     scheduleAutoSave();
   }, [scheduleAutoSave]);
 
-  // Get event stats
+  // Get event stats - counts individual positions (same logic as EventCard/Seznam view)
   const getEventStats = (event: typeof localData[0]) => {
     const positions = event.positions || [];
-    const roleTypesSet = new Set(positions.map(p => p.role_type));
-    const total = roleTypesSet.size;
-    const filled = Array.from(roleTypesSet).filter(roleType => {
-      const rolePositions = positions.filter(p => p.role_type === roleType);
-      return rolePositions.some(p =>
-        p.assignments?.some(a => a.attendance_status === 'accepted')
-      );
-    }).length;
+    const total = positions.length;
+    const filled = positions.filter(p =>
+      p.assignments?.some(a => a.attendance_status === 'accepted')
+    ).length;
     return { total, filled, percentage: total > 0 ? Math.round((filled / total) * 100) : 0 };
   };
 
@@ -838,6 +925,47 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
             </Button>
           )}
 
+          {/* Column settings */}
+          <Popover open={columnSettingsOpen} onOpenChange={setColumnSettingsOpen}>
+            <PopoverTrigger asChild>
+              <Button size="sm" variant="ghost" title="Nastavení sloupců">
+                <Settings className="w-4 h-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-56 p-0">
+              <div className="text-xs font-medium text-slate-500 px-3 py-2 border-b">
+                Sloupce (přetáhněte pro změnu pořadí)
+              </div>
+              <div className="py-1 max-h-72 overflow-y-auto">
+                {orderedRoleTypes.map(role => (
+                  <div
+                    key={role.value}
+                    draggable
+                    onDragStart={() => handleColumnDragStart(role.value)}
+                    onDragOver={(e) => handleColumnDragOver(e, role.value)}
+                    onDragEnd={handleColumnDragEnd}
+                    className={`flex items-center gap-2 px-2 py-1.5 hover:bg-slate-100 cursor-grab active:cursor-grabbing ${
+                      draggedColumn === role.value ? 'opacity-50 bg-blue-50' : ''
+                    }`}
+                  >
+                    <GripVertical className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <span className="text-sm flex-1 truncate">{role.label}</span>
+                    <button
+                      onClick={() => toggleColumnVisibility(role.value)}
+                      className="p-0.5 rounded hover:bg-slate-200"
+                    >
+                      {hiddenColumns.has(role.value) ? (
+                        <EyeOff className="w-3.5 h-3.5 text-slate-400" />
+                      ) : (
+                        <Eye className="w-3.5 h-3.5 text-slate-600" />
+                      )}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
+
           <Button
             size="sm"
             onClick={saveToDatabase}
@@ -901,7 +1029,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
 
                   return (
                     <div key={role.id} className="flex items-start gap-2">
-                      <span className="text-[10px] font-medium text-slate-500 w-16 shrink-0 pt-0.5">
+                      <span className="text-xs font-medium text-slate-500 w-16 shrink-0 pt-0.5">
                         {role.label.substring(0, 8)}{role.label.length > 8 ? '.' : ''}
                       </span>
                       <div className="flex flex-wrap gap-1 flex-1">
@@ -909,7 +1037,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                         {emptyPositions.map(pos => (
                           <div
                             key={pos.id}
-                            className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] border border-dashed border-slate-400 bg-slate-50 text-slate-600"
+                            className="flex items-center gap-1 px-1.5 py-0.5 rounded text-xs border border-dashed border-slate-400 bg-slate-50 text-slate-600"
                           >
                             <span className="font-medium">Volná</span>
                             {isAdmin && (
@@ -925,7 +1053,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                         {assignments.map(assignment => (
                           <div
                             key={assignment.id}
-                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] border ${getStatusColor(assignment.attendance_status)}`}
+                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs border ${getStatusColor(assignment.attendance_status)}`}
                           >
                             <span className="font-medium truncate max-w-[80px]">
                               {assignment.technician?.full_name || '?'}
@@ -936,8 +1064,8 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                                   value={assignment.attendance_status}
                                   onValueChange={(v) => updateStatus(assignment.id, v as AttendanceStatus, event.id, assignment.positionId)}
                                 >
-                                  <SelectTrigger className="h-4 w-4 p-0 border-0 bg-transparent [&>svg]:hidden">
-                                    <span className="text-[10px]">▼</span>
+                                  <SelectTrigger className="h-5 w-5 p-0 border-0 bg-transparent [&>svg]:hidden">
+                                    <span className="text-xs">▼</span>
                                   </SelectTrigger>
                                   <SelectContent>
                                     <SelectItem value="pending">Čeká</SelectItem>
@@ -1007,7 +1135,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
       </div>
 
       {/* Desktop: Table layout - uses raw <table> to avoid nested overflow-auto from Table component */}
-      <div className="hidden md:block overflow-auto max-h-[calc(100vh-280px)] scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100">
+      <div className="hidden md:block overflow-auto max-h-[calc(100dvh-280px)] scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100">
         <table className="w-full caption-bottom text-sm min-w-max">
           <thead className="sticky top-0 bg-white z-20 shadow-[0_1px_0_0_theme(colors.slate.200)] [&_tr]:border-b">
             <tr className="border-b">
@@ -1031,7 +1159,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                   </th>
                 ))
               ) : (
-                roleTypes.map(role => (
+                visibleRoleTypes.map(role => (
                   <th key={role.id} className="h-12 px-4 text-left align-middle font-medium text-muted-foreground min-w-[150px]">
                     {role.label}
                   </th>
@@ -1109,7 +1237,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                         <div className="h-6 w-20 bg-slate-100 rounded animate-pulse" />
                       </td>
                     ))
-                  ) : roleTypes.map(role => {
+                  ) : visibleRoleTypes.map(role => {
                     const assignments = getAssignmentsForRole(event, role.value);
                     const emptyPositions = getEmptyPositionsForRole(event, role.value);
 
