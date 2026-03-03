@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,12 +13,15 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { toast } from 'sonner';
-import { Plus, Trash2, Pencil, Check, X } from 'lucide-react';
+import { Plus, Trash2, Pencil, Check, X, GripVertical, Loader2 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { roleTypeKeys } from '@/hooks/useRoleTypes';
 
 interface RoleType {
   id: string;
   value: string;
   label: string;
+  sort_order?: number;
 }
 
 interface RoleTypesManagerProps {
@@ -26,12 +29,18 @@ interface RoleTypesManagerProps {
 }
 
 export default function RoleTypesManager({ initialRoleTypes }: RoleTypesManagerProps) {
+  const queryClient = useQueryClient();
   const [roleTypes, setRoleTypes] = useState<RoleType[]>(initialRoleTypes);
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newRole, setNewRole] = useState({ value: '', label: '' });
   const [editRole, setEditRole] = useState({ value: '', label: '' });
   const [loading, setLoading] = useState(false);
+
+  // Drag state
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [isSavingOrder, setIsSavingOrder] = useState(false);
 
   const handleAdd = async () => {
     if (!newRole.value || !newRole.label) {
@@ -53,10 +62,10 @@ export default function RoleTypesManager({ initialRoleTypes }: RoleTypesManagerP
       }
 
       const data = await response.json();
-      // Immediately update local state with new role
       setRoleTypes(prev => [...prev, data.roleType]);
       setNewRole({ value: '', label: '' });
       setIsAdding(false);
+      queryClient.invalidateQueries({ queryKey: roleTypeKeys.all });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Chyba při vytváření role');
     } finally {
@@ -81,9 +90,9 @@ export default function RoleTypesManager({ initialRoleTypes }: RoleTypesManagerP
       if (!response.ok) throw new Error('Failed to update role type');
 
       const data = await response.json();
-      // Immediately update local state with edited role
       setRoleTypes(prev => prev.map(rt => rt.id === id ? data.roleType : rt));
       setEditingId(null);
+      queryClient.invalidateQueries({ queryKey: roleTypeKeys.all });
     } catch (error) {
       toast.error('Chyba při aktualizaci role');
     } finally {
@@ -104,8 +113,8 @@ export default function RoleTypesManager({ initialRoleTypes }: RoleTypesManagerP
 
       if (!response.ok) throw new Error('Failed to delete role type');
 
-      // Immediately update local state by removing deleted role
       setRoleTypes(prev => prev.filter(rt => rt.id !== id));
+      queryClient.invalidateQueries({ queryKey: roleTypeKeys.all });
     } catch (error) {
       toast.error('Chyba při mazání role');
     } finally {
@@ -123,11 +132,70 @@ export default function RoleTypesManager({ initialRoleTypes }: RoleTypesManagerP
     setEditRole({ value: '', label: '' });
   };
 
+  // Drag and drop reordering
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    setDraggedId(id);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    if (!draggedId || draggedId === targetId) return;
+    setDragOverId(targetId);
+
+    // Reorder locally on hover for visual feedback
+    setRoleTypes(prev => {
+      const fromIdx = prev.findIndex(r => r.id === draggedId);
+      const toIdx = prev.findIndex(r => r.id === targetId);
+      if (fromIdx === -1 || toIdx === -1) return prev;
+
+      const next = [...prev];
+      const [moved] = next.splice(fromIdx, 1);
+      next.splice(toIdx, 0, moved);
+      return next;
+    });
+  };
+
+  const handleDragEnd = async () => {
+    const wasDragging = draggedId !== null;
+    setDraggedId(null);
+    setDragOverId(null);
+
+    if (!wasDragging) return;
+
+    // Save new order to server
+    setIsSavingOrder(true);
+    try {
+      const orderedIds = roleTypes.map(r => r.id);
+      const res = await fetch('/api/role-types', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderedIds }),
+      });
+
+      if (!res.ok) throw new Error('Failed to save order');
+
+      queryClient.invalidateQueries({ queryKey: roleTypeKeys.all });
+    } catch {
+      toast.error('Chyba při ukládání pořadí');
+    } finally {
+      setIsSavingOrder(false);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle>Typy rolí</CardTitle>
+          <div className="flex items-center gap-3">
+            <CardTitle>Typy rolí</CardTitle>
+            {isSavingOrder && (
+              <div className="flex items-center gap-1 text-xs text-blue-600">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                Ukládám pořadí...
+              </div>
+            )}
+          </div>
           <Button
             size="sm"
             onClick={() => setIsAdding(true)}
@@ -137,11 +205,15 @@ export default function RoleTypesManager({ initialRoleTypes }: RoleTypesManagerP
             Přidat roli
           </Button>
         </div>
+        <p className="text-sm text-slate-500 mt-1">
+          Přetažením řádků změníte pořadí rolí ve všech nabídkách.
+        </p>
       </CardHeader>
       <CardContent>
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[40px]"></TableHead>
               <TableHead>Hodnota (ID)</TableHead>
               <TableHead>Název</TableHead>
               <TableHead className="w-[120px]">Akce</TableHead>
@@ -149,9 +221,21 @@ export default function RoleTypesManager({ initialRoleTypes }: RoleTypesManagerP
           </TableHeader>
           <TableBody>
             {roleTypes.map((roleType) => (
-              <TableRow key={roleType.id}>
+              <TableRow
+                key={roleType.id}
+                draggable={editingId === null && !isAdding}
+                onDragStart={(e) => handleDragStart(e, roleType.id)}
+                onDragOver={(e) => handleDragOver(e, roleType.id)}
+                onDragEnd={handleDragEnd}
+                className={`${
+                  draggedId === roleType.id ? 'opacity-50 bg-blue-50' : ''
+                } ${editingId === null && !isAdding ? 'cursor-grab active:cursor-grabbing' : ''}`}
+              >
                 {editingId === roleType.id ? (
                   <>
+                    <TableCell>
+                      <GripVertical className="w-4 h-4 text-slate-300" />
+                    </TableCell>
                     <TableCell>
                       <Input
                         value={editRole.value}
@@ -191,6 +275,9 @@ export default function RoleTypesManager({ initialRoleTypes }: RoleTypesManagerP
                   </>
                 ) : (
                   <>
+                    <TableCell>
+                      <GripVertical className="w-4 h-4 text-slate-400" />
+                    </TableCell>
                     <TableCell className="font-mono text-sm">{roleType.value}</TableCell>
                     <TableCell>{roleType.label}</TableCell>
                     <TableCell>
@@ -219,6 +306,9 @@ export default function RoleTypesManager({ initialRoleTypes }: RoleTypesManagerP
             ))}
             {isAdding && (
               <TableRow>
+                <TableCell>
+                  <GripVertical className="w-4 h-4 text-slate-300" />
+                </TableCell>
                 <TableCell>
                   <Input
                     value={newRole.value}
@@ -263,7 +353,7 @@ export default function RoleTypesManager({ initialRoleTypes }: RoleTypesManagerP
         </Table>
         {roleTypes.length === 0 && !isAdding && (
           <div className="text-center py-8 text-slate-500">
-            Žádné role. Klikněte na "Přidat roli" pro vytvoření nové.
+            Žádné role. Klikněte na &quot;Přidat roli&quot; pro vytvoření nové.
           </div>
         )}
       </CardContent>

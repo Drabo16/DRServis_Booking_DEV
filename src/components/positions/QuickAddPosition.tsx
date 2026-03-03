@@ -11,12 +11,7 @@ import {
 import { Plus, Loader2, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCreatePosition } from '@/hooks/usePositions';
-
-interface RoleTypeDB {
-  id: string;
-  value: string;
-  label: string;
-}
+import { useRoleTypes } from '@/hooks/useRoleTypes';
 
 interface QuickAddPositionProps {
   eventId: string;
@@ -26,26 +21,10 @@ interface QuickAddPositionProps {
 
 export default function QuickAddPosition({ eventId, variant = 'default', onSuccess }: QuickAddPositionProps) {
   const [open, setOpen] = useState(false);
-  const [roleTypes, setRoleTypes] = useState<RoleTypeDB[]>([]);
+  const { data: roleTypes = [], isLoading: loadingRoles } = useRoleTypes();
   const [selectedRoles, setSelectedRoles] = useState<Set<string>>(new Set());
   const [isAdding, setIsAdding] = useState(false);
   const createPosition = useCreatePosition();
-
-  // Load role types from database
-  useEffect(() => {
-    const fetchRoleTypes = async () => {
-      try {
-        const res = await fetch('/api/role-types');
-        if (res.ok) {
-          const data = await res.json();
-          setRoleTypes(data.roleTypes || []);
-        }
-      } catch (error) {
-        console.error('Error fetching role types:', error);
-      }
-    };
-    fetchRoleTypes();
-  }, []);
 
   // Reset selection when popover closes
   useEffect(() => {
@@ -99,6 +78,11 @@ export default function QuickAddPosition({ eventId, variant = 'default', onSucce
       <div className="text-xs font-medium text-slate-500 px-2 py-1.5 border-b">
         Vyberte role
       </div>
+      {loadingRoles ? (
+        <div className="flex items-center justify-center py-4">
+          <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+        </div>
+      ) : (
       <div className="py-1 max-h-60 overflow-y-auto">
         {roleTypes.map((type) => (
           <label
@@ -113,6 +97,7 @@ export default function QuickAddPosition({ eventId, variant = 'default', onSucce
           </label>
         ))}
       </div>
+      )}
       {selectedRoles.size > 0 && (
         <div className="border-t px-2 py-2">
           <Button

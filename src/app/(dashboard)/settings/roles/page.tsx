@@ -25,8 +25,9 @@ export default async function RoleSettingsPage() {
   // Načtení role types
   const { data: roleTypes } = await supabase
     .from('role_types')
-    .select('id, value, label, created_at')
-    .order('label');
+    .select('id, value, label, sort_order, created_at')
+    .order('sort_order', { ascending: true })
+    .order('label', { ascending: true });
 
   return (
     <div className="max-w-4xl mx-auto">

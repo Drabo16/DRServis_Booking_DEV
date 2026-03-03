@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useQuery } from '@tanstack/react-query';
 // NOTE: We intentionally use raw <table> elements instead of the Table UI component
 // because Table wraps <table> in a <div class="overflow-auto"> which creates a nested
 // scroll context that breaks sticky header positioning.
@@ -27,12 +26,7 @@ import type { Event, Position, Assignment, Profile, RoleType, AttendanceStatus }
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { eventKeys } from '@/hooks/useEvents';
-
-interface RoleTypeDB {
-  id: string;
-  value: string;
-  label: string;
-}
+import { useRoleTypes, type RoleTypeDB } from '@/hooks/useRoleTypes';
 
 interface ExcelViewProps {
   events: Array<Event & {
@@ -59,17 +53,8 @@ type PendingOperation =
 export default function ExcelView({ events, isAdmin, allTechnicians, userId }: ExcelViewProps) {
   const queryClient = useQueryClient();
 
-  // Role types from database - cached across tab switches
-  const { data: roleTypes = [], isLoading: loadingRoles } = useQuery<RoleTypeDB[]>({
-    queryKey: ['roleTypes'],
-    queryFn: async () => {
-      const res = await fetch('/api/role-types');
-      if (!res.ok) return [];
-      const data = await res.json();
-      return data.roleTypes || [];
-    },
-    staleTime: 10 * 60 * 1000, // 10 minutes - role types rarely change
-  });
+  // Role types from database - shared cache via useRoleTypes hook
+  const { data: roleTypes = [], isLoading: loadingRoles } = useRoleTypes();
 
   // Column order & visibility (persisted to localStorage per user)
   const STORAGE_KEY = `excelView-columnConfig-${userId}`;

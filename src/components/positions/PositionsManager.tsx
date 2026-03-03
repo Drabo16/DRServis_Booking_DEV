@@ -43,12 +43,7 @@ import type { Position, Assignment, Profile, RoleType, AttendanceStatus, EventSe
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { eventKeys } from '@/hooks/useEvents';
-
-interface RoleTypeDB {
-  id: string;
-  value: string;
-  label: string;
-}
+import { useRoleTypes, type RoleTypeDB } from '@/hooks/useRoleTypes';
 
 // Standalone component - each instance has its own open/selectedRoles state
 function AddPositionsPopover({
@@ -197,27 +192,8 @@ export default function PositionsManager({
   const eventStart = eventStartDate ? new Date(eventStartDate) : undefined;
   const eventEnd = eventEndDate ? new Date(eventEndDate) : undefined;
 
-  // Dynamic role types from database
-  const [roleTypes, setRoleTypes] = useState<RoleTypeDB[]>([]);
-  const [loadingRoles, setLoadingRoles] = useState(true);
-
-  // Load role types from database
-  useEffect(() => {
-    const fetchRoleTypes = async () => {
-      try {
-        const res = await fetch('/api/role-types');
-        if (res.ok) {
-          const data = await res.json();
-          setRoleTypes(data.roleTypes || []);
-        }
-      } catch (error) {
-        console.error('Error fetching role types:', error);
-      } finally {
-        setLoadingRoles(false);
-      }
-    };
-    fetchRoleTypes();
-  }, []);
+  // Dynamic role types from database (shared cache via React Query)
+  const { data: roleTypes = [] } = useRoleTypes();
 
   // Sync local state with props when React Query cache updates
   useEffect(() => {
