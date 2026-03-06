@@ -56,6 +56,17 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
   // Role types from database - shared cache via useRoleTypes hook
   const { data: roleTypes = [], isLoading: loadingRoles } = useRoleTypes();
 
+  // Sort technicians by role match (those with matching specialization first)
+  const sortTechniciansByRole = (technicians: Profile[], roleType: string): Profile[] => {
+    return [...technicians].sort((a, b) => {
+      const aMatch = a.specialization?.includes(roleType) ?? false;
+      const bMatch = b.specialization?.includes(roleType) ?? false;
+      if (aMatch && !bMatch) return -1;
+      if (!aMatch && bMatch) return 1;
+      return a.full_name.localeCompare(b.full_name, 'cs');
+    });
+  };
+
   // Column order & visibility (persisted to localStorage per user)
   const STORAGE_KEY = `excelView-columnConfig-${userId}`;
   const [columnOrder, setColumnOrder] = useState<string[]>([]);
@@ -1094,7 +1105,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                                 Poptat osobu
                               </div>
                               <div className="max-h-48 overflow-y-auto">
-                                {allTechnicians
+                                {sortTechniciansByRole(allTechnicians, role.value)
                                   .filter(t => !assignments.some(a => a.technician_id === t.id))
                                   .map(tech => (
                                     <button
@@ -1103,6 +1114,9 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                                       className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-slate-100"
                                     >
                                       {tech.full_name}
+                                      {tech.specialization?.includes(role.value) && (
+                                        <span className="text-xs text-slate-400 ml-1">*</span>
+                                      )}
                                     </button>
                                   ))}
                                 {allTechnicians.filter(t => !assignments.some(a => a.technician_id === t.id)).length === 0 && (
@@ -1320,7 +1334,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                                   Poptat osobu
                                 </div>
                                 <div className="max-h-48 overflow-y-auto">
-                                  {allTechnicians
+                                  {sortTechniciansByRole(allTechnicians, role.value)
                                     .filter(t => !assignments.some(a => a.technician_id === t.id))
                                     .map(tech => (
                                       <button
@@ -1329,6 +1343,9 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                                         className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-slate-100"
                                       >
                                         {tech.full_name}
+                                        {tech.specialization?.includes(role.value) && (
+                                          <span className="text-xs text-slate-400 ml-1">*</span>
+                                        )}
                                       </button>
                                     ))}
                                   {allTechnicians.filter(t => !assignments.some(a => a.technician_id === t.id)).length === 0 && (

@@ -16,6 +16,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Pencil, Package, Calendar, FileText, Loader2, ChevronDown, Shield, Check, Crown, UserCog, User, Users, AlertTriangle } from 'lucide-react';
 import { ROLE_TYPES } from '@/lib/constants';
+import { useRoleTypes } from '@/hooks/useRoleTypes';
 import {
   Profile,
   UserRole,
@@ -72,6 +73,7 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
   // Mutation hooks for user CRUD
   const updateUser = useUpdateUser();
   const deleteUser = useDeleteUser();
+  const { data: dynamicRoleTypes = [] } = useRoleTypes();
 
   // Current user permissions (to check if supervisor/admin)
   const { data: myPermissions } = useMyPermissions();
@@ -431,11 +433,12 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
             />
           </div>
 
-          {/* Specialization */}
+          {/* Default roles / Specialization */}
           <div className="space-y-2">
-            <Label>Specializace</Label>
+            <Label>Výchozí role</Label>
+            <p className="text-xs text-slate-500">Technik bude upřednostněn při výběru těchto rolí.</p>
             <div className="flex flex-wrap gap-2">
-              {ROLE_TYPES.map((type) => (
+              {(dynamicRoleTypes.length > 0 ? dynamicRoleTypes : ROLE_TYPES).map((type) => (
                 <button
                   key={type.value}
                   type="button"

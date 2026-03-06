@@ -17,6 +17,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { useSendInvite } from '@/hooks/useEvents';
 import { useUpdateAssignment } from '@/hooks/useAssignments';
+import { useRoleTypes } from '@/hooks/useRoleTypes';
 import AssignTechnicianDialog from './AssignTechnicianDialog';
 
 interface PositionCardProps {
@@ -27,6 +28,7 @@ interface PositionCardProps {
 }
 
 export default function PositionCard({ position, isAdmin }: PositionCardProps) {
+  const { data: roleTypes = [] } = useRoleTypes();
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
 
@@ -70,7 +72,7 @@ export default function PositionCard({ position, isAdmin }: PositionCardProps) {
             <div>
               <CardTitle className="text-lg">{position.title}</CardTitle>
               <Badge variant="outline" className="mt-2">
-                {getRoleTypeLabel(position.role_type)}
+                {getRoleTypeLabel(position.role_type, roleTypes)}
               </Badge>
             </div>
             {isAdmin && (

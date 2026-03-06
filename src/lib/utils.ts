@@ -55,7 +55,11 @@ export function formatDateRange(startDate: string | Date, endDate: string | Date
   return `${startStr} - ${endStr}`
 }
 
-export function getRoleTypeLabel(roleType: RoleType): string {
+export function getRoleTypeLabel(roleType: string, roleTypes?: { value: string; label: string }[]): string {
+  if (roleTypes) {
+    const found = roleTypes.find((r) => r.value === roleType)
+    if (found) return found.label
+  }
   const role = ROLE_TYPES.find((r) => r.value === roleType)
   return role?.label || roleType
 }

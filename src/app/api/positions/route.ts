@@ -113,3 +113,40 @@ export async function DELETE(request: NextRequest) {
     return apiError('Failed to delete position');
   }
 }
+
+/**
+ * PATCH /api/positions
+ * Update position (e.g., move to different section)
+ */
+export async function PATCH(request: NextRequest) {
+  try {
+    const supabase = await createClient();
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return apiError('Unauthorized', 401);
+
+    const profile = await getProfileWithFallback(supabase, user);
+    const canManagePositions = await hasBookingAccess(supabase, profile, ['booking_manage_positions']);
+    if (!canManagePositions) return apiError('Forbidden', 403);
+
+    const serviceClient = createServiceRoleClient();
+    const body = await request.json();
+    const { position_id, section_id } = body;
+
+    if (!position_id) return apiError('position_id is required', 400);
+
+    const { data, error } = await serviceClient
+      .from('positions')
+      .update({ section_id: section_id || null })
+      .eq('id', position_id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return NextResponse.json({ success: true, position: data });
+  } catch (error) {
+    console.error('Position update error:', error);
+    return apiError('Failed to update position');
+  }
+}

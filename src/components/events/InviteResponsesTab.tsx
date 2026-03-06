@@ -37,6 +37,7 @@ import type { Event, Position, Assignment, Profile, AttendanceStatus, RoleType }
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { eventKeys } from '@/hooks/useEvents';
+import { useRoleTypes } from '@/hooks/useRoleTypes';
 
 interface EventWithPositions extends Event {
   positions: (Position & {
@@ -98,6 +99,7 @@ export default function InviteResponsesTab({
   onEventClick,
 }: InviteResponsesTabProps) {
   const queryClient = useQueryClient();
+  const { data: roleTypes = [] } = useRoleTypes();
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   const [replacingId, setReplacingId] = useState<string | null>(null);
 
@@ -327,7 +329,7 @@ export default function InviteResponsesTab({
               {/* Meta info */}
               <div className="flex items-center gap-3 mt-2 text-xs text-slate-500">
                 <span>{formatDate(response.eventDate)}</span>
-                <Badge variant="outline" className="text-[10px] px-1.5 py-0">{getRoleTypeLabel(response.roleType)}</Badge>
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0">{getRoleTypeLabel(response.roleType, roleTypes)}</Badge>
               </div>
             </div>
           );
@@ -380,7 +382,7 @@ export default function InviteResponsesTab({
                     {formatDate(response.eventDate)}
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline">{getRoleTypeLabel(response.roleType)}</Badge>
+                    <Badge variant="outline">{getRoleTypeLabel(response.roleType, roleTypes)}</Badge>
                   </TableCell>
                   <TableCell className="text-slate-500 text-sm">
                     {response.responseTime

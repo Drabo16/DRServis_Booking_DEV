@@ -178,6 +178,8 @@ export default function PositionsManager({
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   const [newSectionName, setNewSectionName] = useState('');
   const [addingSectionOpen, setAddingSectionOpen] = useState(false);
+  const [renamingSection, setRenamingSection] = useState<string | null>(null);
+  const [renameSectionName, setRenameSectionName] = useState('');
 
   // Dialog for editing assignment dates
   const [editDatesDialog, setEditDatesDialog] = useState<EditDatesDialogState>({
@@ -226,7 +228,8 @@ export default function PositionsManager({
 
   // Delete a section
   const handleDeleteSection = async (sectionId: string) => {
-    if (!confirm('Opravdu smazat tuto sekci? Pozice v ní zůstanou bez přiřazení k sekci.')) return;
+    const affectedCount = positions.filter(p => p.section_id === sectionId).length;
+    if (!confirm(`Opravdu smazat tuto sekci? ${affectedCount > 0 ? `${affectedCount} pozic bude přesunuto do "Obecné".` : 'Sekce je prázdná.'}`)) return;
     try {
       const res = await fetch(`/api/events/${eventId}/sections?section_id=${sectionId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed');
@@ -236,6 +239,43 @@ export default function PositionsManager({
       await queryClient.invalidateQueries({ queryKey: eventKeys.all });
     } catch {
       toast.error('Chyba při mazání sekce');
+    }
+  };
+
+  // Rename a section
+  const handleRenameSection = async (sectionId: string) => {
+    if (!renameSectionName.trim()) return;
+    try {
+      const res = await fetch(`/api/events/${eventId}/sections`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ section_id: sectionId, name: renameSectionName.trim() }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      setSections(prev => prev.map(s => s.id === sectionId ? { ...s, name: renameSectionName.trim() } : s));
+      setRenamingSection(null);
+      await queryClient.invalidateQueries({ queryKey: eventKeys.all });
+    } catch {
+      toast.error('Chyba při přejmenování sekce');
+    }
+  };
+
+  // Move position to different section
+  const handleMovePosition = async (positionId: string, newSectionId: string | null) => {
+    // Optimistic update
+    setPositions(prev => prev.map(p => p.id === positionId ? { ...p, section_id: newSectionId } : p));
+    try {
+      const res = await fetch('/api/positions', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ position_id: positionId, section_id: newSectionId }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      await queryClient.invalidateQueries({ queryKey: eventKeys.all });
+    } catch {
+      // Rollback
+      setPositions(prev => prev.map(p => p.id === positionId ? { ...p, section_id: p.section_id } : p));
+      toast.error('Chyba při přesunu pozice');
     }
   };
 
@@ -518,11 +558,33 @@ export default function PositionsManager({
     }
   };
 
+  // Sort technicians: those whose specialization matches the position's role_type come first
+  const sortTechniciansByRole = (technicians: Profile[], roleType: string): Profile[] => {
+    return [...technicians].sort((a, b) => {
+      const aMatch = a.specialization?.includes(roleType) ?? false;
+      const bMatch = b.specialization?.includes(roleType) ?? false;
+      if (aMatch && !bMatch) return -1;
+      if (!aMatch && bMatch) return 1;
+      return a.full_name.localeCompare(b.full_name, 'cs');
+    });
+  };
+
+  // Format technician name with their specializations
+  const formatTechnicianLabel = (tech: Profile): string => {
+    if (tech.specialization?.length) {
+      const roleLabels = tech.specialization
+        .map(s => roleTypes.find(r => r.value === s)?.label || s)
+        .join(', ');
+      return `${tech.full_name} - ${roleLabels}`;
+    }
+    return tech.full_name;
+  };
+
   // Render a single position row (desktop table)
   const renderPositionRow = (position: typeof positions[0]) => (
     <TableRow key={position.id}>
       <TableCell className="font-medium">
-        <Badge variant="outline">{getRoleTypeLabel(position.role_type)}</Badge>
+        <Badge variant="outline">{getRoleTypeLabel(position.role_type, roleTypes)}</Badge>
       </TableCell>
       <TableCell>
         <div className="space-y-2">
@@ -601,11 +663,11 @@ export default function PositionsManager({
                   <SelectValue placeholder="Vyberte technika..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {allTechnicians
+                  {sortTechniciansByRole(allTechnicians, position.role_type)
                     .filter((tech) => !position.assignments.some((a) => a.technician_id === tech.id))
                     .map((tech) => (
                       <SelectItem key={tech.id} value={tech.id}>
-                        {tech.full_name} ({tech.email})
+                        {formatTechnicianLabel(tech)}
                       </SelectItem>
                     ))}
                 </SelectContent>
@@ -627,9 +689,22 @@ export default function PositionsManager({
       </TableCell>
       {isAdmin && (
         <TableCell>
-          <Button size="sm" variant="ghost" onClick={() => handleDeletePosition(position.id)}>
-            <Trash2 className="w-4 h-4 text-red-600" />
-          </Button>
+          <div className="flex items-center gap-1">
+            {sections.length > 0 && (
+              <select
+                value={position.section_id || ''}
+                onChange={(e) => handleMovePosition(position.id, e.target.value || null)}
+                className="h-7 text-[11px] border rounded px-1 bg-white text-slate-600"
+                title="Přesunout do sekce"
+              >
+                <option value="">Obecné</option>
+                {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            )}
+            <Button size="sm" variant="ghost" onClick={() => handleDeletePosition(position.id)}>
+              <Trash2 className="w-4 h-4 text-red-600" />
+            </Button>
+          </div>
         </TableCell>
       )}
     </TableRow>
@@ -654,16 +729,28 @@ export default function PositionsManager({
   const renderMobilePositionCard = (position: typeof positions[0]) => (
     <div key={position.id} className="border rounded-lg p-3 bg-slate-50">
       <div className="flex items-center justify-between mb-2">
-        <Badge variant="outline" className="text-xs">{getRoleTypeLabel(position.role_type)}</Badge>
+        <Badge variant="outline" className="text-xs">{getRoleTypeLabel(position.role_type, roleTypes)}</Badge>
         {isAdmin && (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => handleDeletePosition(position.id)}
-            className="h-9 w-9 p-0"
-          >
-            <Trash2 className="w-4 h-4 text-red-600" />
-          </Button>
+          <div className="flex items-center gap-1">
+            {sections.length > 0 && (
+              <select
+                value={position.section_id || ''}
+                onChange={(e) => handleMovePosition(position.id, e.target.value || null)}
+                className="h-7 text-[11px] border rounded px-1 bg-white text-slate-600"
+              >
+                <option value="">Obecné</option>
+                {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            )}
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => handleDeletePosition(position.id)}
+              className="h-9 w-9 p-0"
+            >
+              <Trash2 className="w-4 h-4 text-red-600" />
+            </Button>
+          </div>
         )}
       </div>
       <div className="space-y-2">
@@ -755,14 +842,14 @@ export default function PositionsManager({
                 <SelectValue placeholder="Přidat technika..." />
               </SelectTrigger>
               <SelectContent>
-                {allTechnicians
+                {sortTechniciansByRole(allTechnicians, position.role_type)
                   .filter(
                     (tech) =>
                       !position.assignments.some((a) => a.technician_id === tech.id)
                   )
                   .map((tech) => (
                     <SelectItem key={tech.id} value={tech.id}>
-                      {tech.full_name}
+                      {formatTechnicianLabel(tech)}
                     </SelectItem>
                   ))}
               </SelectContent>
@@ -790,13 +877,44 @@ export default function PositionsManager({
     <div key={group.section?.id || 'general'} className="space-y-2">
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
-            {group.section?.name || 'Obecné'}
-          </span>
-          {isAdmin && group.section && (
-            <button onClick={() => handleDeleteSection(group.section!.id)} className="text-slate-400 hover:text-red-600">
-              <X className="w-3 h-3" />
-            </button>
+          {isAdmin && group.section && renamingSection === group.section.id ? (
+            <div className="flex items-center gap-1">
+              <Input
+                value={renameSectionName}
+                onChange={e => setRenameSectionName(e.target.value)}
+                className="h-6 w-28 text-xs"
+                onKeyDown={e => {
+                  if (e.key === 'Enter') handleRenameSection(group.section!.id);
+                  if (e.key === 'Escape') setRenamingSection(null);
+                }}
+                autoFocus
+              />
+              <button onClick={() => handleRenameSection(group.section!.id)} className="text-green-600">
+                <Check className="w-3 h-3" />
+              </button>
+              <button onClick={() => setRenamingSection(null)} className="text-slate-400">
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          ) : (
+            <>
+              <span
+                className={`text-xs font-semibold text-slate-600 uppercase tracking-wide ${isAdmin && group.section ? 'cursor-pointer' : ''}`}
+                onDoubleClick={() => {
+                  if (isAdmin && group.section) {
+                    setRenamingSection(group.section.id);
+                    setRenameSectionName(group.section.name);
+                  }
+                }}
+              >
+                {group.section?.name || 'Obecné'}
+              </span>
+              {isAdmin && group.section && (
+                <button onClick={() => handleDeleteSection(group.section!.id)} className="text-slate-400 hover:text-red-600">
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </>
           )}
         </div>
         {isAdmin && (
@@ -885,13 +1003,45 @@ export default function PositionsManager({
                         <TableCell colSpan={isAdmin ? 3 : 2} className="py-1.5">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
-                                {group.section?.name || 'Obecné'}
-                              </span>
-                              {isAdmin && group.section && (
-                                <button onClick={() => handleDeleteSection(group.section!.id)} className="text-slate-400 hover:text-red-600">
-                                  <X className="w-3 h-3" />
-                                </button>
+                              {isAdmin && group.section && renamingSection === group.section.id ? (
+                                <div className="flex items-center gap-1">
+                                  <Input
+                                    value={renameSectionName}
+                                    onChange={e => setRenameSectionName(e.target.value)}
+                                    className="h-6 w-32 text-xs"
+                                    onKeyDown={e => {
+                                      if (e.key === 'Enter') handleRenameSection(group.section!.id);
+                                      if (e.key === 'Escape') setRenamingSection(null);
+                                    }}
+                                    autoFocus
+                                  />
+                                  <button onClick={() => handleRenameSection(group.section!.id)} className="text-green-600 hover:text-green-700">
+                                    <Check className="w-3 h-3" />
+                                  </button>
+                                  <button onClick={() => setRenamingSection(null)} className="text-slate-400 hover:text-slate-600">
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <>
+                                  <span
+                                    className={`text-xs font-semibold text-slate-600 uppercase tracking-wide ${isAdmin && group.section ? 'cursor-pointer hover:text-blue-600' : ''}`}
+                                    onDoubleClick={() => {
+                                      if (isAdmin && group.section) {
+                                        setRenamingSection(group.section.id);
+                                        setRenameSectionName(group.section.name);
+                                      }
+                                    }}
+                                    title={isAdmin && group.section ? 'Dvojklik pro přejmenování' : undefined}
+                                  >
+                                    {group.section?.name || 'Obecné'}
+                                  </span>
+                                  {isAdmin && group.section && (
+                                    <button onClick={() => handleDeleteSection(group.section!.id)} className="text-slate-400 hover:text-red-600">
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  )}
+                                </>
                               )}
                             </div>
                             {isAdmin && (
