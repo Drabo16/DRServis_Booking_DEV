@@ -64,6 +64,9 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
     if (specValue === posRoleType) return true;
     const specLabel = getRoleTypeLabel(specValue, roleTypes).toLowerCase().trim();
     const posLabel = getRoleTypeLabel(posRoleType, roleTypes).toLowerCase().trim();
+    // Same label (handles old value → new DB value mapping, e.g. "lights" → "Osvětlovač")
+    if (specLabel === posLabel) return true;
+    // Position label starts with spec label + space (e.g. "Rigger 2" ← "Rigger")
     return posLabel.startsWith(specLabel + ' ');
   };
 
