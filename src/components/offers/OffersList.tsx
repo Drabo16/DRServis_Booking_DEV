@@ -18,6 +18,8 @@ import {
   Search,
   FileText,
   Calendar,
+  CalendarDays,
+  Briefcase,
   Trash2,
   Copy,
   MoreHorizontal,
@@ -224,6 +226,22 @@ export default function OffersList({ onOfferSelect, isAdmin, canDuplicate = fals
                             · {new Date(offer.event.start_time).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'short', year: 'numeric' })}
                           </span>
                         )}
+                      </p>
+                    )}
+                    {(offer.event_start_date || offer.event_end_date) && (
+                      <p className="text-sm text-slate-500 flex items-center gap-1 mt-0.5">
+                        <CalendarDays className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span>
+                          {offer.event_start_date && new Date(offer.event_start_date + 'T00:00').toLocaleDateString('cs-CZ', { day: 'numeric', month: 'short' })}
+                          {offer.event_start_date && offer.event_end_date && ' – '}
+                          {offer.event_end_date && new Date(offer.event_end_date + 'T00:00').toLocaleDateString('cs-CZ', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </span>
+                      </p>
+                    )}
+                    {offer.client && (
+                      <p className="text-sm text-slate-500 flex items-center gap-1 mt-0.5">
+                        <Briefcase className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span className="truncate">{offer.client.name}</span>
                       </p>
                     )}
                   </div>

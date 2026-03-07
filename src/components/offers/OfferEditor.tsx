@@ -7,6 +7,12 @@ import { Loader2, ArrowLeft, FileDown, FileSpreadsheet, Save, FolderKanban, Book
 import { offerKeys } from '@/hooks/useOffers';
 import type { OfferPresetWithCount, OfferPresetItem } from '@/types/offers';
 import { toast } from 'sonner';
+import { format } from 'date-fns';
+import { cs } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useSaveStatus } from '@/contexts/SaveStatusContext';
 import {
   formatOfferNumber,
@@ -1284,26 +1290,65 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
       <div className="flex items-center gap-3 p-2 bg-slate-50 border rounded text-xs flex-wrap">
         <CalendarDays className="w-4 h-4 text-slate-400 shrink-0" />
         <span className="text-slate-600">Termín akce:</span>
-        <div className="flex items-center gap-1.5">
-          <input
-            type="date"
-            value={localEventStartDate || ''}
-            onChange={(e) => handleEventStartDateChange(e.target.value)}
-            className="h-6 text-xs border rounded px-2"
-          />
-          <span className="text-slate-400">—</span>
-          <input
-            type="date"
-            value={localEventEndDate || ''}
-            onChange={(e) => handleEventEndDateChange(e.target.value)}
-            className="h-6 text-xs border rounded px-2"
-          />
+        <div className="grid grid-cols-2 gap-2" style={{ minWidth: 280 }}>
+          <div>
+            <span className="text-[10px] text-slate-400 block mb-0.5">Od</span>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-full justify-start text-left font-normal h-8 text-xs",
+                    !localEventStartDate && "text-slate-400"
+                  )}
+                >
+                  <CalendarDays className="mr-2 h-3.5 w-3.5" />
+                  {localEventStartDate
+                    ? format(new Date(localEventStartDate + 'T00:00'), "d. M. yyyy", { locale: cs })
+                    : "Nevybráno"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={localEventStartDate ? new Date(localEventStartDate + 'T00:00') : undefined}
+                  onSelect={(date) => handleEventStartDateChange(date ? format(date, 'yyyy-MM-dd') : '')}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+          <div>
+            <span className="text-[10px] text-slate-400 block mb-0.5">Do</span>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-full justify-start text-left font-normal h-8 text-xs",
+                    !localEventEndDate && "text-slate-400"
+                  )}
+                >
+                  <CalendarDays className="mr-2 h-3.5 w-3.5" />
+                  {localEventEndDate
+                    ? format(new Date(localEventEndDate + 'T00:00'), "d. M. yyyy", { locale: cs })
+                    : "Nevybráno"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={localEventEndDate ? new Date(localEventEndDate + 'T00:00') : undefined}
+                  onSelect={(date) => handleEventEndDateChange(date ? format(date, 'yyyy-MM-dd') : '')}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
         {offer?.event && (
           <button
             type="button"
             onClick={handleAutoFillEventDates}
-            className="h-6 px-2 text-xs border border-blue-300 text-blue-600 hover:bg-blue-50 rounded"
+            className="h-8 px-2 text-xs border border-blue-300 text-blue-600 hover:bg-blue-50 rounded"
             title="Vyplnit z propojené akce"
           >
             Z akce
@@ -1313,7 +1358,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
           <button
             type="button"
             onClick={() => { setLocalEventStartDate(null); setLocalEventEndDate(null); markDirty(); }}
-            className="h-6 px-1.5 text-xs text-slate-400 hover:text-red-500"
+            className="h-8 px-1.5 text-xs text-slate-400 hover:text-red-500"
             title="Vymazat termín"
           >
             <X className="w-3.5 h-3.5" />

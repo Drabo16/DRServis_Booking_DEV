@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useCreateOffer } from '@/hooks/useOffers';
 import { useEvents } from '@/hooks/useEvents';
+import { useClients } from '@/hooks/useClients';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -36,9 +37,11 @@ export default function OfferFormDialog({
 }: OfferFormDialogProps) {
   const [title, setTitle] = useState('');
   const [eventId, setEventId] = useState<string>('');
+  const [clientId, setClientId] = useState<string>('');
   const [notes, setNotes] = useState('');
 
   const { data: events = [] } = useEvents();
+  const { data: clients = [] } = useClients();
   const createOffer = useCreateOffer();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -50,6 +53,7 @@ export default function OfferFormDialog({
       const result = await createOffer.mutateAsync({
         title: title.trim(),
         event_id: eventId || undefined,
+        client_id: clientId || undefined,
         notes: notes.trim() || undefined,
       });
       onSuccess(result.offer);
@@ -93,6 +97,25 @@ export default function OfferFormDialog({
               </SelectContent>
             </Select>
           </div>
+
+          {clients.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="client">Klient (nepovinné)</Label>
+              <Select value={clientId || 'none'} onValueChange={(v) => setClientId(v === 'none' ? '' : v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Vyberte klienta..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Bez klienta</SelectItem>
+                  {clients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="title">Název nabídky *</Label>

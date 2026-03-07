@@ -70,6 +70,10 @@ export interface OfferWithDetails extends Offer {
     start_time: string;
     location: string | null;
   } | null;
+  client: {
+    id: string;
+    name: string;
+  } | null;
   created_by_profile: {
     id: string;
     full_name: string;
@@ -199,6 +203,9 @@ export interface CreateOfferInput {
   title: string;
   event_id?: string;
   valid_until?: string;
+  event_start_date?: string;
+  event_end_date?: string;
+  client_id?: string;
   notes?: string;
   offer_set_id?: string;
   set_label?: string;

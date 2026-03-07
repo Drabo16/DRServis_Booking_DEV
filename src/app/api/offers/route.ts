@@ -71,6 +71,8 @@ export async function GET(request: NextRequest) {
         title,
         status,
         valid_until,
+        event_start_date,
+        event_end_date,
         subtotal_equipment,
         subtotal_personnel,
         subtotal_transport,
@@ -79,6 +81,7 @@ export async function GET(request: NextRequest) {
         created_at,
         updated_at,
         event:events(id, title, start_time, location),
+        client:clients(id, name),
         created_by_profile:profiles!offers_created_by_fkey(id, full_name)
       `)
       .order('created_at', { ascending: false })
