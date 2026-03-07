@@ -573,7 +573,7 @@ export default function PositionsManager({
   const formatTechnicianLabel = (tech: Profile): string => {
     if (tech.specialization?.length) {
       const roleLabels = tech.specialization
-        .map(s => roleTypes.find(r => r.value === s)?.label || s)
+        .map(s => getRoleTypeLabel(s, roleTypes))
         .join(', ');
       return `${tech.full_name} - ${roleLabels}`;
     }

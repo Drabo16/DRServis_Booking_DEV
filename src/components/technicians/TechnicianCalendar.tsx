@@ -20,6 +20,8 @@ import {
 import { ChevronLeft, ChevronRight, Loader2, User, Calendar as CalendarIcon } from 'lucide-react';
 import type { Profile } from '@/types';
 import '../calendar/calendar.css';
+import { getRoleTypeLabel } from '@/lib/utils';
+import { useRoleTypes } from '@/hooks/useRoleTypes';
 
 // Czech month names in nominative case
 const CZECH_MONTHS_NOMINATIVE = [
@@ -64,6 +66,7 @@ interface TechnicianCalendarProps {
 export default function TechnicianCalendar({ allTechnicians }: TechnicianCalendarProps) {
   const router = useRouter();
   const [selectedTechnicianId, setSelectedTechnicianId] = useState<string>('');
+  const { data: roleTypes = [] } = useRoleTypes();
   const [currentDate, setCurrentDate] = useState(new Date());
 
   // Fetch technician assignments - only refetch when technician changes, not on date navigation
@@ -261,7 +264,7 @@ export default function TechnicianCalendar({ allTechnicians }: TechnicianCalenda
             <div className="flex gap-2">
               <Badge variant="secondary">{selectedTechnician.email}</Badge>
               {selectedTechnician.specialization && selectedTechnician.specialization.length > 0 && (
-                <Badge variant="outline">{selectedTechnician.specialization.join(', ')}</Badge>
+                <Badge variant="outline">{selectedTechnician.specialization.map(s => getRoleTypeLabel(s, roleTypes)).join(', ')}</Badge>
               )}
             </div>
           )}

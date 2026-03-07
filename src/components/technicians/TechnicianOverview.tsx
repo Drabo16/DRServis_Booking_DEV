@@ -25,6 +25,8 @@ import {
 import { format, addDays, startOfDay } from 'date-fns';
 import { cs } from 'date-fns/locale';
 import Link from 'next/link';
+import { getRoleTypeLabel } from '@/lib/utils';
+import { useRoleTypes } from '@/hooks/useRoleTypes';
 
 interface TechnicianAssignment {
   id: string;
@@ -70,6 +72,7 @@ export default function TechnicianOverview({ daysAhead = 30 }: TechnicianOvervie
   const [expandedTechnicians, setExpandedTechnicians] = useState<Set<string>>(new Set());
   const [showOnlyWithAssignments, setShowOnlyWithAssignments] = useState(true);
   const [showOnlyConflicts, setShowOnlyConflicts] = useState(false);
+  const { data: roleTypes = [] } = useRoleTypes();
 
   // Calculate date range
   const dateRange = useMemo(() => {
@@ -312,7 +315,7 @@ export default function TechnicianOverview({ daysAhead = 30 }: TechnicianOvervie
                             {tech.email}
                             {tech.specialization && tech.specialization.length > 0 && (
                               <span className="ml-2">
-                                • {tech.specialization.join(', ')}
+                                • {tech.specialization.map(s => getRoleTypeLabel(s, roleTypes)).join(', ')}
                               </span>
                             )}
                           </div>
