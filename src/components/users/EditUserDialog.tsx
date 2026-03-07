@@ -549,7 +549,7 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
 
                   {/* Modules with permissions */}
                   <div className="space-y-2">
-                    {(['booking', 'warehouse', 'offers', 'users_settings'] as ModuleCode[]).map((moduleCode) => {
+                    {(['booking', 'warehouse', 'offers', 'clients', 'users_settings'] as ModuleCode[]).map((moduleCode) => {
                       const hasAccess = localModules.has(moduleCode);
                       const isExpanded = expandedModules.has(moduleCode);
                       const modulePermissions = PERMISSIONS_BY_MODULE[moduleCode];

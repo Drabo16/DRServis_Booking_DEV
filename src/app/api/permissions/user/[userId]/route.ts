@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, checkIsSupervisor } from '@/lib/supabase/server';
+import { createClient, checkIsSupervisor, createServiceRoleClient } from '@/lib/supabase/server';
 import { apiError } from '@/lib/api-response';
 
 interface RouteContext {
@@ -165,17 +165,20 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     const { permissions, modules } = body;
 
+    // Use service role client for writes to bypass RLS (app-level auth check already done above)
+    const serviceClient = createServiceRoleClient();
+
     // Update permissions if provided
     if (permissions !== undefined) {
       // Delete all existing permissions
-      await supabase
+      await serviceClient
         .from('user_permissions')
         .delete()
         .eq('user_id', userId);
 
       // Insert new permissions
       if (permissions.length > 0) {
-        const { error: insertError } = await supabase
+        const { error: insertError } = await serviceClient
           .from('user_permissions')
           .insert(
             permissions.map((code: string) => ({
@@ -192,14 +195,14 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     // Update module access if provided
     if (modules !== undefined) {
       // Delete all existing module access
-      await supabase
+      await serviceClient
         .from('user_module_access')
         .delete()
         .eq('user_id', userId);
 
       // Insert new module access
       if (modules.length > 0) {
-        const { error: insertError } = await supabase
+        const { error: insertError } = await serviceClient
           .from('user_module_access')
           .insert(
             modules.map((code: string) => ({
