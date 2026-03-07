@@ -578,8 +578,8 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
                                 {MODULE_ICONS[moduleCode]}
                               </span>
                               <span className="font-medium">{MODULE_NAMES[moduleCode]}</span>
-                              {hasAccess && (
-                                <Badge variant="secondary" className="ml-2 text-xs">
+                              {(hasAccess || activePermCount > 0) && modulePermissions.length > 0 && (
+                                <Badge variant="secondary" className={`ml-2 text-xs ${!hasAccess && activePermCount > 0 ? 'bg-amber-100 text-amber-700' : ''}`}>
                                   {activePermCount}/{modulePermissions.length} oprávnění
                                 </Badge>
                               )}
@@ -601,21 +601,22 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
                                     <label
                                       key={permission}
                                       className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-colors ${
-                                        hasAccess
-                                          ? hasPerm
-                                            ? 'bg-blue-100 text-blue-900'
-                                            : 'hover:bg-slate-100'
-                                          : 'opacity-50 cursor-not-allowed'
+                                        hasPerm
+                                          ? 'bg-blue-100 text-blue-900'
+                                          : 'hover:bg-slate-100'
                                       }`}
                                     >
                                       <input
                                         type="checkbox"
                                         checked={hasPerm}
                                         onChange={() => handlePermissionToggle(permission)}
-                                        disabled={loading || permissionsLoading || !hasAccess}
+                                        disabled={loading || permissionsLoading}
                                         className="rounded border-slate-300"
                                       />
                                       <span className="text-sm">{PERMISSION_LABELS[permission]}</span>
+                                      {!hasAccess && hasPerm && (
+                                        <span className="text-[10px] text-amber-600 ml-auto" title="Oprávnění je aktivní, ale modul není zapnutý v sidebaru">bez modulu</span>
+                                      )}
                                     </label>
                                   );
                                 })}
