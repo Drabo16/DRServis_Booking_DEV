@@ -558,24 +558,33 @@ export default function PositionsManager({
     }
   };
 
-  // Sort technicians: those whose specialization matches the position's role_type come first
+  // Check if a specialization value is "related" to a position's role type.
+  // Exact match OR the position's label starts with the specialization's label
+  // (e.g. spec "Rigger" matches position "Rigger 2", "Rigger 3", etc.)
+  const isSpecRelated = (specValue: string, posRoleType: string): boolean => {
+    if (specValue === posRoleType) return true;
+    const specLabel = getRoleTypeLabel(specValue, roleTypes).toLowerCase().trim();
+    const posLabel = getRoleTypeLabel(posRoleType, roleTypes).toLowerCase().trim();
+    return posLabel.startsWith(specLabel + ' ');
+  };
+
+  // Sort technicians: those with a related specialization come first
   const sortTechniciansByRole = (technicians: Profile[], roleType: string): Profile[] => {
     return [...technicians].sort((a, b) => {
-      const aMatch = a.specialization?.includes(roleType) ?? false;
-      const bMatch = b.specialization?.includes(roleType) ?? false;
+      const aMatch = a.specialization?.some(s => isSpecRelated(s, roleType)) ?? false;
+      const bMatch = b.specialization?.some(s => isSpecRelated(s, roleType)) ?? false;
       if (aMatch && !bMatch) return -1;
       if (!aMatch && bMatch) return 1;
       return a.full_name.localeCompare(b.full_name, 'cs');
     });
   };
 
-  // Format technician name with their specializations
-  const formatTechnicianLabel = (tech: Profile): string => {
+  // Format technician name showing only specializations related to the position's role
+  const formatTechnicianLabel = (tech: Profile, posRoleType: string): string => {
     if (tech.specialization?.length) {
-      const roleLabels = tech.specialization
-        .map(s => getRoleTypeLabel(s, roleTypes))
-        .join(', ');
-      return `${tech.full_name} - ${roleLabels}`;
+      const related = tech.specialization.filter(s => isSpecRelated(s, posRoleType));
+      const toShow = related.length > 0 ? related : tech.specialization;
+      return `${tech.full_name} - ${toShow.map(s => getRoleTypeLabel(s, roleTypes)).join(', ')}`;
     }
     return tech.full_name;
   };
@@ -667,7 +676,7 @@ export default function PositionsManager({
                     .filter((tech) => !position.assignments.some((a) => a.technician_id === tech.id))
                     .map((tech) => (
                       <SelectItem key={tech.id} value={tech.id}>
-                        {formatTechnicianLabel(tech)}
+                        {formatTechnicianLabel(tech, position.role_type)}
                       </SelectItem>
                     ))}
                 </SelectContent>
@@ -849,7 +858,7 @@ export default function PositionsManager({
                   )
                   .map((tech) => (
                     <SelectItem key={tech.id} value={tech.id}>
-                      {formatTechnicianLabel(tech)}
+                      {formatTechnicianLabel(tech, position.role_type)}
                     </SelectItem>
                   ))}
               </SelectContent>

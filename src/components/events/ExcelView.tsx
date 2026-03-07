@@ -27,6 +27,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { eventKeys } from '@/hooks/useEvents';
 import { useRoleTypes, type RoleTypeDB } from '@/hooks/useRoleTypes';
+import { getRoleTypeLabel } from '@/lib/utils';
 
 interface ExcelViewProps {
   events: Array<Event & {
@@ -56,11 +57,21 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
   // Role types from database - shared cache via useRoleTypes hook
   const { data: roleTypes = [], isLoading: loadingRoles } = useRoleTypes();
 
-  // Sort technicians by role match (those with matching specialization first)
+  // Check if a specialization value is "related" to a role type.
+  // Exact match OR the position's label starts with the specialization's label
+  // (e.g. spec "Rigger" matches position "Rigger 2", "Rigger 3", etc.)
+  const isSpecRelated = (specValue: string, posRoleType: string): boolean => {
+    if (specValue === posRoleType) return true;
+    const specLabel = getRoleTypeLabel(specValue, roleTypes).toLowerCase().trim();
+    const posLabel = getRoleTypeLabel(posRoleType, roleTypes).toLowerCase().trim();
+    return posLabel.startsWith(specLabel + ' ');
+  };
+
+  // Sort technicians by role match (those with a related specialization first)
   const sortTechniciansByRole = (technicians: Profile[], roleType: string): Profile[] => {
     return [...technicians].sort((a, b) => {
-      const aMatch = a.specialization?.includes(roleType) ?? false;
-      const bMatch = b.specialization?.includes(roleType) ?? false;
+      const aMatch = a.specialization?.some(s => isSpecRelated(s, roleType)) ?? false;
+      const bMatch = b.specialization?.some(s => isSpecRelated(s, roleType)) ?? false;
       if (aMatch && !bMatch) return -1;
       if (!aMatch && bMatch) return 1;
       return a.full_name.localeCompare(b.full_name, 'cs');
@@ -1114,7 +1125,7 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                                       className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-slate-100"
                                     >
                                       {tech.full_name}
-                                      {tech.specialization?.includes(role.value) && (
+                                      {tech.specialization?.some(s => isSpecRelated(s, role.value)) && (
                                         <span className="text-xs text-slate-400 ml-1">*</span>
                                       )}
                                     </button>
