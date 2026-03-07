@@ -55,6 +55,9 @@ export interface Offer {
   discount_amount: number;
   total_amount: number;
   is_vat_payer: boolean;
+  event_start_date: string | null;
+  event_end_date: string | null;
+  client_id: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;

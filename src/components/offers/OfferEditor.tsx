@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ArrowLeft, FileDown, FileSpreadsheet, Save, FolderKanban, BookTemplate, Tag, X, Check, UserPlus, Users } from 'lucide-react';
+import { Loader2, ArrowLeft, FileDown, FileSpreadsheet, Save, FolderKanban, BookTemplate, Tag, X, Check, UserPlus, Users, CalendarDays, Briefcase } from 'lucide-react';
 import { offerKeys } from '@/hooks/useOffers';
 import type { OfferPresetWithCount, OfferPresetItem } from '@/types/offers';
 import { toast } from 'sonner';
@@ -56,6 +56,12 @@ interface OfferData {
   discount_percent: number;
   offer_set_id: string | null;
   set_label: string | null;
+  event_start_date: string | null;
+  event_end_date: string | null;
+  event_id: string | null;
+  event: { id: string; title: string; start_time: string; end_time: string; location: string } | null;
+  client_id: string | null;
+  client: { id: string; name: string } | null;
   updated_at: string;
   items: Array<{
     id: string;
@@ -100,6 +106,10 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
   const [localSetLabel, setLocalSetLabel] = useState('');
   const [localIsVatPayer, setLocalIsVatPayer] = useState(true);
   const [localTitle, setLocalTitle] = useState('');
+  const [localEventStartDate, setLocalEventStartDate] = useState<string | null>(null);
+  const [localEventEndDate, setLocalEventEndDate] = useState<string | null>(null);
+  const [localClientId, setLocalClientId] = useState<string | null>(null);
+  const [clientsList, setClientsList] = useState<Array<{ id: string; name: string }>>([]);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
 
   // Dirty tracking
@@ -145,6 +155,9 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
   const localSetIdRef = useRef<string | null>(null);
   const localSetLabelRef = useRef('');
   const localTitleRef = useRef('');
+  const localEventStartDateRef = useRef<string | null>(null);
+  const localEventEndDateRef = useRef<string | null>(null);
+  const localClientIdRef = useRef<string | null>(null);
   const isDirtyRef = useRef(false);
   const isSavingRef = useRef(false);
 
@@ -167,21 +180,25 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     localSetIdRef.current = localSetId;
     localSetLabelRef.current = localSetLabel;
     localTitleRef.current = localTitle;
+    localEventStartDateRef.current = localEventStartDate;
+    localEventEndDateRef.current = localEventEndDate;
+    localClientIdRef.current = localClientId;
     isDirtyRef.current = isDirty;
     isSavingRef.current = isSaving;
-  }, [localItems, localDiscount, localStatus, localIsVatPayer, localSetId, localSetLabel, localTitle, isDirty, isSaving]);
+  }, [localItems, localDiscount, localStatus, localIsVatPayer, localSetId, localSetLabel, localTitle, localEventStartDate, localEventEndDate, localClientId, isDirty, isSaving]);
 
   // Load data once on mount
   useEffect(() => {
     async function loadData() {
       try {
-        const [offerRes, templatesRes, setsRes, itemsRes, sharesRes, usersRes] = await Promise.all([
+        const [offerRes, templatesRes, setsRes, itemsRes, sharesRes, usersRes, clientsRes] = await Promise.all([
           fetch(`/api/offers/${offerId}`),
           fetch('/api/offers/templates/items'),
           fetch('/api/offers/sets'),
           fetch(`/api/offers/${offerId}/items`),
           fetch(`/api/offers/${offerId}/shares`),
           fetch('/api/offers/users-with-access'),
+          fetch('/api/clients').catch(() => null),
         ]);
 
         const offerData = await offerRes.json();
@@ -190,6 +207,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
         const itemsData = await itemsRes.json();
         const sharesData = sharesRes.ok ? await sharesRes.json() : [];
         const usersData = usersRes.ok ? await usersRes.json() : [];
+        const clientsData = clientsRes && clientsRes.ok ? await clientsRes.json() : [];
 
         // Enhance offer data with full items
         offerData.items = itemsData;
@@ -203,6 +221,10 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
         setLocalSetId(offerData.offer_set_id || null);
         setLocalSetLabel(offerData.set_label || '');
         setLocalTitle(offerData.title || '');
+        setLocalEventStartDate(offerData.event_start_date || null);
+        setLocalEventEndDate(offerData.event_end_date || null);
+        setLocalClientId(offerData.client_id || null);
+        setClientsList(clientsData || []);
         // Load shares: each row has a `profiles` object nested
         const shared = sharesData.map((s: { profiles: ShareUser | null }) => s.profiles).filter(Boolean);
         setSharedWith(shared);
@@ -368,6 +390,9 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     const setId = localSetIdRef.current;
     const setLabel = localSetLabelRef.current;
     const title = localTitleRef.current;
+    const eventStartDate = localEventStartDateRef.current;
+    const eventEndDate = localEventEndDateRef.current;
+    const clientId = localClientIdRef.current;
 
     try {
       // OPTIMIZATION: Prepare batch operations - only save CHANGED items
@@ -415,6 +440,9 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
             offer_set_id: setId,
             set_label: setLabel || null,
             title: title || null,
+            event_start_date: eventStartDate || null,
+            event_end_date: eventEndDate || null,
+            client_id: clientId || null,
             recalculate: true,
           }),
         })
@@ -658,6 +686,34 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
   // Handle title change
   const handleTitleChange = useCallback((title: string) => {
     setLocalTitle(title);
+    markDirty();
+  }, [markDirty]);
+
+  const handleEventStartDateChange = useCallback((date: string) => {
+    setLocalEventStartDate(date || null);
+    markDirty();
+  }, [markDirty]);
+
+  const handleEventEndDateChange = useCallback((date: string) => {
+    setLocalEventEndDate(date || null);
+    markDirty();
+  }, [markDirty]);
+
+  // Auto-fill event dates from linked event
+  const handleAutoFillEventDates = useCallback(() => {
+    if (!offer?.event) return;
+    const startDate = offer.event.start_time?.split('T')[0];
+    const endDate = offer.event.end_time?.split('T')[0] || startDate;
+    if (startDate) {
+      setLocalEventStartDate(startDate);
+      setLocalEventEndDate(endDate);
+      markDirty();
+      toast.success('Termín akce byl vyplněn z propojené akce.');
+    }
+  }, [offer, markDirty]);
+
+  const handleClientChange = useCallback((clientId: string | null) => {
+    setLocalClientId(clientId);
     markDirty();
   }, [markDirty]);
 
@@ -1223,6 +1279,65 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
           </div>
         )}
       </div>
+
+      {/* Event dates */}
+      <div className="flex items-center gap-3 p-2 bg-slate-50 border rounded text-xs flex-wrap">
+        <CalendarDays className="w-4 h-4 text-slate-400 shrink-0" />
+        <span className="text-slate-600">Termín akce:</span>
+        <div className="flex items-center gap-1.5">
+          <input
+            type="date"
+            value={localEventStartDate || ''}
+            onChange={(e) => handleEventStartDateChange(e.target.value)}
+            className="h-6 text-xs border rounded px-2"
+          />
+          <span className="text-slate-400">—</span>
+          <input
+            type="date"
+            value={localEventEndDate || ''}
+            onChange={(e) => handleEventEndDateChange(e.target.value)}
+            className="h-6 text-xs border rounded px-2"
+          />
+        </div>
+        {offer?.event && (
+          <button
+            type="button"
+            onClick={handleAutoFillEventDates}
+            className="h-6 px-2 text-xs border border-blue-300 text-blue-600 hover:bg-blue-50 rounded"
+            title="Vyplnit z propojené akce"
+          >
+            Z akce
+          </button>
+        )}
+        {(localEventStartDate || localEventEndDate) && (
+          <button
+            type="button"
+            onClick={() => { setLocalEventStartDate(null); setLocalEventEndDate(null); markDirty(); }}
+            className="h-6 px-1.5 text-xs text-slate-400 hover:text-red-500"
+            title="Vymazat termín"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
+      {/* Client selector */}
+      {clientsList.length > 0 && (
+        <div className="flex items-center gap-3 p-2 bg-slate-50 border rounded text-xs flex-wrap">
+          <Briefcase className="w-4 h-4 text-slate-400 shrink-0" />
+          <span className="text-slate-600">Klient:</span>
+          <select
+            value={localClientId || ''}
+            onChange={(e) => handleClientChange(e.target.value || null)}
+            className="h-6 text-xs border rounded px-2 min-w-[160px]"
+          >
+            <option value="">-- bez klienta --</option>
+            {clientsList.map(c => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Add custom item button + VAT payer checkbox + Load preset */}
       <div className="flex items-center justify-between">

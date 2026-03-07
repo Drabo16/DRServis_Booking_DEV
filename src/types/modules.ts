@@ -4,7 +4,7 @@
 // Types for the modular access system.
 // To remove: delete this file and remove export from index.ts
 
-export type ModuleCode = 'booking' | 'warehouse' | 'offers' | 'users_settings';
+export type ModuleCode = 'booking' | 'warehouse' | 'offers' | 'clients' | 'users_settings';
 
 export interface AppModule {
   code: ModuleCode;
@@ -202,6 +202,7 @@ export const PERMISSIONS_BY_MODULE: Record<ModuleCode, PermissionCode[]> = {
     'offers_edit_all',
     'offers_manage_templates',
   ],
+  clients: [],
   users_settings: [
     'users_settings_manage_users',
     'users_settings_manage_roles',

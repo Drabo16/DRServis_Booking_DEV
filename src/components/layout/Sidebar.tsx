@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { Calendar, Users, Settings, UserCog, ChevronLeft, ChevronRight, X, Package, FileText, LucideIcon } from 'lucide-react';
+import { Calendar, Users, Settings, UserCog, ChevronLeft, ChevronRight, X, Package, FileText, Briefcase, LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { useAccessibleModules } from '@/hooks/useModules';
@@ -17,6 +17,7 @@ const iconMap: Record<string, LucideIcon> = {
   Users,
   Package,
   FileText,
+  Briefcase,
 };
 
 interface SidebarProps {

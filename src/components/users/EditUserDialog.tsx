@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Pencil, Package, Calendar, FileText, Loader2, ChevronDown, Shield, Check, Crown, UserCog, User, Users, AlertTriangle } from 'lucide-react';
+import { Pencil, Package, Calendar, FileText, Briefcase, Loader2, ChevronDown, Shield, Check, Crown, UserCog, User, Users, AlertTriangle } from 'lucide-react';
 import { ROLE_TYPES } from '@/lib/constants';
 import { useRoleTypes } from '@/hooks/useRoleTypes';
 import {
@@ -36,6 +36,7 @@ const MODULE_NAMES: Record<ModuleCode, string> = {
   booking: 'Booking',
   warehouse: 'Sklad',
   offers: 'Nabídky',
+  clients: 'Klienti',
   users_settings: 'Uživatelé a nastavení',
 };
 
@@ -43,6 +44,7 @@ const MODULE_ICONS: Record<ModuleCode, React.ReactNode> = {
   booking: <Calendar className="w-4 h-4" />,
   warehouse: <Package className="w-4 h-4" />,
   offers: <FileText className="w-4 h-4" />,
+  clients: <Briefcase className="w-4 h-4" />,
   users_settings: <Users className="w-4 h-4" />,
 };
 

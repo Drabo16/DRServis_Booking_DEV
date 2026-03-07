@@ -51,8 +51,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const { data: offer, error: offerError } = await supabase
       .from('offers')
       .select(`
-        id, offer_number, year, title, event_id, status, valid_until, notes, subtotal_equipment, subtotal_personnel, subtotal_transport, discount_percent, discount_amount, total_amount, is_vat_payer, created_by, created_at, updated_at, offer_set_id, set_label,
-        event:events(id, title, start_time, location)
+        id, offer_number, year, title, event_id, status, valid_until, event_start_date, event_end_date, notes, subtotal_equipment, subtotal_personnel, subtotal_transport, discount_percent, discount_amount, total_amount, is_vat_payer, client_id, created_by, created_at, updated_at, offer_set_id, set_label,
+        event:events(id, title, start_time, end_time, location),
+        client:clients(id, name)
       `)
       .eq('id', id)
       .single();
@@ -112,7 +113,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (!parsed.success) {
       return apiError('Validation failed', 400);
     }
-    const { title, event_id, status, valid_until, notes, discount_percent, is_vat_payer, offer_set_id, set_label, recalculate } = parsed.data;
+    const { title, event_id, status, valid_until, event_start_date, event_end_date, notes, discount_percent, is_vat_payer, client_id, offer_set_id, set_label, recalculate } = parsed.data;
 
     // If recalculate is true, recalculate all totals from items
     if (recalculate) {
@@ -154,6 +155,9 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       if (is_vat_payer !== undefined) updateData.is_vat_payer = is_vat_payer;
       if (offer_set_id !== undefined) updateData.offer_set_id = offer_set_id;
       if (set_label !== undefined) updateData.set_label = set_label;
+      if (event_start_date !== undefined) updateData.event_start_date = event_start_date;
+      if (event_end_date !== undefined) updateData.event_end_date = event_end_date;
+      if (client_id !== undefined) updateData.client_id = client_id;
 
       const { data, error } = await supabase
         .from('offers')
@@ -176,7 +180,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (event_id !== undefined) updateData.event_id = event_id;
     if (status !== undefined) updateData.status = status;
     if (valid_until !== undefined) updateData.valid_until = valid_until;
+    if (event_start_date !== undefined) updateData.event_start_date = event_start_date;
+    if (event_end_date !== undefined) updateData.event_end_date = event_end_date;
     if (notes !== undefined) updateData.notes = notes;
+    if (client_id !== undefined) updateData.client_id = client_id;
     if (is_vat_payer !== undefined) updateData.is_vat_payer = is_vat_payer;
     if (offer_set_id !== undefined) updateData.offer_set_id = offer_set_id;
     if (set_label !== undefined) updateData.set_label = set_label;
@@ -212,8 +219,9 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       .update(updateData)
       .eq('id', id)
       .select(`
-        id, offer_number, year, title, event_id, status, valid_until, notes, subtotal_equipment, subtotal_personnel, subtotal_transport, discount_percent, discount_amount, total_amount, is_vat_payer, created_by, created_at, updated_at, offer_set_id, set_label,
-        event:events(id, title, start_time, location)
+        id, offer_number, year, title, event_id, status, valid_until, event_start_date, event_end_date, notes, subtotal_equipment, subtotal_personnel, subtotal_transport, discount_percent, discount_amount, total_amount, is_vat_payer, client_id, created_by, created_at, updated_at, offer_set_id, set_label,
+        event:events(id, title, start_time, end_time, location),
+        client:clients(id, name)
       `)
       .single();
 

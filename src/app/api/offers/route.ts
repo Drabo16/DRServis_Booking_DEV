@@ -185,7 +185,7 @@ export async function POST(request: NextRequest) {
     if (!parsed.success) {
       return apiError('Validation failed', 400);
     }
-    const { title, event_id, valid_until, notes } = parsed.data;
+    const { title, event_id, valid_until, event_start_date, event_end_date, notes, client_id } = parsed.data;
 
     // Get next offer number for current year (with retry on unique constraint violation)
     const currentYear = new Date().getFullYear();
@@ -210,7 +210,10 @@ export async function POST(request: NextRequest) {
           title,
           event_id: event_id || null,
           valid_until: valid_until || null,
+          event_start_date: event_start_date || null,
+          event_end_date: event_end_date || null,
           notes: notes || null,
+          client_id: client_id || null,
           created_by: profile.id,
         })
         .select(`
