@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
         created_at,
         updated_at,
         event:events(id, title, start_time, location),
-        client:clients(id, name),
+        client:clients(id, name, contact_person),
         created_by_profile:profiles!offers_created_by_fkey(id, full_name)
       `)
       .order('created_at', { ascending: false })

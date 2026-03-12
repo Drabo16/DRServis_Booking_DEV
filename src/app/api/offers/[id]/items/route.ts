@@ -120,9 +120,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         return apiError('No valid items to add', 400);
       }
 
+      // Use upsert so that if the same template item is somehow sent twice
+      // (concurrent tabs, autosave race, etc.) it updates instead of duplicating.
+      // NULL template_item_id rows (custom items) are always inserted fresh since
+      // PostgreSQL treats NULL != NULL for unique constraint purposes.
       const { data, error } = await supabase
         .from('offer_items')
-        .insert(validItems)
+        .upsert(validItems, {
+          onConflict: 'offer_id,template_item_id',
+          ignoreDuplicates: false,
+        })
         .select();
 
       if (error) throw error;
@@ -142,22 +149,29 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
       const total_price = calculateItemTotal({ days_hours, quantity, unit_price });
 
-      const { data, error } = await supabase
-        .from('offer_items')
-        .insert({
-          offer_id,
-          category,
-          subcategory: subcategory || null,
-          name,
-          days_hours,
-          quantity,
-          unit_price,
-          total_price,
-          sort_order,
-          template_item_id: template_item_id || null,
-        })
-        .select()
-        .single();
+      // Upsert: if this template item already exists for the offer (e.g. double-save),
+      // update it instead of creating a duplicate row.
+      const itemPayload = {
+        offer_id,
+        category,
+        subcategory: subcategory || null,
+        name,
+        days_hours,
+        quantity,
+        unit_price,
+        total_price,
+        sort_order,
+        template_item_id: template_item_id || null,
+      };
+
+      const upsertQuery = template_item_id
+        ? supabase.from('offer_items').upsert(itemPayload, {
+            onConflict: 'offer_id,template_item_id',
+            ignoreDuplicates: false,
+          }).select().single()
+        : supabase.from('offer_items').insert(itemPayload).select().single();
+
+      const { data, error } = await upsertQuery;
 
       if (error) throw error;
 

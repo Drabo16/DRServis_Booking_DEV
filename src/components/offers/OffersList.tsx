@@ -66,31 +66,35 @@ export default function OffersList({ onOfferSelect, isAdmin, canDuplicate = fals
     year: yearFilter !== 'all' ? parseInt(yearFilter) : undefined,
   });
 
-  // Client-side multi-term fulltext search across title, offer number, event, date, status
+  // Client-side multi-term fulltext search across title, offer number, event, date, status, creator, client
   const offers = useMemo(() => {
     if (!debouncedSearch.trim()) return allOffers;
     const terms = debouncedSearch.toLowerCase().trim().split(/\s+/);
+    const fmtLong = (d: Date) => d.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long', year: 'numeric' });
+    const fmtShort = (d: Date) => `${d.getDate()}.${d.getMonth()+1}.${d.getFullYear()}`;
     return allOffers.filter(offer => {
       const offerNumber = `${offer.offer_number}/${offer.year}`;
-      const dateStr = new Date(offer.created_at).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long', year: 'numeric' });
-      const shortDate = (() => { const d = new Date(offer.created_at); return `${d.getDate()}.${d.getMonth()+1}.${d.getFullYear()}`; })();
+      const createdDate = new Date(offer.created_at);
       const statusLabel = OFFER_STATUS_LABELS[offer.status] || '';
-      const eventDateStr = offer.event?.start_time
-        ? new Date(offer.event.start_time).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long', year: 'numeric' })
-        : '';
-      const eventShortDate = offer.event?.start_time
-        ? (() => { const d = new Date(offer.event!.start_time); return `${d.getDate()}.${d.getMonth()+1}.${d.getFullYear()}`; })()
-        : '';
+      const eventStartDate = offer.event_start_date ? new Date(offer.event_start_date + 'T00:00') : null;
+      const eventEndDate = offer.event_end_date ? new Date(offer.event_end_date + 'T00:00') : null;
       const searchable = [
         offer.title,
         offerNumber,
         offer.event?.title,
         offer.event?.location,
-        dateStr,
-        shortDate,
-        eventDateStr,
-        eventShortDate,
+        fmtLong(createdDate),
+        fmtShort(createdDate),
+        offer.event?.start_time ? fmtLong(new Date(offer.event.start_time)) : null,
+        offer.event?.start_time ? fmtShort(new Date(offer.event.start_time)) : null,
+        eventStartDate ? fmtLong(eventStartDate) : null,
+        eventStartDate ? fmtShort(eventStartDate) : null,
+        eventEndDate ? fmtLong(eventEndDate) : null,
+        eventEndDate ? fmtShort(eventEndDate) : null,
         statusLabel,
+        offer.client?.name,
+        offer.client?.contact_person,
+        offer.created_by_profile?.full_name,
       ].filter(Boolean).join(' ').toLowerCase();
       return terms.every(term => searchable.includes(term));
     });

@@ -524,7 +524,9 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
         );
       }
 
-      // 4. Create items (batch)
+      // 4. Create items (batch) — collect created IDs to update refs after save
+      // templateId → new dbItemId (from POST response / upsert)
+      const createdItemIds = new Map<string, string>();
       if (toCreate.length > 0) {
         promises.push(
           fetch(`/api/offers/${offerId}/items`, {
@@ -540,18 +542,12 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
             }),
           }).then(async (res) => {
             const data = await res.json();
-            // Update dbItemIds for created items
             if (data.items) {
-              setLocalItems(prev => {
-                const newItems = [...prev];
-                for (const created of data.items) {
-                  const idx = newItems.findIndex(i => i.templateId === created.template_item_id);
-                  if (idx !== -1) {
-                    newItems[idx] = { ...newItems[idx], dbItemId: created.id };
-                  }
+              for (const created of data.items) {
+                if (created.template_item_id) {
+                  createdItemIds.set(created.template_item_id, created.id);
                 }
-                return newItems;
-              });
+              }
             }
           })
         );
@@ -559,18 +555,33 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
 
       await Promise.all(promises);
 
+      // Update dbItemIds in React state for newly created items
+      if (createdItemIds.size > 0) {
+        setLocalItems(prev => {
+          const newItems = [...prev];
+          for (const [templateId, dbItemId] of createdItemIds) {
+            const idx = newItems.findIndex(i => i.templateId === templateId);
+            if (idx !== -1) newItems[idx] = { ...newItems[idx], dbItemId };
+          }
+          return newItems;
+        });
+      }
+
       // Clear deleted items' dbItemId
       setLocalItems(prev => prev.map(item =>
         toDelete.includes(item.dbItemId || '') ? { ...item, dbItemId: null } : item
       ));
 
-      // OPTIMIZATION: Update original items ref with current state after successful save
+      // Build originalItemsRef from the CAPTURED items snapshot (not stale localItemsRef.current).
+      // This prevents treating unchanged items as changed on the next save cycle.
       originalItemsRef.current = new Map();
-      localItemsRef.current.forEach(item => {
-        if (item.dbItemId) {
-          originalItemsRef.current.set(item.dbItemId, { ...item });
+      for (const item of items) {
+        if (toDelete.includes(item.dbItemId || '')) continue;
+        const resolvedId = (item.templateId && createdItemIds.get(item.templateId)) || item.dbItemId;
+        if (resolvedId) {
+          originalItemsRef.current.set(resolvedId, { ...item, dbItemId: resolvedId });
         }
-      });
+      }
 
       // Invalidate React Query cache to sync lists
       queryClient.invalidateQueries({ queryKey: offerKeys.lists() });

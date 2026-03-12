@@ -453,7 +453,12 @@ export function OfferPdfDocument({ offer, logoBase64 }: OfferPdfDocumentProps) {
 
         {/* Footer */}
         <View style={styles.footer} fixed>
-          <Text style={styles.footerText}>DR Servis s.r.o. | www.drservis.cz</Text>
+          <View>
+            <Text style={styles.footerText}>DR Servis s.r.o. | www.drservis.cz</Text>
+            {offer.creatorName && (
+              <Text style={[styles.footerText, { marginTop: 2 }]}>Vypracoval: {offer.creatorName}</Text>
+            )}
+          </View>
           <Text
             style={styles.pageNumber}
             render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`}

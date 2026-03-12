@@ -75,6 +75,7 @@ export interface OfferWithDetails extends Offer {
   client: {
     id: string;
     name: string;
+    contact_person?: string | null;
   } | null;
   created_by_profile: {
     id: string;
@@ -111,6 +112,7 @@ export interface OfferWithItems extends Offer {
     name: string;
   } | null;
   versionName?: string | null;
+  creatorName?: string | null;
 }
 
 // =====================================================

@@ -57,14 +57,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Fetch offer with items, event and client
+    // Fetch offer with items, event, client and creator
     const { data: offer, error: offerError } = await supabase
       .from('offers')
       .select(`
         *,
         event:events(id, title, start_time, location),
         client:clients(id, name),
-        items:offer_items(*)
+        items:offer_items(*),
+        created_by_profile:profiles!offers_created_by_fkey(full_name)
       `)
       .eq('id', id)
       .single();
@@ -108,6 +109,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       console.warn('Logo not found, using placeholder');
     }
 
+    const creatorName = (offer.created_by_profile as { full_name?: string } | null)?.full_name ?? null;
+
     // Generate PDF
     const pdfBuffer = await renderToBuffer(
       OfferPdfDocument({
@@ -115,6 +118,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           ...offer,
           items: sortedItems,
           versionName,
+          creatorName,
         },
         logoBase64,
       })
