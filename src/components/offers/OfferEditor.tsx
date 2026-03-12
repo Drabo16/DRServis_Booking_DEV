@@ -248,8 +248,24 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
         setSharedWith(shared);
         setUsersWithAccess(usersData);
 
-        // Build local items from templates + offer
-        buildLocalItems(templatesData, offerData);
+        // Build local items from templates + offer; get any duplicate IDs to clean up
+        const duplicateIds = buildLocalItems(templatesData, offerData);
+
+        // Auto-delete duplicate DB items silently (can happen from race conditions)
+        if (duplicateIds.length > 0) {
+          await Promise.all(
+            duplicateIds.map(id =>
+              fetch(`/api/offers/${offerId}/items?item_id=${id}`, { method: 'DELETE' }).catch(() => {})
+            )
+          );
+          // Recalculate totals after cleanup
+          await fetch(`/api/offers/${offerId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ recalculate: true }),
+          }).catch(() => {});
+        }
+
         setLoading(false);
       } catch (e) {
         console.error('Load failed:', e);
@@ -259,14 +275,28 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     loadData();
   }, [offerId]);
 
-  // Build local items array
-  const buildLocalItems = (templates: TemplateItem[], offer: OfferData) => {
+  // Build local items array — returns IDs of duplicate items to delete
+  const buildLocalItems = (templates: TemplateItem[], offer: OfferData): string[] => {
     const items: LocalItem[] = [];
+    const duplicateIds: string[] = [];
 
-    // Add template-based items
+    // Add template-based items — detect & skip duplicates (keep first by sort_order)
     for (const t of templates) {
       const catName = t.category?.name || 'Ostatní';
-      const offerItem = offer.items?.find(i => i.template_item_id === t.id);
+      const matchingItems = (offer.items || []).filter(i => i.template_item_id === t.id);
+
+      // If there are duplicates for this template, keep the one with the highest total_price
+      // and schedule the rest for immediate deletion
+      let offerItem = matchingItems[0] ?? undefined;
+      if (matchingItems.length > 1) {
+        // Keep the most recent (highest total_price as proxy, then first)
+        offerItem = matchingItems.reduce((best, cur) =>
+          cur.days_hours * cur.quantity * cur.unit_price > best.days_hours * best.quantity * best.unit_price ? cur : best
+        );
+        for (const dup of matchingItems) {
+          if (dup.id !== offerItem.id) duplicateIds.push(dup.id);
+        }
+      }
 
       items.push({
         templateId: t.id,
@@ -316,6 +346,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     });
 
     setLocalItems(items);
+    return duplicateIds;
   };
 
   // Load version history

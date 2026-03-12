@@ -352,7 +352,7 @@ export function OfferPdfDocument({ offer, logoBase64 }: OfferPdfDocumentProps) {
                   {isTransport ? 'km' : isPersonnel ? 'Technik' : 'Ks'}
                 </Text>
                 <Text style={[styles.tableHeaderText, styles.colPrice]}>
-                  {isTransport ? 'Kč/km' : 'Kč/ks'}
+                  {isTransport ? 'Kč/km' : isPersonnel ? 'Kč/technik' : 'Kč/ks'}
                 </Text>
                 <Text style={[styles.tableHeaderText, styles.colTotal]}>Celkem</Text>
               </View>
