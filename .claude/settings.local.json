@@ -21,7 +21,9 @@
       "Bash(dir:*)",
       "Bash(npx supabase db push:*)",
       "Bash(npx supabase:*)",
-      "Bash(git tag:*)"
+      "Bash(git tag:*)",
+      "Bash(npx vercel --version)",
+      "Bash(npx vercel deploy --prod)"
     ]
   }
 }

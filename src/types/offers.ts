@@ -58,6 +58,8 @@ export interface Offer {
   event_start_date: string | null;
   event_end_date: string | null;
   client_id: string | null;
+  offer_set_id: string | null;
+  set_label: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -104,6 +106,11 @@ export interface OfferWithItems extends Offer {
     start_time: string;
     location: string | null;
   } | null;
+  client: {
+    id: string;
+    name: string;
+  } | null;
+  versionName?: string | null;
 }
 
 // =====================================================

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ArrowLeft, FileDown, FileSpreadsheet, Save, FolderKanban, BookTemplate, Tag, X, Check, UserPlus, Users, CalendarDays, Briefcase } from 'lucide-react';
+import { Loader2, ArrowLeft, FileDown, FileSpreadsheet, Save, FolderKanban, BookTemplate, Tag, X, Check, UserPlus, Users, CalendarDays, Briefcase, StickyNote, ChevronDown } from 'lucide-react';
 import { offerKeys } from '@/hooks/useOffers';
 import type { OfferPresetWithCount, OfferPresetItem } from '@/types/offers';
 import { toast } from 'sonner';
@@ -68,6 +68,7 @@ interface OfferData {
   event: { id: string; title: string; start_time: string; end_time: string; location: string } | null;
   client_id: string | null;
   client: { id: string; name: string } | null;
+  notes: string | null;
   updated_at: string;
   items: Array<{
     id: string;
@@ -115,8 +116,16 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
   const [localEventStartDate, setLocalEventStartDate] = useState<string | null>(null);
   const [localEventEndDate, setLocalEventEndDate] = useState<string | null>(null);
   const [localClientId, setLocalClientId] = useState<string | null>(null);
-  const [clientsList, setClientsList] = useState<Array<{ id: string; name: string }>>([]);
+  const [localNotes, setLocalNotes] = useState('');
+  const [clientsList, setClientsList] = useState<Array<{ id: string; name: string; contact_person?: string | null }>>([]);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
+
+  // Client combobox state
+  const [clientSearch, setClientSearch] = useState('');
+  const [clientDropdownOpen, setClientDropdownOpen] = useState(false);
+  const [showCreateClientForm, setShowCreateClientForm] = useState(false);
+  const [newClientName, setNewClientName] = useState('');
+  const [creatingClient, setCreatingClient] = useState(false);
 
   // Dirty tracking
   const [isDirty, setIsDirty] = useState(false);
@@ -164,6 +173,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
   const localEventStartDateRef = useRef<string | null>(null);
   const localEventEndDateRef = useRef<string | null>(null);
   const localClientIdRef = useRef<string | null>(null);
+  const localNotesRef = useRef('');
   const isDirtyRef = useRef(false);
   const isSavingRef = useRef(false);
 
@@ -189,9 +199,10 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     localEventStartDateRef.current = localEventStartDate;
     localEventEndDateRef.current = localEventEndDate;
     localClientIdRef.current = localClientId;
+    localNotesRef.current = localNotes;
     isDirtyRef.current = isDirty;
     isSavingRef.current = isSaving;
-  }, [localItems, localDiscount, localStatus, localIsVatPayer, localSetId, localSetLabel, localTitle, localEventStartDate, localEventEndDate, localClientId, isDirty, isSaving]);
+  }, [localItems, localDiscount, localStatus, localIsVatPayer, localSetId, localSetLabel, localTitle, localEventStartDate, localEventEndDate, localClientId, localNotes, isDirty, isSaving]);
 
   // Load data once on mount
   useEffect(() => {
@@ -204,7 +215,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
           fetch(`/api/offers/${offerId}/items`),
           fetch(`/api/offers/${offerId}/shares`),
           fetch('/api/offers/users-with-access'),
-          fetch('/api/clients').catch(() => null),
+          fetch('/api/clients?scope=offers').catch(() => null),
         ]);
 
         const offerData = await offerRes.json();
@@ -230,6 +241,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
         setLocalEventStartDate(offerData.event_start_date || null);
         setLocalEventEndDate(offerData.event_end_date || null);
         setLocalClientId(offerData.client_id || null);
+        setLocalNotes(offerData.notes || '');
         setClientsList(clientsData || []);
         // Load shares: each row has a `profiles` object nested
         const shared = sharesData.map((s: { profiles: ShareUser | null }) => s.profiles).filter(Boolean);
@@ -399,6 +411,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     const eventStartDate = localEventStartDateRef.current;
     const eventEndDate = localEventEndDateRef.current;
     const clientId = localClientIdRef.current;
+    const notes = localNotesRef.current;
 
     try {
       // OPTIMIZATION: Prepare batch operations - only save CHANGED items
@@ -449,6 +462,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
             event_start_date: eventStartDate || null,
             event_end_date: eventEndDate || null,
             client_id: clientId || null,
+            notes: notes || null,
             recalculate: true,
           }),
         })
@@ -722,6 +736,46 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     setLocalClientId(clientId);
     markDirty();
   }, [markDirty]);
+
+  // Filtered clients for combobox
+  const filteredClients = useMemo(() => {
+    if (!clientSearch.trim()) return clientsList;
+    const q = clientSearch.toLowerCase();
+    return clientsList.filter(c =>
+      c.name.toLowerCase().includes(q) ||
+      (c.contact_person && c.contact_person.toLowerCase().includes(q))
+    );
+  }, [clientsList, clientSearch]);
+
+  const selectedClientName = useMemo(
+    () => clientsList.find(c => c.id === localClientId)?.name,
+    [clientsList, localClientId]
+  );
+
+  // Create a new client inline from the offer editor
+  const handleCreateClient = useCallback(async () => {
+    if (!newClientName.trim() || creatingClient) return;
+    setCreatingClient(true);
+    try {
+      const res = await fetch('/api/clients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newClientName.trim() }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      const data = await res.json();
+      const created = { id: data.client.id, name: data.client.name };
+      setClientsList(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name, 'cs')));
+      handleClientChange(data.client.id);
+      setNewClientName('');
+      setShowCreateClientForm(false);
+      toast.success('Klient byl vytvořen.');
+    } catch {
+      toast.error('Nepodařilo se vytvořit klienta.');
+    } finally {
+      setCreatingClient(false);
+    }
+  }, [newClientName, creatingClient, handleClientChange]);
 
   // Add share
   const handleAddShare = useCallback(async (user: ShareUser) => {
@@ -1366,23 +1420,129 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
         )}
       </div>
 
-      {/* Client selector */}
-      {clientsList.length > 0 && (
-        <div className="flex items-center gap-3 p-2 bg-slate-50 border rounded text-xs flex-wrap">
-          <Briefcase className="w-4 h-4 text-slate-400 shrink-0" />
-          <span className="text-slate-600">Klient:</span>
-          <select
-            value={localClientId || ''}
-            onChange={(e) => handleClientChange(e.target.value || null)}
-            className="h-6 text-xs border rounded px-2 min-w-[160px]"
+      {/* Client selector with search */}
+      <div className="flex items-center gap-3 p-2 bg-slate-50 border rounded text-xs flex-wrap">
+        <Briefcase className="w-4 h-4 text-slate-400 shrink-0" />
+        <span className="text-slate-600 shrink-0">Klient:</span>
+        <div className="relative flex-1 min-w-[180px]">
+          <div className="flex items-center gap-1">
+            <input
+              type="text"
+              value={clientDropdownOpen ? clientSearch : (selectedClientName || '')}
+              onChange={(e) => { setClientSearch(e.target.value); setClientDropdownOpen(true); }}
+              onFocus={() => { setClientSearch(''); setClientDropdownOpen(true); }}
+              onBlur={() => setTimeout(() => setClientDropdownOpen(false), 150)}
+              placeholder="Vyhledat klienta..."
+              className="flex-1 h-6 text-xs border rounded px-2 min-w-[160px]"
+            />
+            <button
+              type="button"
+              onClick={() => setClientDropdownOpen(v => !v)}
+              className="h-6 px-1 border rounded hover:bg-slate-100 text-slate-500"
+              title="Zobrazit seznam"
+            >
+              <ChevronDown className="w-3 h-3" />
+            </button>
+            {localClientId && (
+              <button
+                type="button"
+                onClick={() => { handleClientChange(null); setClientSearch(''); }}
+                className="h-6 px-1 text-slate-400 hover:text-red-500"
+                title="Odebrat klienta"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          {clientDropdownOpen && (
+            <div className="absolute top-7 left-0 z-20 bg-white border rounded shadow-lg min-w-[220px] max-h-52 overflow-y-auto">
+              <div className="py-1">
+                <button
+                  type="button"
+                  onMouseDown={() => { handleClientChange(null); setClientDropdownOpen(false); setClientSearch(''); }}
+                  className="w-full text-left px-3 py-1.5 text-xs text-slate-400 hover:bg-slate-50 italic"
+                >
+                  — bez klienta —
+                </button>
+                {filteredClients.length === 0 ? (
+                  <div className="px-3 py-2 text-slate-400 text-xs">Žádný klient nenalezen</div>
+                ) : (
+                  filteredClients.map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onMouseDown={() => { handleClientChange(c.id); setClientDropdownOpen(false); setClientSearch(''); }}
+                      className={`w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 ${c.id === localClientId ? 'bg-blue-50 font-medium' : ''}`}
+                    >
+                      {c.name}
+                      {c.contact_person && <span className="text-slate-400 ml-1">({c.contact_person})</span>}
+                    </button>
+                  ))
+                )}
+              </div>
+              <div className="border-t py-1">
+                <button
+                  type="button"
+                  onMouseDown={() => { setShowCreateClientForm(true); setClientDropdownOpen(false); setClientSearch(''); }}
+                  className="w-full text-left px-3 py-1.5 text-xs text-blue-600 hover:bg-blue-50"
+                >
+                  + Nový klient
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Inline new client form */}
+      {showCreateClientForm && (
+        <div className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+          <span className="text-slate-600 shrink-0">Nový klient:</span>
+          <input
+            type="text"
+            value={newClientName}
+            onChange={(e) => setNewClientName(e.target.value)}
+            placeholder="Název klienta..."
+            className="flex-1 h-6 border rounded px-2 text-xs"
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleCreateClient();
+              if (e.key === 'Escape') { setShowCreateClientForm(false); setNewClientName(''); }
+            }}
+          />
+          <button
+            type="button"
+            onClick={handleCreateClient}
+            disabled={!newClientName.trim() || creatingClient}
+            className="h-6 px-2 bg-blue-600 text-white rounded text-xs disabled:opacity-50 flex items-center gap-1"
           >
-            <option value="">-- bez klienta --</option>
-            {clientsList.map(c => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
+            {creatingClient && <Loader2 className="w-3 h-3 animate-spin" />}
+            Vytvořit
+          </button>
+          <button
+            type="button"
+            onClick={() => { setShowCreateClientForm(false); setNewClientName(''); }}
+            className="h-6 px-2 bg-slate-200 hover:bg-slate-300 rounded text-xs"
+          >
+            Zrušit
+          </button>
         </div>
       )}
+
+      {/* Notes */}
+      <div className="flex items-start gap-3 p-2 bg-slate-50 border rounded text-xs">
+        <StickyNote className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+        <div className="flex-1">
+          <span className="text-slate-600 block mb-1">Poznámka:</span>
+          <textarea
+            value={localNotes}
+            onChange={(e) => { setLocalNotes(e.target.value); markDirty(); }}
+            placeholder="Interní poznámky k nabídce..."
+            rows={2}
+            className="w-full text-xs border rounded px-2 py-1 resize-none focus:ring-1 focus:ring-blue-300 focus:outline-none"
+          />
+        </div>
+      </div>
 
       {/* Add custom item button + VAT payer checkbox + Load preset */}
       <div className="flex items-center justify-between">

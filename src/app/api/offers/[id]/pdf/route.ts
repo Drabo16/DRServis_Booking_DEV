@@ -57,12 +57,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Fetch offer with items
+    // Fetch offer with items, event and client
     const { data: offer, error: offerError } = await supabase
       .from('offers')
       .select(`
         *,
         event:events(id, title, start_time, location),
+        client:clients(id, name),
         items:offer_items(*)
       `)
       .eq('id', id)
@@ -72,13 +73,30 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Offer not found' }, { status: 404 });
     }
 
-    // Sort items by category and sort_order
+    // Sort items by category order then sort_order
+    const { OFFER_CATEGORY_ORDER } = await import('@/types/offers');
     const sortedItems = (offer.items || []).sort((a: { category: string; sort_order?: number }, b: { category: string; sort_order?: number }) => {
-      if (a.category !== b.category) {
-        return a.category.localeCompare(b.category);
-      }
+      const catA = (OFFER_CATEGORY_ORDER as readonly string[]).indexOf(a.category);
+      const catB = (OFFER_CATEGORY_ORDER as readonly string[]).indexOf(b.category);
+      if (catA !== catB) return catA - catB;
       return (a.sort_order || 0) - (b.sort_order || 0);
     });
+
+    // Fetch latest named version for PDF header
+    let versionName: string | null = null;
+    try {
+      const { data: versions } = await supabase
+        .from('offer_versions')
+        .select('name')
+        .eq('offer_id', id)
+        .not('name', 'is', null)
+        .order('version_number', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      versionName = versions?.name || null;
+    } catch {
+      // Optional - ignore errors
+    }
 
     // Read logo as base64
     let logoBase64 = '';
@@ -96,6 +114,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         offer: {
           ...offer,
           items: sortedItems,
+          versionName,
         },
         logoBase64,
       })

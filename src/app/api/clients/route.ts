@@ -14,6 +14,17 @@ async function checkClientsAccess(supabase: Awaited<ReturnType<typeof createClie
   return !!data;
 }
 
+async function checkOffersAccess(supabase: Awaited<ReturnType<typeof createClient>>, profileId: string, profileRole: string): Promise<boolean> {
+  if (profileRole === 'admin') return true;
+  const { data } = await supabase
+    .from('user_module_access')
+    .select('id')
+    .eq('user_id', profileId)
+    .eq('module_code', 'offers')
+    .single();
+  return !!data;
+}
+
 /**
  * GET /api/clients
  * List all clients with optional search
@@ -37,13 +48,28 @@ export async function GET(request: NextRequest) {
       return apiError('Profile not found', 404);
     }
 
+    const { searchParams } = new URL(request.url);
+    const scope = searchParams.get('scope');
+
+    // scope=offers: accessible to anyone with offers access, returns id+name only
+    if (scope === 'offers') {
+      const hasOffersAccess = await checkOffersAccess(supabase, profile.id, profile.role);
+      if (!hasOffersAccess) return apiError('Forbidden', 403);
+      const serviceClient = createServiceRoleClient();
+      const { data, error } = await serviceClient
+        .from('clients')
+        .select('id, name, contact_person')
+        .order('name', { ascending: true });
+      if (error) throw error;
+      return NextResponse.json(data || []);
+    }
+
     const hasAccess = await checkClientsAccess(supabase, profile.id, profile.role);
     if (!hasAccess) {
       return apiError('Forbidden', 403);
     }
 
     const serviceClient = createServiceRoleClient();
-    const { searchParams } = new URL(request.url);
     const search = searchParams.get('search');
 
     let query = serviceClient
@@ -89,8 +115,10 @@ export async function POST(request: NextRequest) {
       return apiError('Profile not found', 404);
     }
 
-    const hasAccess = await checkClientsAccess(supabase, profile.id, profile.role);
-    if (!hasAccess) {
+    // Allow anyone with clients OR offers access to create clients
+    const hasClientsAccess = await checkClientsAccess(supabase, profile.id, profile.role);
+    const hasCreateAccess = hasClientsAccess || await checkOffersAccess(supabase, profile.id, profile.role);
+    if (!hasCreateAccess) {
       return apiError('Forbidden', 403);
     }
 

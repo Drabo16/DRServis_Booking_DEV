@@ -158,6 +158,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       if (event_start_date !== undefined) updateData.event_start_date = event_start_date;
       if (event_end_date !== undefined) updateData.event_end_date = event_end_date;
       if (client_id !== undefined) updateData.client_id = client_id;
+      if (notes !== undefined) updateData.notes = notes;
 
       const { data, error } = await supabase
         .from('offers')

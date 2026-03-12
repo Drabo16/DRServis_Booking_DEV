@@ -3,7 +3,6 @@
 // =====================================================
 // Professional PDF template for offers using @react-pdf/renderer
 
-import React from 'react';
 import {
   Document,
   Page,
@@ -70,6 +69,12 @@ const styles = StyleSheet.create({
     fontSize: 8,
     color: '#666666',
   },
+  versionBadge: {
+    marginTop: 4,
+    fontSize: 8,
+    color: '#0066b3',
+    fontWeight: 'bold',
+  },
   // Title
   title: {
     fontSize: 14,
@@ -93,6 +98,7 @@ const styles = StyleSheet.create({
   eventDetail: {
     fontSize: 8,
     color: '#555555',
+    marginTop: 2,
   },
   // Category
   categoryHeader: {
@@ -230,7 +236,8 @@ function groupItemsByCategory(items: OfferItem[]): Record<string, OfferItem[]> {
   return grouped;
 }
 
-function formatDate(dateString: string): string {
+function formatDate(dateString: string | null | undefined): string {
+  if (!dateString) return '';
   return new Date(dateString).toLocaleDateString('cs-CZ', {
     day: '2-digit',
     month: '2-digit',
@@ -238,16 +245,41 @@ function formatDate(dateString: string): string {
   });
 }
 
+function calcItemTotal(item: OfferItem): number {
+  return item.days_hours * item.quantity * item.unit_price;
+}
+
 export function OfferPdfDocument({ offer, logoBase64 }: OfferPdfDocumentProps) {
   const itemsByCategory = groupItemsByCategory(offer.items || []);
   const createdDate = formatDate(offer.created_at);
   const validUntilDate = offer.valid_until ? formatDate(offer.valid_until) : null;
 
-  // Calculate category totals
+  // Calculate subtotals from actual items (not stored values — avoids stale data bugs)
+  let subtotalEquipment = 0;
+  let subtotalPersonnel = 0;
+  let subtotalTransport = 0;
+  for (const item of (offer.items || [])) {
+    const total = calcItemTotal(item);
+    const group = getCategoryGroup(item.category);
+    if (group === 'equipment') subtotalEquipment += total;
+    else if (group === 'personnel') subtotalPersonnel += total;
+    else subtotalTransport += total;
+  }
+  const discountAmount = Math.round(subtotalEquipment * (offer.discount_percent / 100));
+  const totalAmount = subtotalEquipment + subtotalPersonnel + subtotalTransport - discountAmount;
+
+  // Category totals (calculated from items)
   const categoryTotals: Record<string, number> = {};
   for (const [category, items] of Object.entries(itemsByCategory)) {
-    categoryTotals[category] = items.reduce((sum, item) => sum + item.total_price, 0);
+    categoryTotals[category] = items.reduce((sum, item) => sum + calcItemTotal(item), 0);
   }
+
+  // Event date range
+  const startDate = offer.event_start_date ? formatDate(offer.event_start_date) : null;
+  const endDate = offer.event_end_date ? formatDate(offer.event_end_date) : null;
+  const eventDateStr = startDate
+    ? endDate && endDate !== startDate ? `${startDate} – ${endDate}` : startDate
+    : null;
 
   return (
     <Document>
@@ -264,20 +296,36 @@ export function OfferPdfDocument({ offer, logoBase64 }: OfferPdfDocumentProps) {
               Nabídka č. {formatOfferNumber(offer.offer_number, offer.year)}
             </Text>
             <Text style={styles.offerDate}>Vystaveno: {createdDate}</Text>
+            {offer.versionName && (
+              <Text style={styles.versionBadge}>Verze: {offer.versionName}</Text>
+            )}
+            {!offer.versionName && offer.set_label && (
+              <Text style={styles.versionBadge}>{offer.set_label}</Text>
+            )}
           </View>
         </View>
 
         {/* Title */}
         <Text style={styles.title}>{offer.title}</Text>
 
-        {/* Event Info */}
-        {offer.event && (
+        {/* Info box: event, client, dates */}
+        {(offer.event || offer.client || eventDateStr) && (
           <View style={styles.eventBox}>
-            <Text style={styles.eventTitle}>Akce: {offer.event.title}</Text>
-            <Text style={styles.eventDetail}>
-              Termín: {formatDate(offer.event.start_time)}
-              {offer.event.location && ` | Místo: ${offer.event.location}`}
-            </Text>
+            {offer.client && (
+              <Text style={styles.eventTitle}>Klient: {offer.client.name}</Text>
+            )}
+            {offer.event && (
+              <Text style={[styles.eventDetail, offer.client ? {} : styles.eventTitle]}>
+                Akce: {offer.event.title}
+                {offer.event.location ? ` | ${offer.event.location}` : ''}
+              </Text>
+            )}
+            {eventDateStr && (
+              <Text style={styles.eventDetail}>Termín: {eventDateStr}</Text>
+            )}
+            {!eventDateStr && offer.event?.start_time && (
+              <Text style={styles.eventDetail}>Termín: {formatDate(offer.event.start_time)}</Text>
+            )}
           </View>
         )}
 
@@ -285,6 +333,9 @@ export function OfferPdfDocument({ offer, logoBase64 }: OfferPdfDocumentProps) {
         {OFFER_CATEGORY_ORDER.map((categoryName) => {
           const items = itemsByCategory[categoryName];
           if (!items || items.length === 0) return null;
+
+          const isTransport = categoryName === 'Doprava';
+          const isPersonnel = categoryName === 'Technický personál';
 
           return (
             <View key={categoryName} wrap={false}>
@@ -298,10 +349,10 @@ export function OfferPdfDocument({ offer, logoBase64 }: OfferPdfDocumentProps) {
                 <Text style={[styles.tableHeaderText, styles.colName]}>Položka</Text>
                 <Text style={[styles.tableHeaderText, styles.colDays]}>Dny</Text>
                 <Text style={[styles.tableHeaderText, styles.colQty]}>
-                  {categoryName === 'Doprava' ? 'km' : 'Ks'}
+                  {isTransport ? 'km' : isPersonnel ? 'Technik' : 'Ks'}
                 </Text>
                 <Text style={[styles.tableHeaderText, styles.colPrice]}>
-                  {categoryName === 'Doprava' ? 'Kč/km' : 'Kč/ks'}
+                  {isTransport ? 'Kč/km' : 'Kč/ks'}
                 </Text>
                 <Text style={[styles.tableHeaderText, styles.colTotal]}>Celkem</Text>
               </View>
@@ -320,7 +371,7 @@ export function OfferPdfDocument({ offer, logoBase64 }: OfferPdfDocumentProps) {
                   <Text style={[styles.colQty, { fontSize: 8 }]}>{item.quantity}</Text>
                   <Text style={[styles.colPrice, { fontSize: 8 }]}>{formatCurrency(item.unit_price)}</Text>
                   <Text style={[styles.colTotal, { fontSize: 8, fontWeight: 'bold' }]}>
-                    {formatCurrency(item.total_price)}
+                    {formatCurrency(calcItemTotal(item))}
                   </Text>
                 </View>
               ))}
@@ -339,15 +390,15 @@ export function OfferPdfDocument({ offer, logoBase64 }: OfferPdfDocumentProps) {
         <View style={styles.summary} wrap={false}>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Technika celkem:</Text>
-            <Text style={styles.summaryValue}>{formatCurrency(offer.subtotal_equipment)}</Text>
+            <Text style={styles.summaryValue}>{formatCurrency(subtotalEquipment)}</Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Technický personál:</Text>
-            <Text style={styles.summaryValue}>{formatCurrency(offer.subtotal_personnel)}</Text>
+            <Text style={styles.summaryValue}>{formatCurrency(subtotalPersonnel)}</Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Doprava:</Text>
-            <Text style={styles.summaryValue}>{formatCurrency(offer.subtotal_transport)}</Text>
+            <Text style={styles.summaryValue}>{formatCurrency(subtotalTransport)}</Text>
           </View>
 
           {offer.discount_percent > 0 && (
@@ -356,7 +407,7 @@ export function OfferPdfDocument({ offer, logoBase64 }: OfferPdfDocumentProps) {
                 Sleva na techniku ({offer.discount_percent}%):
               </Text>
               <Text style={[styles.summaryValue, { color: '#16a34a' }]}>
-                -{formatCurrency(offer.discount_amount)}
+                -{formatCurrency(discountAmount)}
               </Text>
             </View>
           )}
@@ -365,7 +416,7 @@ export function OfferPdfDocument({ offer, logoBase64 }: OfferPdfDocumentProps) {
             <Text style={styles.totalLabel}>
               {offer.is_vat_payer !== false ? 'CELKEM BEZ DPH:' : 'CELKOVÁ CENA:'}
             </Text>
-            <Text style={styles.totalValue}>{formatCurrency(offer.total_amount)}</Text>
+            <Text style={styles.totalValue}>{formatCurrency(totalAmount)}</Text>
           </View>
 
           {/* DPH section - only for VAT payers */}
@@ -373,11 +424,11 @@ export function OfferPdfDocument({ offer, logoBase64 }: OfferPdfDocumentProps) {
             <>
               <View style={[styles.summaryRow, { marginTop: 6 }]}>
                 <Text style={styles.summaryLabel}>DPH (21%):</Text>
-                <Text style={styles.summaryValue}>{formatCurrency(Math.round(offer.total_amount * 0.21))}</Text>
+                <Text style={styles.summaryValue}>{formatCurrency(Math.round(totalAmount * 0.21))}</Text>
               </View>
               <View style={[styles.totalRow, { marginTop: 4, paddingTop: 4 }]}>
                 <Text style={styles.totalLabel}>CELKEM S DPH:</Text>
-                <Text style={styles.totalValue}>{formatCurrency(Math.round(offer.total_amount * 1.21))}</Text>
+                <Text style={styles.totalValue}>{formatCurrency(Math.round(totalAmount * 1.21))}</Text>
               </View>
             </>
           )}
