@@ -1579,7 +1579,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
           <textarea
             value={localNotes}
             onChange={(e) => { setLocalNotes(e.target.value); markDirty(); }}
-            placeholder="Interní poznámky k nabídce..."
+            placeholder="Poznámky pro zákazníka (tisknou se na nabídku)..."
             rows={2}
             className="w-full text-xs border rounded px-2 py-1 resize-none focus:ring-1 focus:ring-blue-300 focus:outline-none"
           />

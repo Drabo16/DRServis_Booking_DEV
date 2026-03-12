@@ -276,7 +276,7 @@ export default function OfferFormDialog({
               id="notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Interní poznámky k nabídce..."
+              placeholder="Poznámky pro zákazníka (tisknou se na nabídku)..."
               rows={3}
             />
           </div>
