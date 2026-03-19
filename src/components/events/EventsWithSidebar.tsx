@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import EventCard from './EventCard';
 import EventDetailPanel from './EventDetailPanel';
-import type { Event, Profile } from '@/types';
+import type { Event, Profile, EventSection } from '@/types';
 import { eventKeys } from '@/hooks/useEvents';
 import { Loader2, Filter, X, FolderPlus, Link2, RefreshCw, Trash2, MoreHorizontal, History, CalendarDays, Search } from 'lucide-react';
 import { toast } from 'sonner';
@@ -32,8 +32,10 @@ interface EventsWithSidebarProps {
   events: Array<Event & {
     positions?: Array<{
       id: string;
+      section_id?: string | null;
       assignments?: Array<{ id: string; attendance_status: string; technician_id?: string; technician?: Profile }>;
     }>;
+    sections?: EventSection[];
   }>;
   isAdmin: boolean;
   userId: string;

@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
-import type { Event, Position, Assignment, Profile } from '@/types';
+import type { Event, Position, Assignment, Profile, EventSection } from '@/types';
 
 // Query keys for cache management
 export const eventKeys = {
@@ -22,6 +22,7 @@ type EventWithPositions = Event & {
       assignments?: Array<Assignment & { technician: Profile }>;
     }
   >;
+  sections?: EventSection[];
 };
 
 // Fetch all events
