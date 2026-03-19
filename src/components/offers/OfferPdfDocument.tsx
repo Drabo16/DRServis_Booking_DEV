@@ -329,8 +329,8 @@ export function OfferPdfDocument({ offer, logoBase64 }: OfferPdfDocumentProps) {
           </View>
         )}
 
-        {/* Items by Category */}
-        {OFFER_CATEGORY_ORDER.map((categoryName) => {
+        {/* Items by Category (predefined + custom sections) */}
+        {[...OFFER_CATEGORY_ORDER, ...Object.keys(itemsByCategory).filter(c => !(OFFER_CATEGORY_ORDER as readonly string[]).includes(c))].map((categoryName) => {
           const items = itemsByCategory[categoryName];
           if (!items || items.length === 0) return null;
 

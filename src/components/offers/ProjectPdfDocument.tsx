@@ -419,7 +419,7 @@ export function ProjectPdfDocument({ project, offers, directItems = [], logoBase
             <View style={styles.directItemsHeader}>
               <Text style={styles.directItemsTitle}>Společné položky</Text>
             </View>
-            {OFFER_CATEGORY_ORDER.map((categoryName) => {
+            {[...OFFER_CATEGORY_ORDER, ...Object.keys(directItemsByCategory).filter(c => !(OFFER_CATEGORY_ORDER as readonly string[]).includes(c))].map((categoryName) => {
               const items = directItemsByCategory[categoryName];
               if (!items || items.length === 0) return null;
 
@@ -491,7 +491,7 @@ export function ProjectPdfDocument({ project, offers, directItems = [], logoBase
               </View>
 
               {/* Categories and Items */}
-              {OFFER_CATEGORY_ORDER.map((categoryName) => {
+              {[...OFFER_CATEGORY_ORDER, ...Object.keys(itemsByCategory).filter(c => !(OFFER_CATEGORY_ORDER as readonly string[]).includes(c))].map((categoryName) => {
                 const items = itemsByCategory[categoryName];
                 if (!items || items.length === 0) return null;
 
@@ -575,7 +575,7 @@ export function ProjectPdfDocument({ project, offers, directItems = [], logoBase
               </View>
 
               {/* Category totals only (no individual items) */}
-              {OFFER_CATEGORY_ORDER.map((categoryName, idx) => {
+              {[...OFFER_CATEGORY_ORDER, ...Object.keys(offerItemsByCategory).filter(c => !(OFFER_CATEGORY_ORDER as readonly string[]).includes(c))].map((categoryName, idx) => {
                 const items = offerItemsByCategory[categoryName];
                 if (!items || items.length === 0) return null;
                 const catTotal = items.reduce((sum, item) => sum + item.total_price, 0);

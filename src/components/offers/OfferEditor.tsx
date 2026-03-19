@@ -1916,7 +1916,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
             <col className="w-20" />
             <col className="w-24" />
           </colgroup>
-          <thead className="sticky -top-4 md:-top-6 z-10 shadow-sm">
+          <thead className="sticky top-[52px] z-20 shadow-sm">
             <tr className="bg-slate-100 text-slate-600">
               <th className="text-left py-1.5 px-2 font-medium">Položka</th>
               <th className="text-center py-1.5 px-1 font-medium">Dny</th>
