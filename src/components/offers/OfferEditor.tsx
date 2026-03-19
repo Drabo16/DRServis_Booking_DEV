@@ -1244,8 +1244,8 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
 
   return (
     <div className="space-y-3 max-w-5xl">
-      {/* Header - sticky */}
-      <div className="flex items-center justify-between pb-2 border-b sticky top-0 z-30 bg-white pt-2 -mt-2">
+      {/* Header - sticky, fills parent padding to eliminate gap */}
+      <div className="flex items-center justify-between pb-2 border-b sticky top-0 z-30 bg-white pt-4 md:pt-6 -mt-3 -mx-4 md:-mx-6 px-4 md:px-6">
         <div className="flex items-center gap-2">
           <button onClick={onBack} className="p-1.5 hover:bg-slate-100 rounded">
             <ArrowLeft className="w-4 h-4" />
@@ -1916,7 +1916,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
             <col className="w-20" />
             <col className="w-24" />
           </colgroup>
-          <thead className="sticky top-[52px] z-20 shadow-sm">
+          <thead className="sticky top-[60px] z-20 shadow-sm">
             <tr className="bg-slate-100 text-slate-600">
               <th className="text-left py-1.5 px-2 font-medium">Položka</th>
               <th className="text-center py-1.5 px-1 font-medium">Dny</th>
