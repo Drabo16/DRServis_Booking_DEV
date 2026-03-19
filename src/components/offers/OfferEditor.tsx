@@ -663,13 +663,13 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
   // Ref for material search input
   const materialSearchRef = useRef<HTMLInputElement>(null);
 
-  // CTRL+S handler - explicit save creates a version
+  // CTRL+S handler - save without creating version (use button for new version)
   // CTRL+F handler - focus material search
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
-        saveChanges(true);
+        saveChanges();
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
         e.preventDefault();
@@ -1244,8 +1244,8 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
 
   return (
     <div className="space-y-3 max-w-5xl">
-      {/* Header */}
-      <div className="flex items-center justify-between pb-2 border-b">
+      {/* Header - sticky */}
+      <div className="flex items-center justify-between pb-2 border-b sticky top-0 z-30 bg-white pt-2 -mt-2">
         <div className="flex items-center gap-2">
           <button onClick={onBack} className="p-1.5 hover:bg-slate-100 rounded">
             <ArrowLeft className="w-4 h-4" />
@@ -1326,7 +1326,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
             onClick={() => saveChanges(true)}
             disabled={isSaving}
             className="h-7 px-2 text-xs border border-blue-300 text-blue-600 hover:bg-blue-50 rounded flex items-center gap-1"
-            title="Uložit a vytvořit novou verzi"
+            title="Vytvořit novou verzi"
           >
             <Plus className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Nová verze</span>
@@ -2006,7 +2006,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
 
       {/* Instructions */}
       <div className="text-[10px] text-slate-400 text-center">
-        ↑↓←→ navigace | Enter další řádek | Ctrl+S uložit | Ctrl+F hledat | Auto-save 4s
+        ↑↓←→ navigace | Enter další řádek | Ctrl+S uložit | Ctrl+F hledat | Nová verze tlačítkem | Auto-save 4s
       </div>
 
       {/* Load Preset Dialog */}
