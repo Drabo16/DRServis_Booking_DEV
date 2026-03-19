@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ArrowLeft, FileDown, FileSpreadsheet, Save, FolderKanban, BookTemplate, Tag, X, Check, UserPlus, Users, CalendarDays, Briefcase, StickyNote, ChevronDown } from 'lucide-react';
+import { Loader2, ArrowLeft, FileDown, FileSpreadsheet, Save, FolderKanban, BookTemplate, Tag, X, Check, UserPlus, Users, CalendarDays, Briefcase, StickyNote, ChevronDown, Search, Plus, Link2 } from 'lucide-react';
 import { offerKeys } from '@/hooks/useOffers';
 import type { OfferPresetWithCount, OfferPresetItem } from '@/types/offers';
 import { toast } from 'sonner';
@@ -120,12 +120,21 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
   const [clientsList, setClientsList] = useState<Array<{ id: string; name: string; contact_person?: string | null }>>([]);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
 
+  // Event linking state
+  const [localEventId, setLocalEventId] = useState<string | null>(null);
+  const [eventsList, setEventsList] = useState<Array<{ id: string; title: string; start_time: string; location: string | null }>>([]);
+  const [eventSearch, setEventSearch] = useState('');
+  const [eventDropdownOpen, setEventDropdownOpen] = useState(false);
+
   // Client combobox state
   const [clientSearch, setClientSearch] = useState('');
   const [clientDropdownOpen, setClientDropdownOpen] = useState(false);
   const [showCreateClientForm, setShowCreateClientForm] = useState(false);
   const [newClientName, setNewClientName] = useState('');
   const [creatingClient, setCreatingClient] = useState(false);
+
+  // Material search state
+  const [materialSearch, setMaterialSearch] = useState('');
 
   // Dirty tracking
   const [isDirty, setIsDirty] = useState(false);
@@ -138,6 +147,8 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
   const [customItemName, setCustomItemName] = useState('');
   const [customItemCategory, setCustomItemCategory] = useState('Ground support');
   const [customItemPrice, setCustomItemPrice] = useState(0);
+  const [customSectionMode, setCustomSectionMode] = useState(false);
+  const [customSectionName, setCustomSectionName] = useState('');
 
   // Load preset dialog
   const [showPresetDialog, setShowPresetDialog] = useState(false);
@@ -174,6 +185,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
   const localEventEndDateRef = useRef<string | null>(null);
   const localClientIdRef = useRef<string | null>(null);
   const localNotesRef = useRef('');
+  const localEventIdRef = useRef<string | null>(null);
   const isDirtyRef = useRef(false);
   const isSavingRef = useRef(false);
 
@@ -200,15 +212,16 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     localEventEndDateRef.current = localEventEndDate;
     localClientIdRef.current = localClientId;
     localNotesRef.current = localNotes;
+    localEventIdRef.current = localEventId;
     isDirtyRef.current = isDirty;
     isSavingRef.current = isSaving;
-  }, [localItems, localDiscount, localStatus, localIsVatPayer, localSetId, localSetLabel, localTitle, localEventStartDate, localEventEndDate, localClientId, localNotes, isDirty, isSaving]);
+  }, [localItems, localDiscount, localStatus, localIsVatPayer, localSetId, localSetLabel, localTitle, localEventStartDate, localEventEndDate, localClientId, localNotes, localEventId, isDirty, isSaving]);
 
   // Load data once on mount
   useEffect(() => {
     async function loadData() {
       try {
-        const [offerRes, templatesRes, setsRes, itemsRes, sharesRes, usersRes, clientsRes] = await Promise.all([
+        const [offerRes, templatesRes, setsRes, itemsRes, sharesRes, usersRes, clientsRes, eventsRes] = await Promise.all([
           fetch(`/api/offers/${offerId}`),
           fetch('/api/offers/templates/items'),
           fetch('/api/offers/sets'),
@@ -216,6 +229,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
           fetch(`/api/offers/${offerId}/shares`),
           fetch('/api/offers/users-with-access'),
           fetch('/api/clients?scope=offers').catch(() => null),
+          fetch('/api/events?daysBack=365&daysAhead=365').catch(() => null),
         ]);
 
         const offerData = await offerRes.json();
@@ -225,6 +239,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
         const sharesData = sharesRes.ok ? await sharesRes.json() : [];
         const usersData = usersRes.ok ? await usersRes.json() : [];
         const clientsData = clientsRes && clientsRes.ok ? await clientsRes.json() : [];
+        const eventsData = eventsRes && eventsRes.ok ? await eventsRes.json() : [];
 
         // Enhance offer data with full items
         offerData.items = itemsData;
@@ -242,7 +257,13 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
         setLocalEventEndDate(offerData.event_end_date || null);
         setLocalClientId(offerData.client_id || null);
         setLocalNotes(offerData.notes || '');
+        setLocalEventId(offerData.event_id || null);
         setClientsList(clientsData || []);
+        // Events: flatten the response (API returns array of event objects with positions)
+        const evList = (eventsData || []).map((e: { id: string; title: string; start_time: string; location: string | null }) => ({
+          id: e.id, title: e.title, start_time: e.start_time, location: e.location,
+        }));
+        setEventsList(evList);
         // Load shares: each row has a `profiles` object nested
         const shared = sharesData.map((s: { profiles: ShareUser | null }) => s.profiles).filter(Boolean);
         setSharedWith(shared);
@@ -443,6 +464,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     const eventEndDate = localEventEndDateRef.current;
     const clientId = localClientIdRef.current;
     const notes = localNotesRef.current;
+    const eventId = localEventIdRef.current;
 
     try {
       // OPTIMIZATION: Prepare batch operations - only save CHANGED items
@@ -494,6 +516,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
             event_end_date: eventEndDate || null,
             client_id: clientId || null,
             notes: notes || null,
+            event_id: eventId || null,
             recalculate: true,
           }),
         })
@@ -637,12 +660,21 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     }
   }, [offer?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Ref for material search input
+  const materialSearchRef = useRef<HTMLInputElement>(null);
+
   // CTRL+S handler - explicit save creates a version
+  // CTRL+F handler - focus material search
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
         saveChanges(true);
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        materialSearchRef.current?.focus();
+        materialSearchRef.current?.select();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -779,6 +811,21 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     markDirty();
   }, [markDirty]);
 
+  // Handle event linking
+  const handleEventChange = useCallback((eventId: string | null) => {
+    setLocalEventId(eventId);
+    // If linking an event, also update the offer object so "Z akce" button works
+    if (eventId) {
+      const ev = eventsList.find(e => e.id === eventId);
+      if (ev && offer) {
+        setOffer({ ...offer, event_id: eventId, event: { id: ev.id, title: ev.title, start_time: ev.start_time, end_time: ev.start_time, location: ev.location || '' } });
+      }
+    } else if (offer) {
+      setOffer({ ...offer, event_id: null, event: null });
+    }
+    markDirty();
+  }, [markDirty, eventsList, offer]);
+
   // Filtered clients for combobox
   const filteredClients = useMemo(() => {
     if (!clientSearch.trim()) return clientsList;
@@ -793,6 +840,23 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     () => clientsList.find(c => c.id === localClientId)?.name,
     [clientsList, localClientId]
   );
+
+  // Filtered events for combobox
+  const filteredEvents = useMemo(() => {
+    if (!eventSearch.trim()) return eventsList;
+    const terms = eventSearch.toLowerCase().split(/\s+/);
+    return eventsList.filter(e => {
+      const searchable = [e.title, e.location, e.start_time ? new Date(e.start_time).toLocaleDateString('cs-CZ') : ''].filter(Boolean).join(' ').toLowerCase();
+      return terms.every(t => searchable.includes(t));
+    });
+  }, [eventsList, eventSearch]);
+
+  const selectedEventName = useMemo(() => {
+    const ev = eventsList.find(e => e.id === localEventId);
+    if (!ev) return null;
+    const date = new Date(ev.start_time).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'numeric' });
+    return `${ev.title} (${date})`;
+  }, [eventsList, localEventId]);
 
   // Create a new client inline from the offer editor
   const handleCreateClient = useCallback(async () => {
@@ -873,6 +937,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
   // Handle add custom item - OPTIMIZED: optimistic update instead of full reload
   const handleAddCustomItem = useCallback(async () => {
     if (!customItemName.trim()) return;
+    const effectiveCategory = customSectionMode && customSectionName.trim() ? customSectionName.trim() : customItemCategory;
 
     try {
       const res = await fetch(`/api/offers/${offerId}/items`, {
@@ -880,7 +945,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: customItemName,
-          category: customItemCategory,
+          category: effectiveCategory,
           unit_price: customItemPrice,
           quantity: 1,
           days_hours: 1,
@@ -920,6 +985,8 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
         setShowAddCustomItem(false);
         setCustomItemName('');
         setCustomItemPrice(0);
+        setCustomSectionMode(false);
+        setCustomSectionName('');
 
         queryClient.invalidateQueries({ queryKey: offerKeys.lists() });
         queryClient.invalidateQueries({ queryKey: offerKeys.detail(offerId) });
@@ -927,7 +994,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     } catch (e) {
       console.error('Add custom item failed:', e);
     }
-  }, [offerId, customItemName, customItemCategory, customItemPrice, queryClient]);
+  }, [offerId, customItemName, customItemCategory, customItemPrice, customSectionMode, customSectionName, queryClient]);
 
   // Open preset dialog
   const openPresetDialog = useCallback(async () => {
@@ -1255,6 +1322,15 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
           >
             <Save className="w-3.5 h-3.5" />
           </button>
+          <button
+            onClick={() => saveChanges(true)}
+            disabled={isSaving}
+            className="h-7 px-2 text-xs border border-blue-300 text-blue-600 hover:bg-blue-50 rounded flex items-center gap-1"
+            title="Uložit a vytvořit novou verzi"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Nová verze</span>
+          </button>
           <select
             onChange={(e) => {
               if (e.target.value) {
@@ -1462,6 +1538,75 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
         )}
       </div>
 
+      {/* Event linking */}
+      <div className="flex items-center gap-3 p-2 bg-slate-50 border rounded text-xs flex-wrap">
+        <Link2 className="w-4 h-4 text-slate-400 shrink-0" />
+        <span className="text-slate-600 shrink-0">Akce:</span>
+        <div className="relative flex-1 min-w-[180px]">
+          <div className="flex items-center gap-1">
+            <input
+              type="text"
+              value={eventDropdownOpen ? eventSearch : (selectedEventName || '')}
+              onChange={(e) => { setEventSearch(e.target.value); setEventDropdownOpen(true); }}
+              onFocus={() => { setEventSearch(''); setEventDropdownOpen(true); }}
+              onBlur={() => setTimeout(() => setEventDropdownOpen(false), 150)}
+              placeholder="Vyhledat a propojit akci..."
+              className="flex-1 h-6 text-xs border rounded px-2 min-w-[160px]"
+            />
+            <button
+              type="button"
+              onClick={() => setEventDropdownOpen(v => !v)}
+              className="h-6 px-1 border rounded hover:bg-slate-100 text-slate-500"
+              title="Zobrazit seznam"
+            >
+              <ChevronDown className="w-3 h-3" />
+            </button>
+            {localEventId && (
+              <button
+                type="button"
+                onClick={() => { handleEventChange(null); setEventSearch(''); }}
+                className="h-6 px-1 text-slate-400 hover:text-red-500"
+                title="Odpojit akci"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          {eventDropdownOpen && (
+            <div className="absolute top-7 left-0 z-20 bg-white border rounded shadow-lg min-w-[280px] max-h-52 overflow-y-auto">
+              <div className="py-1">
+                <button
+                  type="button"
+                  onMouseDown={() => { handleEventChange(null); setEventDropdownOpen(false); setEventSearch(''); }}
+                  className="w-full text-left px-3 py-1.5 text-xs text-slate-400 hover:bg-slate-50 italic"
+                >
+                  — bez akce —
+                </button>
+                {filteredEvents.length === 0 ? (
+                  <div className="px-3 py-2 text-slate-400 text-xs">Žádná akce nenalezena</div>
+                ) : (
+                  filteredEvents.map(ev => {
+                    const date = new Date(ev.start_time).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'numeric', year: 'numeric' });
+                    return (
+                      <button
+                        key={ev.id}
+                        type="button"
+                        onMouseDown={() => { handleEventChange(ev.id); setEventDropdownOpen(false); setEventSearch(''); }}
+                        className={`w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 ${ev.id === localEventId ? 'bg-blue-50 font-medium' : ''}`}
+                      >
+                        <span className="font-medium">{ev.title}</span>
+                        <span className="text-slate-400 ml-2">{date}</span>
+                        {ev.location && <span className="text-slate-400 ml-1">· {ev.location}</span>}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Client selector with search */}
       <div className="flex items-center gap-3 p-2 bg-slate-50 border rounded text-xs flex-wrap">
         <Briefcase className="w-4 h-4 text-slate-400 shrink-0" />
@@ -1635,15 +1780,39 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
               placeholder="Název položky (např. Ploty na akci)"
               className="flex-1 min-w-[200px] h-7 text-xs border rounded px-2"
             />
-            <select
-              value={customItemCategory}
-              onChange={(e) => setCustomItemCategory(e.target.value)}
-              className="h-7 text-xs border rounded px-2"
+            {customSectionMode ? (
+              <input
+                type="text"
+                value={customSectionName}
+                onChange={(e) => setCustomSectionName(e.target.value)}
+                placeholder="Název vlastní sekce..."
+                className="h-7 text-xs border rounded px-2 w-40"
+                autoFocus
+              />
+            ) : (
+              <select
+                value={customItemCategory}
+                onChange={(e) => setCustomItemCategory(e.target.value)}
+                className="h-7 text-xs border rounded px-2"
+              >
+                {/* Standard categories */}
+                {OFFER_CATEGORY_ORDER.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+                {/* Existing custom categories */}
+                {[...new Set(localItems.map(i => i.category).filter(c => !(OFFER_CATEGORY_ORDER as readonly string[]).includes(c)))].map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            )}
+            <button
+              type="button"
+              onClick={() => { setCustomSectionMode(!customSectionMode); if (!customSectionMode) setCustomSectionName(''); }}
+              className={`h-7 px-2 text-xs border rounded ${customSectionMode ? 'bg-amber-200 border-amber-400' : 'hover:bg-slate-100'}`}
+              title={customSectionMode ? 'Vybrat existující sekci' : 'Přidat do vlastní sekce'}
             >
-              {OFFER_CATEGORY_ORDER.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
+              {customSectionMode ? 'Existující' : '+ Sekce'}
+            </button>
             <input
               type="number"
               value={customItemPrice}
@@ -1654,13 +1823,13 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
             <span className="text-xs text-slate-500">Kč</span>
             <button
               onClick={handleAddCustomItem}
-              disabled={!customItemName.trim()}
+              disabled={!customItemName.trim() || (customSectionMode && !customSectionName.trim())}
               className="h-7 px-3 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-50"
             >
               Přidat
             </button>
             <button
-              onClick={() => setShowAddCustomItem(false)}
+              onClick={() => { setShowAddCustomItem(false); setCustomSectionMode(false); setCustomSectionName(''); }}
               className="h-7 px-3 text-xs bg-slate-200 hover:bg-slate-300 rounded"
             >
               Zrušit
@@ -1668,6 +1837,74 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
           </div>
         </div>
       )}
+
+      {/* Material search */}
+      <div className="relative">
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={materialSearch}
+              ref={materialSearchRef}
+              onChange={(e) => setMaterialSearch(e.target.value)}
+              placeholder="Vyhledat materiál / položku... (Ctrl+F)"
+              className="w-full h-8 text-xs border rounded pl-7 pr-8"
+            />
+            {materialSearch && (
+              <button
+                onClick={() => setMaterialSearch('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+        {/* Search results dropdown with inline qty/days inputs */}
+        {materialSearch.trim() && (
+          <div className="mt-1 border rounded bg-white shadow-lg max-h-64 overflow-y-auto z-20 relative">
+            {(() => {
+              const terms = materialSearch.toLowerCase().split(/\s+/);
+              const results = localItems
+                .map((item, index) => ({ item, index }))
+                .filter(({ item }) => {
+                  const searchable = [item.name, item.subcategory, item.category].filter(Boolean).join(' ').toLowerCase();
+                  return terms.every(t => searchable.includes(t));
+                });
+              if (results.length === 0) return <div className="px-3 py-2 text-xs text-slate-400">Nic nenalezeno</div>;
+              return results.map(({ item, index }) => (
+                <div key={item.templateId || item.dbItemId || index} className={`flex items-center gap-2 px-3 py-1.5 border-b last:border-0 text-xs ${item.qty > 0 ? 'bg-blue-50' : 'hover:bg-slate-50'}`}>
+                  <div className="flex-1 min-w-0">
+                    <span className="font-medium truncate">{item.name}</span>
+                    {item.subcategory && <span className="text-slate-400 ml-1">({item.subcategory})</span>}
+                    <span className="text-slate-400 ml-2 text-[10px]">{item.category}</span>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <label className="text-[10px] text-slate-400">Dny:</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={item.days}
+                      onChange={(e) => handleItemChange(index, 'days', parseFloat(e.target.value) || 0)}
+                      className="w-12 h-6 text-xs border rounded px-1 text-center"
+                    />
+                    <label className="text-[10px] text-slate-400">Ks:</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={item.qty}
+                      onChange={(e) => handleItemChange(index, 'qty', parseFloat(e.target.value) || 0)}
+                      className="w-12 h-6 text-xs border rounded px-1 text-center"
+                    />
+                    <span className="text-slate-400 w-14 text-right">{formatCurrency(item.unitPrice)}</span>
+                  </div>
+                </div>
+              ));
+            })()}
+          </div>
+        )}
+      </div>
 
       {/* Table */}
       <div className="border rounded text-xs">
@@ -1689,7 +1926,8 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
             </tr>
           </thead>
           <tbody>
-            {OFFER_CATEGORY_ORDER.map((category) => {
+            {/* All categories: predefined + custom */}
+            {[...OFFER_CATEGORY_ORDER, ...Object.keys(itemsByCategory).filter(c => !(OFFER_CATEGORY_ORDER as readonly string[]).includes(c))].map((category) => {
               const categoryItems = itemsByCategory[category];
               if (!categoryItems || categoryItems.length === 0) return null;
 
@@ -1768,7 +2006,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
 
       {/* Instructions */}
       <div className="text-[10px] text-slate-400 text-center">
-        ↑↓←→ navigace | Enter další řádek | Ctrl+S uložit | Auto-save 4s
+        ↑↓←→ navigace | Enter další řádek | Ctrl+S uložit | Ctrl+F hledat | Auto-save 4s
       </div>
 
       {/* Load Preset Dialog */}

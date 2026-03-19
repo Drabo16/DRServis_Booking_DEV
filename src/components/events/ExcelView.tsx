@@ -22,7 +22,7 @@ import { X, Plus, Check, Loader2, Save, Users, FolderPlus, Settings, FolderOpen,
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { cs } from 'date-fns/locale';
-import type { Event, Position, Assignment, Profile, RoleType, AttendanceStatus } from '@/types';
+import type { Event, Position, Assignment, Profile, RoleType, AttendanceStatus, EventSection } from '@/types';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { eventKeys } from '@/hooks/useEvents';
@@ -34,6 +34,7 @@ interface ExcelViewProps {
     positions?: Array<Position & {
       assignments?: Array<Assignment & { technician: Profile }>;
     }>;
+    sections?: EventSection[];
   }>;
   isAdmin: boolean;
   allTechnicians: Profile[];
@@ -643,7 +644,8 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
       .flatMap(pos =>
         (pos.assignments || []).map(a => ({
           ...a,
-          positionId: pos.id
+          positionId: pos.id,
+          sectionId: (pos as Position).section_id || null,
         }))
       );
   };
@@ -652,6 +654,49 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
   const getEmptyPositionsForRole = (event: typeof localData[0], roleType: string) => {
     return (event.positions || [])
       .filter(p => p.role_type === roleType && (!p.assignments || p.assignments.length === 0));
+  };
+
+  // Get section name by ID
+  const getSectionName = (event: typeof localData[0], sectionId: string | null): string | null => {
+    if (!sectionId) return null;
+    const sections = (event as typeof localData[0] & { sections?: EventSection[] }).sections;
+    return sections?.find(s => s.id === sectionId)?.name || null;
+  };
+
+  // Group assignments by section for display
+  const groupBySection = (
+    event: typeof localData[0],
+    assignments: ReturnType<typeof getAssignmentsForRole>,
+    emptyPositions: ReturnType<typeof getEmptyPositionsForRole>
+  ) => {
+    const sections = (event as typeof localData[0] & { sections?: EventSection[] }).sections;
+    if (!sections || sections.length === 0) {
+      return [{ sectionName: null, assignments, emptyPositions }];
+    }
+
+    const groups: { sectionName: string | null; assignments: typeof assignments; emptyPositions: typeof emptyPositions }[] = [];
+    const usedSections = new Set<string | null>();
+
+    // Sort by section order
+    const sortedSections = [...sections].sort((a, b) => a.sort_order - b.sort_order);
+
+    for (const section of sortedSections) {
+      const sectionAssignments = assignments.filter(a => a.sectionId === section.id);
+      const sectionEmptyPos = emptyPositions.filter(p => (p as Position).section_id === section.id);
+      if (sectionAssignments.length > 0 || sectionEmptyPos.length > 0) {
+        groups.push({ sectionName: section.name, assignments: sectionAssignments, emptyPositions: sectionEmptyPos });
+        usedSections.add(section.id);
+      }
+    }
+
+    // Add ungrouped positions (no section)
+    const ungroupedAssignments = assignments.filter(a => !a.sectionId || !usedSections.has(a.sectionId));
+    const ungroupedEmptyPos = emptyPositions.filter(p => !(p as Position).section_id);
+    if (ungroupedAssignments.length > 0 || ungroupedEmptyPos.length > 0) {
+      groups.push({ sectionName: null, assignments: ungroupedAssignments, emptyPositions: ungroupedEmptyPos });
+    }
+
+    return groups;
   };
 
   // Remove empty position
@@ -1119,25 +1164,39 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                                 Poptat osobu
                               </div>
                               <div className="max-h-48 overflow-y-auto">
-                                {sortTechniciansByRole(allTechnicians, role.value)
-                                  .filter(t => !assignments.some(a => a.technician_id === t.id))
-                                  .map(tech => (
-                                    <button
-                                      key={tech.id}
-                                      onClick={() => addTechnician(event.id, role.value, tech.id)}
-                                      className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-slate-100"
-                                    >
-                                      {tech.full_name}
-                                      {tech.specialization?.some(s => isSpecRelated(s, role.value)) && (
-                                        <span className="text-xs text-slate-400 ml-1">*</span>
+                                {(() => {
+                                  const available = allTechnicians.filter(t => !assignments.some(a => a.technician_id === t.id));
+                                  const matching = available.filter(t => t.specialization?.some(s => isSpecRelated(s, role.value)));
+                                  const others = available.filter(t => !t.specialization?.some(s => isSpecRelated(s, role.value)));
+                                  if (available.length === 0) return <div className="px-2 py-1.5 text-sm text-slate-400">Všichni přiřazeni</div>;
+                                  return (
+                                    <>
+                                      {matching.sort((a, b) => a.full_name.localeCompare(b.full_name, 'cs')).map(tech => (
+                                        <button
+                                          key={tech.id}
+                                          onClick={() => addTechnician(event.id, role.value, tech.id)}
+                                          className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-slate-100"
+                                        >
+                                          {tech.full_name}
+                                        </button>
+                                      ))}
+                                      {others.length > 0 && matching.length > 0 && (
+                                        <div className="border-t my-1">
+                                          <div className="text-[10px] font-medium text-slate-400 px-2 py-0.5">Ostatní</div>
+                                        </div>
                                       )}
-                                    </button>
-                                  ))}
-                                {allTechnicians.filter(t => !assignments.some(a => a.technician_id === t.id)).length === 0 && (
-                                  <div className="px-2 py-1.5 text-sm text-slate-400">
-                                    Všichni přiřazeni
-                                  </div>
-                                )}
+                                      {others.sort((a, b) => a.full_name.localeCompare(b.full_name, 'cs')).map(tech => (
+                                        <button
+                                          key={tech.id}
+                                          onClick={() => addTechnician(event.id, role.value, tech.id)}
+                                          className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-slate-100 text-slate-400"
+                                        >
+                                          {tech.full_name}
+                                        </button>
+                                      ))}
+                                    </>
+                                  );
+                                })()}
                               </div>
                             </PopoverContent>
                           </Popover>
@@ -1270,67 +1329,79 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                   ) : visibleRoleTypes.map(role => {
                     const assignments = getAssignmentsForRole(event, role.value);
                     const emptyPositions = getEmptyPositionsForRole(event, role.value);
+                    const sectionGroups = groupBySection(event, assignments, emptyPositions);
+                    const hasSections = sectionGroups.some(g => g.sectionName !== null);
 
                     return (
                       <td key={role.id} className="p-2 align-middle">
-                        <div className="flex flex-wrap gap-1">
-                          {/* Empty positions (without assigned technician) */}
-                          {emptyPositions.map(pos => (
-                            <div
-                              key={pos.id}
-                              className="flex items-center gap-1 px-2 py-0.5 rounded text-xs border border-dashed border-slate-400 bg-slate-50 text-slate-600"
-                            >
-                              <span className="font-medium">Volná pozice</span>
-                              {isAdmin && (
-                                <button
-                                  onClick={() => removeEmptyPosition(pos.id, event.id)}
-                                  className="hover:text-red-600 p-0.5"
-                                >
-                                  <X className="w-3 h-3" />
-                                </button>
+                        <div className={hasSections ? 'space-y-1.5' : ''}>
+                          {sectionGroups.map((group, groupIdx) => (
+                            <div key={group.sectionName || `ungrouped-${groupIdx}`}>
+                              {group.sectionName && (
+                                <div className="text-[10px] font-semibold text-indigo-600 uppercase tracking-wide mb-0.5 px-0.5">
+                                  {group.sectionName}
+                                </div>
                               )}
+                              <div className="flex flex-wrap gap-1">
+                                {/* Empty positions (without assigned technician) */}
+                                {group.emptyPositions.map(pos => (
+                                  <div
+                                    key={pos.id}
+                                    className="flex items-center gap-1 px-2 py-0.5 rounded text-xs border border-dashed border-slate-400 bg-slate-50 text-slate-600"
+                                  >
+                                    <span className="font-medium">Volná pozice</span>
+                                    {isAdmin && (
+                                      <button
+                                        onClick={() => removeEmptyPosition(pos.id, event.id)}
+                                        className="hover:text-red-600 p-0.5"
+                                      >
+                                        <X className="w-3 h-3" />
+                                      </button>
+                                    )}
+                                  </div>
+                                ))}
+                                {group.assignments.map(assignment => (
+                                  <div
+                                    key={assignment.id}
+                                    className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs border ${getStatusColor(assignment.attendance_status)}`}
+                                  >
+                                    <span className="font-medium max-w-[120px] truncate" title={assignment.technician?.full_name}>
+                                      {assignment.technician?.full_name || '?'}
+                                    </span>
+
+                                    {isAdmin && (
+                                      <>
+                                        <Select
+                                          value={assignment.attendance_status}
+                                          onValueChange={(v) => updateStatus(assignment.id, v as AttendanceStatus, event.id, assignment.positionId)}
+                                        >
+                                          <SelectTrigger className="h-4 w-4 p-0 border-0 bg-transparent [&>svg]:hidden">
+                                            <span className="text-[10px]">▼</span>
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="pending">Čeká</SelectItem>
+                                            <SelectItem value="accepted">Přijato</SelectItem>
+                                            <SelectItem value="declined">Odmítnuto</SelectItem>
+                                            <SelectItem value="tentative">Možná</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                        <button
+                                          onClick={() => removeAssignment(assignment.id, assignment.positionId, event.id)}
+                                          className="hover:text-red-600 p-0.5"
+                                        >
+                                          <X className="w-3 h-3" />
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
                             </div>
                           ))}
-                          {assignments.map(assignment => (
-                            <div
-                              key={assignment.id}
-                              className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs border ${getStatusColor(assignment.attendance_status)}`}
-                            >
-                              <span className="font-medium max-w-[120px] truncate" title={assignment.technician?.full_name}>
-                                {assignment.technician?.full_name || '?'}
-                              </span>
-
-                              {isAdmin && (
-                                <>
-                                  <Select
-                                    value={assignment.attendance_status}
-                                    onValueChange={(v) => updateStatus(assignment.id, v as AttendanceStatus, event.id, assignment.positionId)}
-                                  >
-                                    <SelectTrigger className="h-4 w-4 p-0 border-0 bg-transparent [&>svg]:hidden">
-                                      <span className="text-[10px]">▼</span>
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="pending">Čeká</SelectItem>
-                                      <SelectItem value="accepted">Přijato</SelectItem>
-                                      <SelectItem value="declined">Odmítnuto</SelectItem>
-                                      <SelectItem value="tentative">Možná</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                  <button
-                                    onClick={() => removeAssignment(assignment.id, assignment.positionId, event.id)}
-                                    className="hover:text-red-600 p-0.5"
-                                  >
-                                    <X className="w-3 h-3" />
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          ))}
-
                           {isAdmin && (
                             <Popover>
                               <PopoverTrigger asChild>
-                                <button className="flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-dashed border-slate-300 text-xs text-slate-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors">
+                                <button className="flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-dashed border-slate-300 text-xs text-slate-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors mt-1">
                                   <Plus className="w-3 h-3" />
                                   Poptat
                                 </button>
@@ -1348,25 +1419,39 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                                   Poptat osobu
                                 </div>
                                 <div className="max-h-48 overflow-y-auto">
-                                  {sortTechniciansByRole(allTechnicians, role.value)
-                                    .filter(t => !assignments.some(a => a.technician_id === t.id))
-                                    .map(tech => (
-                                      <button
-                                        key={tech.id}
-                                        onClick={() => addTechnician(event.id, role.value, tech.id)}
-                                        className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-slate-100"
-                                      >
-                                        {tech.full_name}
-                                        {tech.specialization?.includes(role.value) && (
-                                          <span className="text-xs text-slate-400 ml-1">*</span>
+                                  {(() => {
+                                    const available = allTechnicians.filter(t => !assignments.some(a => a.technician_id === t.id));
+                                    const matching = available.filter(t => t.specialization?.some(s => isSpecRelated(s, role.value)));
+                                    const others = available.filter(t => !t.specialization?.some(s => isSpecRelated(s, role.value)));
+                                    if (available.length === 0) return <div className="px-2 py-1.5 text-sm text-slate-400">Všichni přiřazeni</div>;
+                                    return (
+                                      <>
+                                        {matching.sort((a, b) => a.full_name.localeCompare(b.full_name, 'cs')).map(tech => (
+                                          <button
+                                            key={tech.id}
+                                            onClick={() => addTechnician(event.id, role.value, tech.id)}
+                                            className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-slate-100"
+                                          >
+                                            {tech.full_name}
+                                          </button>
+                                        ))}
+                                        {others.length > 0 && matching.length > 0 && (
+                                          <div className="border-t my-1">
+                                            <div className="text-[10px] font-medium text-slate-400 px-2 py-0.5">Ostatní</div>
+                                          </div>
                                         )}
-                                      </button>
-                                    ))}
-                                  {allTechnicians.filter(t => !assignments.some(a => a.technician_id === t.id)).length === 0 && (
-                                    <div className="px-2 py-1.5 text-sm text-slate-400">
-                                      Všichni přiřazeni
-                                    </div>
-                                  )}
+                                        {others.sort((a, b) => a.full_name.localeCompare(b.full_name, 'cs')).map(tech => (
+                                          <button
+                                            key={tech.id}
+                                            onClick={() => addTechnician(event.id, role.value, tech.id)}
+                                            className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-slate-100 text-slate-400"
+                                          >
+                                            {tech.full_name}
+                                          </button>
+                                        ))}
+                                      </>
+                                    );
+                                  })()}
                                 </div>
                               </PopoverContent>
                             </Popover>

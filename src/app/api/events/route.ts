@@ -54,6 +54,7 @@ export async function GET(request: NextRequest) {
             id,
             title,
             role_type,
+            section_id,
             shift_start,
             shift_end,
             requirements,
@@ -63,7 +64,8 @@ export async function GET(request: NextRequest) {
               technician_id,
               technician:profiles!assignments_technician_id_fkey(*)
             )
-          )
+          ),
+          sections:event_sections(id, name, sort_order)
         `)
         .gte('start_time', startDate.toISOString())
         .lt('end_time', yesterdayMidnight.toISOString())
@@ -82,6 +84,7 @@ export async function GET(request: NextRequest) {
             id,
             title,
             role_type,
+            section_id,
             shift_start,
             shift_end,
             requirements,
@@ -91,7 +94,8 @@ export async function GET(request: NextRequest) {
               technician_id,
               technician:profiles!assignments_technician_id_fkey(*)
             )
-          )
+          ),
+          sections:event_sections(id, name, sort_order)
         `)
         .gte('end_time', yesterdayMidnight.toISOString())
         .lte('start_time', endDate.toISOString())

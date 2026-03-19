@@ -42,7 +42,7 @@ export default function Sidebar({ user, profile }: SidebarProps) {
     ? [{ href: '/', label: 'Booking', icon: Calendar }]
     : (accessibleModules && accessibleModules.length > 0)
       ? accessibleModules
-          .filter((module) => module.code !== 'users_settings')
+          .filter((module) => module.code !== 'users_settings' && module.code !== 'warehouse')
           .map((module) => ({
             href: module.route,
             label: module.name,
@@ -50,14 +50,8 @@ export default function Sidebar({ user, profile }: SidebarProps) {
           }))
       : [{ href: '/', label: 'Booking', icon: Calendar }];
 
-  // Static items that are always shown (technicians - part of core booking)
-  const staticNavItems = [
-    {
-      href: '/technicians',
-      label: 'Technici',
-      icon: Users,
-    },
-  ];
+  // Static items that are always shown
+  const staticNavItems: { href: string; label: string; icon: LucideIcon }[] = [];
 
   // Items for users with appropriate permissions
   const permissionNavItems: { href: string; label: string; icon: typeof UserCog }[] = [];

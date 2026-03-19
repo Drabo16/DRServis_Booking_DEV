@@ -586,8 +586,10 @@ export default function PositionsManager({
   const formatTechnicianLabel = (tech: Profile, posRoleType: string): string => {
     if (tech.specialization?.length) {
       const related = tech.specialization.filter(s => isSpecRelated(s, posRoleType));
-      const toShow = related.length > 0 ? related : tech.specialization;
-      return `${tech.full_name} - ${toShow.map(s => getRoleTypeLabel(s, roleTypes)).join(', ')}`;
+      // Only show matching specializations, not all
+      if (related.length > 0) {
+        return `${tech.full_name} - ${related.map(s => getRoleTypeLabel(s, roleTypes)).join(', ')}`;
+      }
     }
     return tech.full_name;
   };
