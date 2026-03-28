@@ -20,7 +20,6 @@ export function useClients(search?: string) {
       if (!res.ok) throw new Error('Failed to fetch clients');
       return res.json();
     },
-    staleTime: 2 * 60 * 1000,
   });
 }
 

@@ -178,7 +178,8 @@ export function useUpdateEvent() {
         queryClient.setQueryData(eventKeys.detail(id), context.previousEvent);
       }
     },
-    onSettled: (_data, _error, variables) => {
+    onSuccess: (_data, variables) => {
+      // Only refetch on success — on error we rely on the rollback above
       queryClient.invalidateQueries({ queryKey: eventKeys.detail(variables.id) });
       queryClient.invalidateQueries({ queryKey: eventKeys.lists() });
     },

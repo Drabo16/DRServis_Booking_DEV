@@ -146,8 +146,6 @@ export function useOffers(filters: OffersFilter = {}) {
       if (!response.ok) throw new Error('Failed to fetch offers');
       return response.json() as Promise<OfferWithDetails[]>;
     },
-    staleTime: 1000 * 60 * 2, // Data stays fresh for 2 minutes
-    gcTime: 1000 * 60 * 5, // Cache for 5 minutes
   });
 }
 
@@ -161,8 +159,6 @@ export function useOffer(id: string | null) {
       return response.json() as Promise<OfferWithItems>;
     },
     enabled: !!id,
-    staleTime: 1000 * 60 * 2, // Data stays fresh for 2 minutes
-    gcTime: 1000 * 60 * 5, // Cache for 5 minutes
   });
 }
 
@@ -346,7 +342,6 @@ export function useOfferPresets() {
       if (!response.ok) throw new Error('Failed to fetch presets');
       return response.json() as Promise<OfferPresetWithCount[]>;
     },
-    staleTime: 1000 * 60 * 2,
   });
 }
 
@@ -360,7 +355,6 @@ export function useOfferPreset(id: string | null) {
       return response.json() as Promise<OfferPresetWithItems>;
     },
     enabled: !!id,
-    staleTime: 1000 * 60 * 2,
   });
 }
 

@@ -52,7 +52,7 @@ export async function POST(
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, email')
       .eq('auth_user_id', user.id)
       .single();
     if (profile?.role !== 'admin') {
@@ -60,7 +60,7 @@ export async function POST(
       const { data: supRow } = await supabase
         .from('supervisor_emails')
         .select('email')
-        .ilike('email', profile?.role ?? '')
+        .ilike('email', profile?.email ?? '')
         .maybeSingle();
       if (!supRow) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
@@ -108,11 +108,17 @@ export async function DELETE(
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, email')
       .eq('auth_user_id', user.id)
       .single();
     if (profile?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      // Also allow supervisors (consistent with POST)
+      const { data: supRow } = await supabase
+        .from('supervisor_emails')
+        .select('email')
+        .ilike('email', profile?.email ?? '')
+        .maybeSingle();
+      if (!supRow) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);

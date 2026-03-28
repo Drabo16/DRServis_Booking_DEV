@@ -49,7 +49,7 @@ export function useMyPermissions() {
   return useQuery({
     queryKey: ['myPermissions'],
     queryFn: fetchMyPermissions,
-    staleTime: 1000 * 30, // 30 seconds - refresh more often for permission changes
+    // Permissions use refetchOnWindowFocus for multi-tab freshness
   });
 }
 

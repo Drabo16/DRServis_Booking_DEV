@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { Calendar, Users, Settings, UserCog, ChevronLeft, ChevronRight, X, Package, FileText, Briefcase, LucideIcon } from 'lucide-react';
+import { Calendar, Users, Settings, UserCog, ChevronLeft, ChevronRight, X, Package, FileText, Briefcase, BarChart3, LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { useAccessibleModules } from '@/hooks/useModules';
@@ -52,6 +52,16 @@ export default function Sidebar({ user, profile }: SidebarProps) {
 
   // Static items that are always shown
   const staticNavItems: { href: string; label: string; icon: LucideIcon }[] = [];
+
+  // Kontroling - supervisor only
+  const isSupervisor = permissions?.is_supervisor || permissions?.is_admin;
+  if (isSupervisor) {
+    staticNavItems.push({
+      href: '/kontroling',
+      label: 'Kontroling',
+      icon: BarChart3,
+    });
+  }
 
   // Items for users with appropriate permissions
   const permissionNavItems: { href: string; label: string; icon: typeof UserCog }[] = [];

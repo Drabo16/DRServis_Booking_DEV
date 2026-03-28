@@ -16,8 +16,8 @@ export default function QueryProvider({ children }: { children: React.ReactNode 
       new QueryClient({
         defaultOptions: {
           queries: {
-            // Data is fresh for 30 seconds - after that it will refetch on mount
-            staleTime: 30 * 1000, // 30 seconds
+            // Data is fresh for 2 minutes - refetchOnWindowFocus handles multi-tab freshness
+            staleTime: 2 * 60 * 1000, // 2 minutes
             gcTime: 5 * 60 * 1000, // 5 minutes garbage collection
             // Retry failed requests
             retry: 2,

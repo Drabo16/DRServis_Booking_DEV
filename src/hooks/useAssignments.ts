@@ -3,7 +3,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { eventKeys } from './useEvents';
 
-// Create assignment with optimistic update
+// Create assignment
 export function useCreateAssignment() {
   const queryClient = useQueryClient();
 
@@ -20,28 +20,9 @@ export function useCreateAssignment() {
       }
       return response.json();
     },
-    // Optimistic update - immediately update cache
-    onMutate: async (newAssignment) => {
-      // Cancel outgoing refetches
-      await queryClient.cancelQueries({ queryKey: eventKeys.all });
-
-      // Snapshot previous value
-      const previousEvents = queryClient.getQueryData(eventKeys.list());
-
-      // Optimistically update cache (if needed)
-      // This is handled by components with local state for instant feedback
-
-      return { previousEvents };
-    },
-    onError: (_error, _variables, context) => {
-      // Rollback to previous value on error
-      if (context?.previousEvents) {
-        queryClient.setQueryData(eventKeys.list(), context.previousEvents);
-      }
-    },
     onSuccess: () => {
-      // Invalidate and refetch
-      queryClient.invalidateQueries({ queryKey: eventKeys.all });
+      // Invalidate all event queries (lists + details) to refetch with new assignment
+      queryClient.invalidateQueries({ queryKey: eventKeys.lists() });
     },
   });
 }
@@ -61,7 +42,7 @@ export function useUpdateAssignment() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: eventKeys.all });
+      queryClient.invalidateQueries({ queryKey: eventKeys.lists() });
     },
   });
 }
@@ -79,7 +60,7 @@ export function useDeleteAssignment() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: eventKeys.all });
+      queryClient.invalidateQueries({ queryKey: eventKeys.lists() });
     },
   });
 }

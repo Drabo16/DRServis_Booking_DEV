@@ -83,9 +83,17 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         .in('id', templateIds);
 
       // Create a map for quick lookup
-      const templatesMap = new Map<string, Record<string, unknown>>();
-      (templates || []).forEach((t: Record<string, unknown>) => {
-        templatesMap.set(t.id as string, t);
+      interface TemplateRow {
+        id: string;
+        name: string;
+        default_price: number;
+        subcategory: string | null;
+        sort_order: number;
+        category: { name?: string } | null;
+      }
+      const templatesMap = new Map<string, TemplateRow>();
+      (templates || []).forEach((t: TemplateRow) => {
+        templatesMap.set(t.id, t);
       });
 
       // Build items array with template data
@@ -93,24 +101,24 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         const template = templatesMap.get(item.template_item_id);
         if (!template) return null;
 
-        const categoryName = (template.category as { name?: string })?.name || 'Ostatní';
+        const categoryName = template.category?.name || 'Ostatní';
         const days_hours = item.days_hours ?? 1;
         const quantity = item.quantity ?? 1;
         // Use custom unit_price if provided, otherwise use template default
-        const unit_price = item.unit_price ?? (template.default_price as number);
+        const unit_price = item.unit_price ?? template.default_price;
         const total_price = calculateItemTotal({ days_hours, quantity, unit_price });
 
         return {
           offer_id,
           category: categoryName,
-          subcategory: template.subcategory as string | null,
-          name: template.name as string,
+          subcategory: template.subcategory,
+          name: template.name,
           days_hours,
           quantity,
           unit_price,
           total_price,
-          template_item_id: template.id as string,
-          sort_order: template.sort_order as number,
+          template_item_id: template.id,
+          sort_order: template.sort_order,
         };
       });
 
@@ -219,9 +227,22 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         .in('id', itemIds)
         .eq('offer_id', offer_id);
 
-      const currentItemsMap = new Map<string, Record<string, number>>();
-      (currentItems || []).forEach((item: Record<string, number>) => {
-        currentItemsMap.set(item.id as unknown as string, item);
+      interface CurrentItemRow {
+        id: string;
+        offer_id: string;
+        category: string;
+        subcategory: string | null;
+        name: string;
+        days_hours: number;
+        quantity: number;
+        unit_price: number;
+        total_price: number;
+        sort_order: number;
+        template_item_id: string | null;
+      }
+      const currentItemsMap = new Map<string, CurrentItemRow>();
+      (currentItems || []).forEach((item: CurrentItemRow) => {
+        currentItemsMap.set(item.id, item);
       });
 
       // Prepare all updates in parallel
@@ -395,7 +416,7 @@ async function recalculateOfferTotals(supabase: Awaited<ReturnType<typeof create
   const discount_amount = Math.round(subtotal_equipment * (discount_percent / 100));
   const total_amount = subtotal_equipment + subtotal_personnel + subtotal_transport - discount_amount;
 
-  await supabase
+  const { error } = await supabase
     .from('offers')
     .update({
       subtotal_equipment,
@@ -405,4 +426,9 @@ async function recalculateOfferTotals(supabase: Awaited<ReturnType<typeof create
       total_amount,
     })
     .eq('id', offer_id);
+
+  if (error) {
+    console.error('Failed to recalculate offer totals:', error);
+    throw error;
+  }
 }

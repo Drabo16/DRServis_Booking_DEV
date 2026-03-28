@@ -88,10 +88,11 @@ export async function PATCH(
     // If items are provided, replace all items
     if (items !== undefined) {
       // Delete existing items
-      await supabase
+      const { error: deleteError } = await supabase
         .from('offer_preset_items')
         .delete()
         .eq('preset_id', id);
+      if (deleteError) throw deleteError;
 
       // Insert new items
       if (items.length > 0) {
