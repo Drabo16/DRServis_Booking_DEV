@@ -11,7 +11,6 @@ import { env } from '@/lib/env';
  * 4. Přidat oprávnění k Drive složce
  */
 export function getGoogleAuth() {
-  // Dekódování private key (může obsahovat \n jako string)
   const decodedKey = env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY.replace(/\\n/g, '\n');
 
   const auth = new google.auth.JWT({
@@ -23,6 +22,9 @@ export function getGoogleAuth() {
       'https://www.googleapis.com/auth/drive',
       'https://www.googleapis.com/auth/drive.file',
     ],
+    // Domain-Wide Delegation: SA se vydává za tohoto uživatele
+    // Pozvánky pak přijdou od tohoto emailu (např. info@drservis.cz)
+    subject: env.GOOGLE_IMPERSONATE_EMAIL,
   });
 
   return auth;

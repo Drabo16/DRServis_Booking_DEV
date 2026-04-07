@@ -8,6 +8,7 @@ const envSchema = z.object({
   GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: z.string().min(1),
   GOOGLE_CALENDAR_ID: z.string().min(1),
   GOOGLE_DRIVE_PARENT_FOLDER_ID: z.string().min(1),
+  GOOGLE_IMPERSONATE_EMAIL: z.string().email().optional(),
   CRON_SECRET: z.string().min(1),
 });
 
