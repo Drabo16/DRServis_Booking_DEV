@@ -288,8 +288,7 @@ export async function updateInfoFile(
 export async function createEventFolderStructure(
   eventTitle: string,
   eventDate: Date,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _eventData?: {
+  eventData?: {
     endTime?: Date;
     location?: string;
     description?: string;
@@ -306,18 +305,23 @@ export async function createEventFolderStructure(
     // Vytvoříme hlavní složku akce v měsíční složce
     const mainFolder = await createFolder(mainFolderName, monthFolder.id);
 
-    // INFO SOUBOR DEAKTIVOVÁN
-    // Service Account nemá žádnou storage kvótu - nelze vytvářet soubory
-    // Řešení: Použít Shared Drive v Google Workspace klienta
-    // Po nastavení GOOGLE_DRIVE_PARENT_FOLDER_ID na ID Shared Drive lze toto odkomentovat:
-    //
-    // try {
-    //   await createInfoFile(mainFolder.id, { ... });
-    //   infoFileCreated = true;
-    // } catch (infoError) { ... }
-    //
-    const infoFileCreated = false;
-    const infoFileError: string | null = null; // Tiše přeskočíme
+    // Vytvoříme info soubor (funguje na Shared Drive v Google Workspace)
+    let infoFileCreated = false;
+    let infoFileError: string | null = null;
+    try {
+      await createInfoFile(mainFolder.id, {
+        title: eventTitle,
+        startTime: eventDate,
+        endTime: eventData?.endTime,
+        location: eventData?.location,
+        description: eventData?.description,
+        confirmedTechnicians: eventData?.confirmedTechnicians,
+      });
+      infoFileCreated = true;
+    } catch (infoError) {
+      infoFileError = infoError instanceof Error ? infoError.message : 'Unknown error';
+      console.warn('[Drive] Info file creation failed (non-critical):', infoFileError);
+    }
 
     return {
       folderId: mainFolder.id,
