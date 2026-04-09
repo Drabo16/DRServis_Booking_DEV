@@ -141,6 +141,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [isDownloadingXlsx, setIsDownloadingXlsx] = useState(false);
+  const [isDownloadingOfferXlsx, setIsDownloadingOfferXlsx] = useState(false);
 
   // Custom item dialog
   const [showAddCustomItem, setShowAddCustomItem] = useState(false);
@@ -1181,6 +1182,29 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     }
   }, [offerId, offer, saveChanges]);
 
+  // Download offer as XLSX
+  const handleDownloadOfferXlsx = useCallback(async () => {
+    if (isDirtyRef.current) await saveChanges();
+    setIsDownloadingOfferXlsx(true);
+    try {
+      const response = await fetch(`/api/offers/${offerId}/offer-xlsx`);
+      if (!response.ok) throw new Error('Failed');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `nabidka-${offer?.offer_number}-${offer?.year}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('Offer XLSX download failed:', e);
+    } finally {
+      setIsDownloadingOfferXlsx(false);
+    }
+  }, [offerId, offer, saveChanges]);
+
   // Download XLSX preparation sheet
   const handleDownloadXlsx = useCallback(async () => {
     if (isDirtyRef.current) await saveChanges();
@@ -1376,6 +1400,15 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
           >
             {isDownloadingXlsx ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileSpreadsheet className="w-3.5 h-3.5" />}
             <span className="text-xs">Příprava</span>
+          </button>
+          <button
+            onClick={handleDownloadOfferXlsx}
+            disabled={isDownloadingOfferXlsx}
+            className="h-7 px-2 border rounded hover:bg-slate-50 disabled:opacity-50 flex items-center gap-1"
+            title="Stáhnout nabídku jako Excel (XLSX)"
+          >
+            {isDownloadingOfferXlsx ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileSpreadsheet className="w-3.5 h-3.5" />}
+            <span className="text-xs">XLSX</span>
           </button>
         </div>
       </div>
