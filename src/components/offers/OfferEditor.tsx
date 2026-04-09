@@ -1413,8 +1413,11 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
         </div>
       </div>
 
+      {/* Meta info card — all fields in one box */}
+      <div className="bg-slate-50 border rounded text-xs divide-y divide-slate-200">
+
       {/* Project assignment + visibility */}
-      <div className="flex items-center justify-between p-2 bg-slate-50 border rounded text-xs flex-wrap gap-2">
+      <div className="flex items-center justify-between p-2 flex-wrap gap-2">
         <div className="flex items-center gap-3 flex-wrap">
           <FolderKanban className="w-4 h-4 text-slate-400 shrink-0" />
           <div className="flex items-center gap-2">
@@ -1492,7 +1495,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
       </div>
 
       {/* Event dates */}
-      <div className="flex items-center gap-3 p-2 bg-slate-50 border rounded text-xs flex-wrap">
+      <div className="flex items-center gap-3 p-2 flex-wrap">
         <CalendarDays className="w-4 h-4 text-slate-400 shrink-0" />
         <span className="text-slate-600">Termín akce:</span>
         <div className="grid grid-cols-2 gap-2" style={{ minWidth: 280 }}>
@@ -1572,7 +1575,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
       </div>
 
       {/* Event linking */}
-      <div className="flex items-center gap-3 p-2 bg-slate-50 border rounded text-xs flex-wrap">
+      <div className="flex items-center gap-3 p-2 flex-wrap">
         <Link2 className="w-4 h-4 text-slate-400 shrink-0" />
         <span className="text-slate-600 shrink-0">Akce:</span>
         <div className="relative flex-1 min-w-[180px]">
@@ -1641,7 +1644,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
       </div>
 
       {/* Client selector with search */}
-      <div className="flex items-center gap-3 p-2 bg-slate-50 border rounded text-xs flex-wrap">
+      <div className="flex items-center gap-3 p-2 flex-wrap">
         <Briefcase className="w-4 h-4 text-slate-400 shrink-0" />
         <span className="text-slate-600 shrink-0">Klient:</span>
         <div className="relative flex-1 min-w-[180px]">
@@ -1750,7 +1753,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
       )}
 
       {/* Notes */}
-      <div className="flex items-start gap-3 p-2 bg-slate-50 border rounded text-xs">
+      <div className="flex items-start gap-3 p-2">
         <StickyNote className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
         <div className="flex-1">
           <span className="text-slate-600 block mb-1">Poznámka:</span>
@@ -1763,6 +1766,8 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
           />
         </div>
       </div>
+
+      </div>{/* end meta info card */}
 
       {/* Add custom item button + VAT payer checkbox + Load preset */}
       <div className="flex items-center justify-between">
