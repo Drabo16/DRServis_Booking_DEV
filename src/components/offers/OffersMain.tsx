@@ -25,37 +25,20 @@ interface OffersMainProps {
   isAdmin: boolean;
 }
 
-// Store last used offer ID for Editor tab persistence
-const LAST_OFFER_KEY = 'offers_last_offer_id';
-
 export default function OffersMain({ isAdmin }: OffersMainProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const offerId = searchParams.get('offer');
   const projectId = searchParams.get('project');
 
-  // Track last used offer for Editor tab
-  const [lastOfferId, setLastOfferId] = useState<string | null>(null);
-
-  // Load last offer from localStorage on mount
-  useEffect(() => {
-    const stored = localStorage.getItem(LAST_OFFER_KEY);
-    if (stored) setLastOfferId(stored);
-  }, []);
-
-  // Save current offer to localStorage when it changes
-  useEffect(() => {
-    if (offerId) {
-      localStorage.setItem(LAST_OFFER_KEY, offerId);
-      setLastOfferId(offerId);
-    }
-  }, [offerId]);
-
-  // Preset editing state (local, not URL-based)
   const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
-
-  const [activeTab, setActiveTab] = useState(projectId ? 'project-editor' : offerId ? 'editor' : 'list');
+  const [activeTab, setActiveTab] = useState(projectId ? 'project-editor' : 'list');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+
+  // When URL has offer param, stay on list tab (editor renders inside it)
+  useEffect(() => {
+    if (projectId) setActiveTab('project-editor');
+  }, [projectId]);
 
   const openCreateDialog = useCallback(() => setShowCreateDialog(true), []);
   const closeCreateDialog = useCallback(() => setShowCreateDialog(false), []);
@@ -64,7 +47,7 @@ export default function OffersMain({ isAdmin }: OffersMainProps) {
     const params = new URLSearchParams(searchParams.toString());
     params.set('offer', id);
     router.push(`/offers?${params.toString()}`, { scroll: false });
-    setActiveTab('editor');
+    setActiveTab('list');
   }, [searchParams, router]);
 
   const handleOfferCreated = useCallback((offer: { id: string }) => {
@@ -96,18 +79,6 @@ export default function OffersMain({ isAdmin }: OffersMainProps) {
     setActiveTab('projects');
   }, [searchParams, router]);
 
-  // Handle Editor tab click - open last used offer if no current offer
-  const handleEditorTabClick = useCallback(() => {
-    if (!offerId && lastOfferId) {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set('offer', lastOfferId);
-      params.delete('project');
-      router.push(`/offers?${params.toString()}`, { scroll: false });
-    }
-    setActiveTab('editor');
-  }, [offerId, lastOfferId, searchParams, router]);
-
-  // Handle preset selection - opens preset editor
   const handlePresetSelect = useCallback((id: string) => {
     setEditingPresetId(id);
     setActiveTab('preset-editor');
@@ -118,18 +89,13 @@ export default function OffersMain({ isAdmin }: OffersMainProps) {
     setActiveTab('presets');
   }, []);
 
-  // Current offer ID to display (either URL param or last used)
-  const currentOfferId = offerId || lastOfferId;
-
-  // Determine grid columns based on visible tabs
   const tabCount = useMemo(() => {
     let count = 2; // Nabídky + Projekty
-    if (currentOfferId) count++; // Editor
     if (projectId) count++; // Project Editor
     if (isAdmin) count += 2; // Ceník + Šablony
     if (editingPresetId) count++; // Preset Editor
-    return Math.min(count, 7);
-  }, [currentOfferId, projectId, isAdmin, editingPresetId]);
+    return Math.min(count, 6);
+  }, [projectId, isAdmin, editingPresetId]);
 
   const tabsGridClass = useMemo(() => {
     const colsMap: Record<number, string> = {
@@ -138,7 +104,6 @@ export default function OffersMain({ isAdmin }: OffersMainProps) {
       4: 'grid-cols-4',
       5: 'grid-cols-5',
       6: 'grid-cols-6',
-      7: 'grid-cols-7',
     };
     return `grid h-10 max-w-3xl ${colsMap[tabCount] || 'grid-cols-5'}`;
   }, [tabCount]);
@@ -150,7 +115,7 @@ export default function OffersMain({ isAdmin }: OffersMainProps) {
         <h1 className="text-xl md:text-2xl font-bold text-slate-900">
           Nabídky
         </h1>
-        {(activeTab === 'list' || activeTab === 'projects') && (
+        {(activeTab === 'list' || activeTab === 'projects') && !offerId && (
           <Button size="sm" onClick={openCreateDialog}>
             <Plus className="w-4 h-4 mr-1" />
             <span className="hidden sm:inline">Nová nabídka</span>
@@ -169,16 +134,6 @@ export default function OffersMain({ isAdmin }: OffersMainProps) {
             <FolderKanban className="w-4 h-4 mr-1 hidden sm:block" />
             Projekty
           </TabsTrigger>
-          {currentOfferId && (
-            <TabsTrigger
-              value="editor"
-              className="text-xs sm:text-sm"
-              onClick={handleEditorTabClick}
-            >
-              <Edit className="w-4 h-4 mr-1 hidden sm:block" />
-              Editor
-            </TabsTrigger>
-          )}
           {projectId && (
             <TabsTrigger value="project-editor" className="text-xs sm:text-sm">
               <FolderKanban className="w-4 h-4 mr-1 hidden sm:block" />
@@ -206,11 +161,21 @@ export default function OffersMain({ isAdmin }: OffersMainProps) {
         </TabsList>
 
         <TabsContent value="list" className="mt-4">
-          <OffersList
-            onOfferSelect={handleOfferSelect}
-            isAdmin={isAdmin}
-            canDuplicate={true}
-          />
+          {offerId ? (
+            <Suspense fallback={<LoadingFallback />}>
+              <OfferEditor
+                offerId={offerId}
+                isAdmin={isAdmin}
+                onBack={handleBackToList}
+              />
+            </Suspense>
+          ) : (
+            <OffersList
+              onOfferSelect={handleOfferSelect}
+              isAdmin={isAdmin}
+              canDuplicate={true}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="projects" className="mt-4">
@@ -231,18 +196,6 @@ export default function OffersMain({ isAdmin }: OffersMainProps) {
                 isAdmin={isAdmin}
                 onBack={handleBackToProjects}
                 onOfferSelect={handleOfferSelect}
-              />
-            </Suspense>
-          </TabsContent>
-        )}
-
-        {currentOfferId && (
-          <TabsContent value="editor" className="mt-4">
-            <Suspense fallback={<LoadingFallback />}>
-              <OfferEditor
-                offerId={currentOfferId}
-                isAdmin={isAdmin}
-                onBack={handleBackToList}
               />
             </Suspense>
           </TabsContent>
