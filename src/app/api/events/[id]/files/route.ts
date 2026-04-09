@@ -45,6 +45,8 @@ export async function GET(
       fields: 'files(id, name, mimeType, thumbnailLink, webViewLink, iconLink, createdTime, size)',
       orderBy: 'createdTime desc',
       pageSize: 50,
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
     });
 
     return NextResponse.json({ files: response.data.files || [] });
