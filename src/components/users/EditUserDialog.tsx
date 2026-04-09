@@ -71,7 +71,7 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
     company: user.company || '',
     note: user.note || '',
     rank: user.rank ?? null as number | null,
-    driver_license: user.driver_license || '',
+    driver_license: user.driver_license ? user.driver_license.split(',').map(s => s.trim()).filter(Boolean) : [] as string[],
   });
 
   // Mutation hooks for user CRUD
@@ -158,7 +158,7 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
         company: user.company || '',
         note: user.note || '',
         rank: user.rank ?? null,
-        driver_license: user.driver_license || '',
+        driver_license: user.driver_license ? user.driver_license.split(',').map(s => s.trim()).filter(Boolean) : [],
       });
     }
   }, [open, refetchPermissions, user, canManagePermissions]);
@@ -255,7 +255,7 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
             company: formData.company || null,
             note: formData.note || null,
             rank: formData.rank,
-            driver_license: formData.driver_license || null,
+            driver_license: formData.driver_license.length > 0 ? formData.driver_license.join(', ') : null,
           }
         : {
             full_name: formData.full_name,
@@ -268,7 +268,7 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
             company: formData.company || null,
             note: formData.note || null,
             rank: formData.rank,
-            driver_license: formData.driver_license || null,
+            driver_license: formData.driver_license.length > 0 ? formData.driver_license.join(', ') : null,
           };
 
       // Update user via mutation hook
@@ -469,15 +469,29 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="driver_license">Řidičský průkaz</Label>
-              <Input
-                id="driver_license"
-                type="text"
-                placeholder="B, C..."
-                value={formData.driver_license}
-                onChange={(e) => setFormData({ ...formData, driver_license: e.target.value })}
-                disabled={loading}
-              />
+              <Label>Řidičský průkaz</Label>
+              <div className="flex flex-wrap gap-1">
+                {['A', 'B', 'C', 'D', 'T', 'BE', 'CE', 'DE'].map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    disabled={loading}
+                    onClick={() => setFormData(prev => ({
+                      ...prev,
+                      driver_license: prev.driver_license.includes(cat)
+                        ? prev.driver_license.filter(x => x !== cat)
+                        : [...prev.driver_license, cat],
+                    }))}
+                    className={`px-2 py-1 text-xs rounded border font-medium transition-colors ${
+                      formData.driver_license.includes(cat)
+                        ? 'bg-slate-900 text-white border-slate-900'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 

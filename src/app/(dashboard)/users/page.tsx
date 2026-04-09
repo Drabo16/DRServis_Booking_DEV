@@ -9,6 +9,9 @@ import EditUserDialog from '@/components/users/EditUserDialog';
 import ImportUsersDialog from '@/components/users/ImportUsersDialog';
 import { Loader2, Crown, UserCog, User, ShieldAlert, Car } from 'lucide-react';
 import { ROLE_LABELS } from '@/types/modules';
+import { ROLE_TYPES } from '@/lib/constants';
+
+const SPEC_LABEL: Record<string, string> = Object.fromEntries(ROLE_TYPES.map(r => [r.value, r.label]));
 
 export default function UsersPage() {
   const { data: users = [], isLoading, error } = useUsers();
@@ -109,7 +112,7 @@ export default function UsersPage() {
                   <div className="flex flex-wrap gap-1 mt-1">
                     {user.specialization.map((spec: string) => (
                       <Badge key={spec} variant="outline" className="text-xs">
-                        {spec}
+                        {SPEC_LABEL[spec] || spec}
                       </Badge>
                     ))}
                   </div>

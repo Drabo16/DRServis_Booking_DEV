@@ -78,6 +78,7 @@ export async function GET(request: NextRequest) {
         subtotal_transport,
         discount_percent,
         total_amount,
+        custom_price,
         created_at,
         updated_at,
         event:events(id, title, start_time, location),

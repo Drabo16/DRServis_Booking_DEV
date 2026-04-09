@@ -742,7 +742,7 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
                     <Badge className={`text-xs ${OFFER_STATUS_COLORS[offer.status]}`}>
                       {OFFER_STATUS_LABELS[offer.status]}
                     </Badge>
-                    <span className="font-semibold text-sm text-amber-800">{formatCurrency(offer.total_amount)}</span>
+                    <span className="font-semibold text-sm text-amber-800">{formatCurrency((offer as any).custom_price ?? offer.total_amount)}</span>
                     <Button
                       size="sm"
                       variant="outline"
@@ -790,7 +790,7 @@ export default function ProjectEditor({ projectId, isAdmin, onBack, onOfferSelec
                     {offer.set_label || formatOfferNumber(offer.offer_number, offer.year)}
                     {offer.title && <span className="text-slate-300 ml-2">- {offer.title}</span>}
                   </td>
-                  <td className="py-1.5 px-2 text-right font-medium">{formatCurrency(offer.total_amount)}</td>
+                  <td className="py-1.5 px-2 text-right font-medium">{formatCurrency((offer as any).custom_price ?? offer.total_amount)}</td>
                 </tr>
                 <tr className="bg-white">
                   <td className="py-1 px-4 text-slate-600">Technika</td>

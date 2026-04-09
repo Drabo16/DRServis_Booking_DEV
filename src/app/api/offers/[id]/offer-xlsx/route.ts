@@ -251,8 +251,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       else subtotalTransport += total;
     }
     const discountAmount = Math.round(subtotalEquipment * ((offer.discount_percent || 0) / 100));
-    const calculatedTotal = subtotalEquipment + subtotalPersonnel + subtotalTransport - discountAmount;
-    const totalAmount = offer.custom_price != null ? offer.custom_price : calculatedTotal;
+    const totalAmount = subtotalEquipment + subtotalPersonnel + subtotalTransport - discountAmount;
 
     // Group by category
     const grouped: Record<string, typeof sortedItems> = {};
@@ -425,23 +424,35 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       r++;
     }
 
-    // Total without VAT
-    set(r, 0, '', 's'); set(r, 1, '', 's'); set(r, 2, '', 's');
-    const totalLabel = offer.is_vat_payer !== false ? 'CELKEM BEZ DPH:' : 'CELKOVÁ CENA:';
-    set(r, 3, totalLabel, 's', S.totalLabel);
-    set(r, 4, totalAmount, 'n', S.totalValue);
-    r++;
-
-    if (offer.is_vat_payer !== false) {
+    if (offer.custom_price != null) {
+      // Agreed price replaces calculated total (already includes VAT)
       set(r, 0, '', 's'); set(r, 1, '', 's'); set(r, 2, '', 's');
-      set(r, 3, 'DPH (21%):', 's', S.summaryLabel);
-      set(r, 4, Math.round(totalAmount * 0.21), 'n', S.summaryValue);
+      set(r, 3, 'Vypočtená cena:', 's', { ...S.summaryLabel, font: { sz: 9, color: { rgb: '94A3B8' } } });
+      set(r, 4, totalAmount, 'n', { ...S.summaryValue, font: { sz: 9, color: { rgb: '94A3B8' } } });
+      r++;
+      set(r, 0, '', 's'); set(r, 1, '', 's'); set(r, 2, '', 's');
+      set(r, 3, 'DOHODNUTÁ CENA (vč. DPH):', 's', { ...S.totalLabel, font: { bold: true, sz: 11, color: { rgb: C_GREEN } } });
+      set(r, 4, offer.custom_price, 'n', { ...S.totalValue, font: { bold: true, sz: 12, color: { rgb: C_GREEN } } });
+      r++;
+    } else {
+      // Standard flow
+      set(r, 0, '', 's'); set(r, 1, '', 's'); set(r, 2, '', 's');
+      const totalLabel = offer.is_vat_payer !== false ? 'CELKEM BEZ DPH:' : 'CELKOVÁ CENA:';
+      set(r, 3, totalLabel, 's', S.totalLabel);
+      set(r, 4, totalAmount, 'n', S.totalValue);
       r++;
 
-      set(r, 0, '', 's'); set(r, 1, '', 's'); set(r, 2, '', 's');
-      set(r, 3, 'CELKEM S DPH:', 's', S.totalLabel);
-      set(r, 4, Math.round(totalAmount * 1.21), 'n', S.totalValue);
-      r++;
+      if (offer.is_vat_payer !== false) {
+        set(r, 0, '', 's'); set(r, 1, '', 's'); set(r, 2, '', 's');
+        set(r, 3, 'DPH (21%):', 's', S.summaryLabel);
+        set(r, 4, Math.round(totalAmount * 0.21), 'n', S.summaryValue);
+        r++;
+
+        set(r, 0, '', 's'); set(r, 1, '', 's'); set(r, 2, '', 's');
+        set(r, 3, 'CELKEM S DPH:', 's', S.totalLabel);
+        set(r, 4, Math.round(totalAmount * 1.21), 'n', S.totalValue);
+        r++;
+      }
     }
 
     // ── Valid until ───────────────────────────────────────────────────────

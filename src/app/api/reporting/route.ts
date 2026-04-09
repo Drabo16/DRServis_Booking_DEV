@@ -47,7 +47,7 @@ export async function GET() {
       warehouseResult,
     ] = await Promise.all([
       // --- OFFERS ---
-      db.from('offers').select('id, status, total_amount, subtotal_equipment, subtotal_personnel, subtotal_transport, discount_amount, year, created_at, client_id, event_id'),
+      db.from('offers').select('id, status, total_amount, custom_price, subtotal_equipment, subtotal_personnel, subtotal_transport, discount_amount, year, created_at, client_id, event_id'),
 
       // --- EVENTS ---
       db.from('events').select('id, title, start_time, end_time, status, location'),
@@ -78,7 +78,7 @@ export async function GET() {
     const revenueByStatus: Record<string, number> = {};
     for (const o of offers) {
       offersByStatus[o.status] = (offersByStatus[o.status] || 0) + 1;
-      revenueByStatus[o.status] = (revenueByStatus[o.status] || 0) + (o.total_amount || 0);
+      revenueByStatus[o.status] = (revenueByStatus[o.status] || 0) + ((o.custom_price ?? o.total_amount) || 0);
     }
 
     const acceptedOffers = offers.filter(o => o.status === 'accepted');
@@ -87,7 +87,7 @@ export async function GET() {
       ? Math.round((acceptedOffers.length / (acceptedOffers.length + rejectedOffers.length)) * 100)
       : 0;
 
-    const totalRevenue = acceptedOffers.reduce((sum, o) => sum + (o.total_amount || 0), 0);
+    const totalRevenue = acceptedOffers.reduce((sum, o) => sum + ((o.custom_price ?? o.total_amount) || 0), 0);
     const avgOfferValue = acceptedOffers.length > 0
       ? Math.round(totalRevenue / acceptedOffers.length)
       : 0;
@@ -105,7 +105,7 @@ export async function GET() {
         return created.getFullYear() === year && created.getMonth() === month;
       });
 
-      const revenue = monthOffers.reduce((s, o) => s + (o.total_amount || 0), 0);
+      const revenue = monthOffers.reduce((s, o) => s + ((o.custom_price ?? o.total_amount) || 0), 0);
       const equipment = monthOffers.reduce((s, o) => s + (o.subtotal_equipment || 0), 0);
       const personnel = monthOffers.reduce((s, o) => s + (o.subtotal_personnel || 0), 0);
       const transport = monthOffers.reduce((s, o) => s + (o.subtotal_transport || 0), 0);
@@ -132,13 +132,13 @@ export async function GET() {
       if (!o.client_id) continue;
       const existing = clientRevenueMap.get(o.client_id);
       if (existing) {
-        existing.revenue += o.total_amount || 0;
+        existing.revenue += (o.custom_price ?? o.total_amount) || 0;
         existing.count += 1;
       } else {
         const client = clients.find(c => c.id === o.client_id);
         clientRevenueMap.set(o.client_id, {
           name: client?.name || 'Neznámý',
-          revenue: o.total_amount || 0,
+          revenue: (o.custom_price ?? o.total_amount) || 0,
           count: 1,
         });
       }

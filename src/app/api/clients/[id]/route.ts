@@ -63,7 +63,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     // Get stats: offers count, accepted count, total revenue
     const { data: offers } = await serviceClient
       .from('offers')
-      .select('id, status, total_amount')
+      .select('id, status, total_amount, custom_price')
       .eq('client_id', id);
 
     const offersArr = offers || [];
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       accepted_count: offersArr.filter(o => o.status === 'accepted').length,
       total_revenue: offersArr
         .filter(o => o.status === 'accepted')
-        .reduce((sum, o) => sum + (o.total_amount || 0), 0),
+        .reduce((sum, o) => sum + ((o.custom_price ?? o.total_amount) || 0), 0),
     };
 
     return NextResponse.json({ ...client, ...stats });

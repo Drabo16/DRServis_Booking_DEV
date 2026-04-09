@@ -250,8 +250,8 @@ export default function OffersList({ onOfferSelect, isAdmin, canDuplicate = fals
                     )}
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className="font-bold text-lg text-slate-900">
-                      {formatCurrency(offer.total_amount)}
+                    <p className={`font-bold text-lg ${(offer as any).custom_price != null ? 'text-green-700' : 'text-slate-900'}`}>
+                      {formatCurrency((offer as any).custom_price ?? offer.total_amount)}
                     </p>
                     <p className="text-xs text-slate-500">
                       {formatDate(offer.created_at)}

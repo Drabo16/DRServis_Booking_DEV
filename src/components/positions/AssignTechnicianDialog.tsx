@@ -198,7 +198,7 @@ export default function AssignTechnicianDialog({
                           e.stopPropagation();
                           setInfoTechId(prev => prev === tech.id ? null : tech.id);
                         }}
-                        className="shrink-0 text-slate-300 hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="shrink-0 text-slate-400 hover:text-blue-500"
                         title="Info"
                       >
                         <Info className="w-3.5 h-3.5" />

@@ -266,8 +266,7 @@ export function OfferPdfDocument({ offer, logoBase64 }: OfferPdfDocumentProps) {
     else subtotalTransport += total;
   }
   const discountAmount = Math.round(subtotalEquipment * (offer.discount_percent / 100));
-  const calculatedTotal = subtotalEquipment + subtotalPersonnel + subtotalTransport - discountAmount;
-  const totalAmount = offer.custom_price != null ? offer.custom_price : calculatedTotal;
+  const totalAmount = subtotalEquipment + subtotalPersonnel + subtotalTransport - discountAmount;
 
   // Category totals (calculated from items)
   const categoryTotals: Record<string, number> = {};
@@ -413,24 +412,39 @@ export function OfferPdfDocument({ offer, logoBase64 }: OfferPdfDocumentProps) {
             </View>
           )}
 
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>
-              {offer.is_vat_payer !== false ? 'CELKEM BEZ DPH:' : 'CELKOVÁ CENA:'}
-            </Text>
-            <Text style={styles.totalValue}>{formatCurrency(totalAmount)}</Text>
-          </View>
-
-          {/* DPH section - only for VAT payers */}
-          {offer.is_vat_payer !== false && (
+          {offer.custom_price != null ? (
+            /* Custom / agreed price (already includes VAT) */
             <>
-              <View style={[styles.summaryRow, { marginTop: 6 }]}>
-                <Text style={styles.summaryLabel}>DPH (21%):</Text>
-                <Text style={styles.summaryValue}>{formatCurrency(Math.round(totalAmount * 0.21))}</Text>
+              <View style={[styles.summaryRow, { color: '#94a3b8' }]}>
+                <Text style={[styles.summaryLabel, { color: '#94a3b8' }]}>Vypočtená cena:</Text>
+                <Text style={[styles.summaryValue, { color: '#94a3b8' }]}>{formatCurrency(totalAmount)}</Text>
               </View>
-              <View style={[styles.totalRow, { marginTop: 4, paddingTop: 4 }]}>
-                <Text style={styles.totalLabel}>CELKEM S DPH:</Text>
-                <Text style={styles.totalValue}>{formatCurrency(Math.round(totalAmount * 1.21))}</Text>
+              <View style={[styles.totalRow, { borderTopColor: '#16a34a', marginTop: 6 }]}>
+                <Text style={[styles.totalLabel, { color: '#16a34a' }]}>DOHODNUTÁ CENA (vč. DPH):</Text>
+                <Text style={[styles.totalValue, { color: '#16a34a' }]}>{formatCurrency(offer.custom_price)}</Text>
               </View>
+            </>
+          ) : (
+            /* Standard flow */
+            <>
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>
+                  {offer.is_vat_payer !== false ? 'CELKEM BEZ DPH:' : 'CELKOVÁ CENA:'}
+                </Text>
+                <Text style={styles.totalValue}>{formatCurrency(totalAmount)}</Text>
+              </View>
+              {offer.is_vat_payer !== false && (
+                <>
+                  <View style={[styles.summaryRow, { marginTop: 6 }]}>
+                    <Text style={styles.summaryLabel}>DPH (21%):</Text>
+                    <Text style={styles.summaryValue}>{formatCurrency(Math.round(totalAmount * 0.21))}</Text>
+                  </View>
+                  <View style={[styles.totalRow, { marginTop: 4, paddingTop: 4 }]}>
+                    <Text style={styles.totalLabel}>CELKEM S DPH:</Text>
+                    <Text style={styles.totalValue}>{formatCurrency(Math.round(totalAmount * 1.21))}</Text>
+                  </View>
+                </>
+              )}
             </>
           )}
         </View>

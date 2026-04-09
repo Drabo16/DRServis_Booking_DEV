@@ -2050,7 +2050,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
           <div className="shrink-0">
             <span className="text-slate-600 text-sm">Dohodnutá cena</span>
             {localCustomPrice !== null && (
-              <p className="text-[10px] text-green-600">Nahrazuje vypočtenou cenu</p>
+              <p className="text-[10px] text-green-600">Vč. DPH – nahrazuje vypočtenou cenu</p>
             )}
           </div>
           <div className="flex items-center gap-1">
