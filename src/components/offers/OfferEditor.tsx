@@ -2046,8 +2046,13 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
             </div>
           </div>
         )}
-        <div className="border-t mt-3 pt-3 flex justify-between items-center gap-4">
-          <span className="text-slate-600 text-sm shrink-0">Dohodnutá cena:</span>
+        <div className={`border-t mt-3 pt-3 flex justify-between items-center gap-4 ${localCustomPrice !== null ? 'bg-green-50 -mx-3 px-3 pb-2 rounded-b' : ''}`}>
+          <div className="shrink-0">
+            <span className="text-slate-600 text-sm">Dohodnutá cena</span>
+            {localCustomPrice !== null && (
+              <p className="text-[10px] text-green-600">Nahrazuje vypočtenou cenu</p>
+            )}
+          </div>
           <div className="flex items-center gap-1">
             <input
               type="number"
@@ -2060,7 +2065,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
                 setLocalCustomPrice(val === '' ? null : Number(val));
                 markDirty();
               }}
-              className="w-36 text-right border rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-300 focus:outline-none"
+              className={`w-36 text-right border rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-300 focus:outline-none ${localCustomPrice !== null ? 'border-green-400 font-bold' : ''}`}
             />
             <span className="text-slate-500 text-sm">Kč</span>
             {localCustomPrice !== null && (

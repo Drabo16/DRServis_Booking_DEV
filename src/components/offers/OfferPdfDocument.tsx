@@ -266,7 +266,8 @@ export function OfferPdfDocument({ offer, logoBase64 }: OfferPdfDocumentProps) {
     else subtotalTransport += total;
   }
   const discountAmount = Math.round(subtotalEquipment * (offer.discount_percent / 100));
-  const totalAmount = subtotalEquipment + subtotalPersonnel + subtotalTransport - discountAmount;
+  const calculatedTotal = subtotalEquipment + subtotalPersonnel + subtotalTransport - discountAmount;
+  const totalAmount = offer.custom_price != null ? offer.custom_price : calculatedTotal;
 
   // Category totals (calculated from items)
   const categoryTotals: Record<string, number> = {};
@@ -431,14 +432,6 @@ export function OfferPdfDocument({ offer, logoBase64 }: OfferPdfDocumentProps) {
                 <Text style={styles.totalValue}>{formatCurrency(Math.round(totalAmount * 1.21))}</Text>
               </View>
             </>
-          )}
-
-          {/* Custom / agreed price */}
-          {offer.custom_price != null && (
-            <View style={[styles.totalRow, { marginTop: 8, paddingTop: 8, borderTopColor: '#16a34a' }]}>
-              <Text style={[styles.totalLabel, { color: '#16a34a' }]}>DOHODNUTÁ CENA:</Text>
-              <Text style={[styles.totalValue, { color: '#16a34a' }]}>{formatCurrency(offer.custom_price)}</Text>
-            </View>
           )}
         </View>
 

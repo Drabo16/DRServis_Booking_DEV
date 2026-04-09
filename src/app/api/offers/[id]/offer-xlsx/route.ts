@@ -251,7 +251,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       else subtotalTransport += total;
     }
     const discountAmount = Math.round(subtotalEquipment * ((offer.discount_percent || 0) / 100));
-    const totalAmount = subtotalEquipment + subtotalPersonnel + subtotalTransport - discountAmount;
+    const calculatedTotal = subtotalEquipment + subtotalPersonnel + subtotalTransport - discountAmount;
+    const totalAmount = offer.custom_price != null ? offer.custom_price : calculatedTotal;
 
     // Group by category
     const grouped: Record<string, typeof sortedItems> = {};
@@ -440,14 +441,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       set(r, 0, '', 's'); set(r, 1, '', 's'); set(r, 2, '', 's');
       set(r, 3, 'CELKEM S DPH:', 's', S.totalLabel);
       set(r, 4, Math.round(totalAmount * 1.21), 'n', S.totalValue);
-      r++;
-    }
-
-    // ── Custom / agreed price ────────────────────────────────────────────
-    if (offer.custom_price != null) {
-      set(r, 0, '', 's'); set(r, 1, '', 's'); set(r, 2, '', 's');
-      set(r, 3, 'DOHODNUTÁ CENA:', 's', { ...S.totalLabel, font: { bold: true, sz: 11, color: { rgb: C_GREEN } } });
-      set(r, 4, offer.custom_price, 'n', { ...S.totalValue, font: { bold: true, sz: 12, color: { rgb: C_GREEN } } });
       r++;
     }
 
