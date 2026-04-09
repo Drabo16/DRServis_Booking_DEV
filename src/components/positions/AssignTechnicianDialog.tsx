@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -9,21 +9,9 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Info } from 'lucide-react';
+import { ChevronDown, Info, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { useCreateAssignment } from '@/hooks/useAssignments';
@@ -51,6 +39,10 @@ export default function AssignTechnicianDialog({
   const [technicians, setTechnicians] = useState<Profile[]>([]);
   const [selectedTechnicianId, setSelectedTechnicianId] = useState('');
   const [notes, setNotes] = useState('');
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [infoTechId, setInfoTechId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const supabase = createClient();
 
   const createAssignment = useCreateAssignment();
@@ -58,8 +50,24 @@ export default function AssignTechnicianDialog({
   useEffect(() => {
     if (open) {
       loadTechnicians();
+    } else {
+      setDropdownOpen(false);
+      setInfoTechId(null);
+      setSearch('');
     }
   }, [open]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+        setInfoTechId(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const loadTechnicians = async () => {
     const { data } = await supabase
@@ -96,7 +104,14 @@ export default function AssignTechnicianDialog({
     );
   };
 
+  const selectedTech = technicians.find(t => t.id === selectedTechnicianId);
   const loading = createAssignment.isPending;
+
+  const filtered = technicians.filter(t =>
+    !search || t.full_name.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const infoTech = infoTechId ? technicians.find(t => t.id === infoTechId) : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -106,56 +121,113 @@ export default function AssignTechnicianDialog({
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <Label htmlFor="technician">Vyberte technika</Label>
-            <div className="flex items-center gap-2">
-            <Select
-              value={selectedTechnicianId}
-              onValueChange={setSelectedTechnicianId}
-            >
-              <SelectTrigger className="flex-1">
-                <SelectValue placeholder="Vyberte technika..." />
-              </SelectTrigger>
-              <SelectContent>
-                {technicians.map((tech) => (
-                  <SelectItem key={tech.id} value={tech.id}>
-                    <div className="flex items-center gap-2 w-full">
-                      {tech.rank && (
-                        <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${RANK_COLORS[tech.rank]}`}>
-                          {tech.rank}
-                        </span>
-                      )}
-                      <span>{tech.full_name}</span>
-                      <span className="text-slate-400 text-xs ml-auto">{tech.company || (tech.is_drservis ? 'DR Servis' : '')}</span>
+            <Label>Vyberte technika</Label>
+            <div className="relative mt-1" ref={dropdownRef}>
+              {/* Trigger */}
+              <button
+                type="button"
+                onClick={() => { setDropdownOpen(v => !v); setInfoTechId(null); }}
+                className="w-full flex items-center justify-between border rounded px-3 py-2 text-sm bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-300"
+              >
+                {selectedTech ? (
+                  <div className="flex items-center gap-2">
+                    {selectedTech.rank && (
+                      <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${RANK_COLORS[selectedTech.rank]}`}>
+                        {selectedTech.rank}
+                      </span>
+                    )}
+                    <span>{selectedTech.full_name}</span>
+                  </div>
+                ) : (
+                  <span className="text-slate-400">Vyberte technika...</span>
+                )}
+                <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+              </button>
+
+              {/* Dropdown */}
+              {dropdownOpen && (
+                <div className="absolute z-50 mt-1 w-full bg-white border rounded shadow-lg max-h-64 overflow-y-auto">
+                  {/* Search */}
+                  <div className="p-2 border-b">
+                    <input
+                      autoFocus
+                      type="text"
+                      placeholder="Hledat..."
+                      value={search}
+                      onChange={e => setSearch(e.target.value)}
+                      className="w-full text-sm border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                    />
+                  </div>
+
+                  {filtered.length === 0 && (
+                    <div className="px-3 py-2 text-sm text-slate-400">Žádní technici</div>
+                  )}
+
+                  {filtered.map((tech) => (
+                    <div
+                      key={tech.id}
+                      className={`flex items-center gap-2 px-3 py-2 hover:bg-slate-50 cursor-pointer group ${
+                        tech.id === selectedTechnicianId ? 'bg-blue-50' : ''
+                      }`}
+                    >
+                      {/* Selectable area */}
+                      <div
+                        className="flex items-center gap-2 flex-1 min-w-0"
+                        onClick={() => {
+                          setSelectedTechnicianId(tech.id);
+                          setDropdownOpen(false);
+                          setInfoTechId(null);
+                          setSearch('');
+                        }}
+                      >
+                        {tech.rank && (
+                          <span className={`text-xs font-bold px-1.5 py-0.5 rounded shrink-0 ${RANK_COLORS[tech.rank]}`}>
+                            {tech.rank}
+                          </span>
+                        )}
+                        <span className="text-sm truncate">{tech.full_name}</span>
+                        {tech.company && (
+                          <span className="text-xs text-slate-400 truncate ml-auto shrink-0">{tech.company}</span>
+                        )}
+                      </div>
+
+                      {/* Info button */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setInfoTechId(prev => prev === tech.id ? null : tech.id);
+                        }}
+                        className="shrink-0 text-slate-300 hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Info"
+                      >
+                        <Info className="w-3.5 h-3.5" />
+                      </button>
                     </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {selectedTechnicianId && (() => {
-              const tech = technicians.find(t => t.id === selectedTechnicianId);
-              if (!tech) return null;
-              return (
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <button type="button" className="shrink-0 text-slate-400 hover:text-slate-600">
-                      <Info className="w-4 h-4" />
+                  ))}
+                </div>
+              )}
+
+              {/* Info panel */}
+              {infoTech && (
+                <div className="absolute z-50 right-0 mt-1 w-52 bg-white border rounded shadow-lg p-3 text-sm">
+                  <div className="flex items-start justify-between mb-2">
+                    <p className="font-medium">{infoTech.full_name}</p>
+                    <button type="button" onClick={() => setInfoTechId(null)} className="text-slate-400 hover:text-slate-600 ml-2">
+                      <X className="w-3 h-3" />
                     </button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-56 text-sm" side="right">
-                    <div className="space-y-1">
-                      <p className="font-medium">{tech.full_name}</p>
-                      {tech.rank && (
-                        <p className="text-slate-500">Rank: <span className={`font-bold px-1 rounded text-xs ${RANK_COLORS[tech.rank]}`}>{tech.rank}</span></p>
-                      )}
-                      {tech.phone && <p className="text-slate-500">Tel: {tech.phone}</p>}
-                      {tech.driver_license && <p className="text-slate-500">ŘP: {tech.driver_license}</p>}
-                      {tech.note && <p className="text-slate-500 italic text-xs">{tech.note}</p>}
-                      {tech.company && <p className="text-slate-500">{tech.company}</p>}
-                    </div>
-                  </PopoverContent>
-                </Popover>
-              );
-            })()}
+                  </div>
+                  <div className="space-y-1 text-xs text-slate-500">
+                    {infoTech.rank && (
+                      <p>Rank: <span className={`font-bold px-1 rounded ${RANK_COLORS[infoTech.rank]}`}>{infoTech.rank}</span></p>
+                    )}
+                    {infoTech.phone && <p>Tel: {infoTech.phone}</p>}
+                    {infoTech.driver_license && <p>ŘP: {infoTech.driver_license}</p>}
+                    {infoTech.note && <p className="italic">{infoTech.note}</p>}
+                    {infoTech.company && <p>{infoTech.company}</p>}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
