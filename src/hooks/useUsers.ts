@@ -36,6 +36,8 @@ export function useCreateUser() {
       is_drservis?: boolean;
       company?: string | null;
       note?: string | null;
+      rank?: number | null;
+      driver_license?: string | null;
     }) => {
       const response = await fetch('/api/users', {
         method: 'POST',
@@ -68,6 +70,8 @@ export function useUpdateUser() {
       is_drservis?: boolean;
       company?: string | null;
       note?: string | null;
+      rank?: number | null;
+      driver_license?: string | null;
     } }) => {
       const response = await fetch(`/api/users/${id}`, {
         method: 'PATCH',

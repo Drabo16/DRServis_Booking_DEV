@@ -69,7 +69,7 @@ export default async function EventDetailPage({
   // Načti všechny aktivní uživatele pro dropdown (mohou být přiřazeni k akcím)
   const { data: allTechnicians } = await supabase
     .from('profiles')
-    .select('id, auth_user_id, full_name, email, phone, role, specialization, avatar_url, is_active, has_warehouse_access, is_drservis, company, note, created_at, updated_at')
+    .select('id, auth_user_id, full_name, email, phone, role, specialization, avatar_url, is_active, has_warehouse_access, is_drservis, company, note, rank, driver_license, created_at, updated_at')
     .eq('is_active', true)
     .order('full_name');
 

@@ -11,6 +11,9 @@ interface ImportedUser {
   company: string | null;
   specialization: string[] | null;
   note: string | null;
+  rank: number | null;
+  driver_license: string | null;
+  other_contact: string | null;
 }
 
 // Map position names to role type values
@@ -146,14 +149,17 @@ export async function POST(request: NextRequest) {
 
       try {
         // Extract fields based on column letters
-        // A = Jméno, B = Příjmení, C = Je DRServis, E = Firma, F = Pozice, G = Telefon, H = Email, J = Poznámka
+        // A=Jméno, B=Příjmení, C=Je DR servis, D=Rank, E=Firma, F=Pozice, G=Telefon, H=Email, I=Jiný kontakt, J=Poznámka
         const firstName = String(row['A'] || '').trim();
         const lastName = String(row['B'] || '').trim();
         const isDrservis = parseBoolean(row['C']);
+        const rankRaw = row['D'];
+        const rank = rankRaw && !isNaN(Number(rankRaw)) ? Math.min(4, Math.max(1, Math.round(Number(rankRaw)))) : null;
         const company = String(row['E'] || '').trim() || null;
         const positions = parsePositions(String(row['F'] || ''));
         const phone = formatPhone(row['G']);
         const email = String(row['H'] || '').trim().toLowerCase();
+        const otherContact = String(row['I'] || '').trim() || null;
         const note = String(row['J'] || '').trim() || null;
 
         // Skip empty rows
@@ -198,6 +204,9 @@ export async function POST(request: NextRequest) {
           company: isDrservis ? null : company,
           specialization: positions.length > 0 ? positions : null,
           note,
+          rank,
+          driver_license: null,
+          other_contact: otherContact,
         };
 
         if (existingUser) {
@@ -212,6 +221,7 @@ export async function POST(request: NextRequest) {
                 company: userData.company,
                 specialization: userData.specialization,
                 note: userData.note,
+                rank: userData.rank,
               })
               .eq('id', existingUser.id);
 
@@ -240,6 +250,7 @@ export async function POST(request: NextRequest) {
               company: userData.company,
               specialization: userData.specialization,
               note: userData.note,
+              rank: userData.rank,
             });
 
           if (error) {

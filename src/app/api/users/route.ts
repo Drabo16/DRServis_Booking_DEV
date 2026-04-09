@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     // Naciteni vsech uzivatelu
     const { data: users, error } = await serviceClient
       .from('profiles')
-      .select('id, auth_user_id, email, full_name, phone, role, specialization, avatar_url, is_active, has_warehouse_access, is_drservis, company, note, created_at, updated_at')
+      .select('id, auth_user_id, email, full_name, phone, role, specialization, avatar_url, is_active, has_warehouse_access, is_drservis, company, note, rank, driver_license, created_at, updated_at')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
       return apiError('Validation failed', 400);
     }
 
-    const { email, full_name, phone, role, specialization, is_drservis, company, note } = parsed.data;
+    const { email, full_name, phone, role, specialization, is_drservis, company, note, rank, driver_license } = parsed.data;
 
     // SECURITY: Non-admins (managers with users_settings permission) can only create technicians
     const isAdmin = profile.role === 'admin';
@@ -118,6 +118,8 @@ export async function POST(request: NextRequest) {
         is_drservis: is_drservis,
         company: company || null,
         note: note || null,
+        rank: rank ?? null,
+        driver_license: driver_license || null,
       })
       .select()
       .single();

@@ -16,12 +16,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { useCreateAssignment } from '@/hooks/useAssignments';
 import type { Profile } from '@/types';
+
+const RANK_COLORS: Record<number, string> = {
+  1: 'bg-slate-200 text-slate-700',
+  2: 'bg-blue-100 text-blue-700',
+  3: 'bg-green-100 text-green-700',
+  4: 'bg-amber-100 text-amber-700',
+};
 
 interface AssignTechnicianDialogProps {
   open: boolean;
@@ -51,7 +64,7 @@ export default function AssignTechnicianDialog({
   const loadTechnicians = async () => {
     const { data } = await supabase
       .from('profiles')
-      .select('id, full_name, email, phone, specialization, is_active, is_drservis, company, note, role, auth_user_id, avatar_url, has_warehouse_access, created_at, updated_at')
+      .select('id, full_name, email, phone, specialization, is_active, is_drservis, company, note, role, auth_user_id, avatar_url, has_warehouse_access, rank, driver_license, created_at, updated_at')
       .eq('is_active', true)
       .order('full_name');
 
@@ -94,21 +107,56 @@ export default function AssignTechnicianDialog({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <Label htmlFor="technician">Vyberte technika</Label>
+            <div className="flex items-center gap-2">
             <Select
               value={selectedTechnicianId}
               onValueChange={setSelectedTechnicianId}
             >
-              <SelectTrigger>
+              <SelectTrigger className="flex-1">
                 <SelectValue placeholder="Vyberte technika..." />
               </SelectTrigger>
               <SelectContent>
                 {technicians.map((tech) => (
                   <SelectItem key={tech.id} value={tech.id}>
-                    {tech.full_name} ({tech.email})
+                    <div className="flex items-center gap-2 w-full">
+                      {tech.rank && (
+                        <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${RANK_COLORS[tech.rank]}`}>
+                          {tech.rank}
+                        </span>
+                      )}
+                      <span>{tech.full_name}</span>
+                      <span className="text-slate-400 text-xs ml-auto">{tech.company || (tech.is_drservis ? 'DR Servis' : '')}</span>
+                    </div>
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {selectedTechnicianId && (() => {
+              const tech = technicians.find(t => t.id === selectedTechnicianId);
+              if (!tech) return null;
+              return (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button type="button" className="shrink-0 text-slate-400 hover:text-slate-600">
+                      <Info className="w-4 h-4" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-56 text-sm" side="right">
+                    <div className="space-y-1">
+                      <p className="font-medium">{tech.full_name}</p>
+                      {tech.rank && (
+                        <p className="text-slate-500">Rank: <span className={`font-bold px-1 rounded text-xs ${RANK_COLORS[tech.rank]}`}>{tech.rank}</span></p>
+                      )}
+                      {tech.phone && <p className="text-slate-500">Tel: {tech.phone}</p>}
+                      {tech.driver_license && <p className="text-slate-500">ŘP: {tech.driver_license}</p>}
+                      {tech.note && <p className="text-slate-500 italic text-xs">{tech.note}</p>}
+                      {tech.company && <p className="text-slate-500">{tech.company}</p>}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              );
+            })()}
+            </div>
           </div>
 
           <div>

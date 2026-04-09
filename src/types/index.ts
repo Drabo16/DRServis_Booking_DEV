@@ -32,6 +32,8 @@ export interface Profile {
   is_drservis: boolean; // Whether user is a member of DRServis company
   company: string | null; // External company name (for non-DRServis members)
   note: string | null; // Quick note about the user
+  rank: number | null; // Skill rank 1-4 (1=trainee, 4=senior)
+  driver_license: string | null; // Driver's license categories (e.g. "B, C")
   created_at: string;
   updated_at: string;
 }

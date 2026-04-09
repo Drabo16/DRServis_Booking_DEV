@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import CreateUserDialog from '@/components/users/CreateUserDialog';
 import EditUserDialog from '@/components/users/EditUserDialog';
 import ImportUsersDialog from '@/components/users/ImportUsersDialog';
-import { Loader2, Crown, UserCog, User, ShieldAlert } from 'lucide-react';
+import { Loader2, Crown, UserCog, User, ShieldAlert, Car } from 'lucide-react';
 import { ROLE_LABELS } from '@/types/modules';
 
 export default function UsersPage() {
@@ -113,6 +113,25 @@ export default function UsersPage() {
                       </Badge>
                     ))}
                   </div>
+                </div>
+              )}
+              {(user.driver_license || user.rank) && (
+                <div className="text-sm flex items-center gap-2">
+                  {user.rank && (
+                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
+                      user.rank === 1 ? 'bg-slate-200 text-slate-700' :
+                      user.rank === 2 ? 'bg-blue-100 text-blue-700' :
+                      user.rank === 3 ? 'bg-green-100 text-green-700' :
+                      'bg-amber-100 text-amber-700'
+                    }`}>
+                      Rank {user.rank}
+                    </span>
+                  )}
+                  {user.driver_license && (
+                    <span className="text-slate-500 flex items-center gap-1">
+                      <Car className="w-3 h-3" />{user.driver_license}
+                    </span>
+                  )}
                 </div>
               )}
               {user.note && (

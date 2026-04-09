@@ -37,6 +37,8 @@ export default function CreateUserDialog() {
     is_drservis: true,
     company: '',
     note: '',
+    rank: null as number | null,
+    driver_license: '',
   });
 
   const createUser = useCreateUser();
@@ -70,6 +72,8 @@ export default function CreateUserDialog() {
         specialization: formData.specialization.length > 0 ? formData.specialization : null,
         company: formData.company || null,
         note: formData.note || null,
+        rank: formData.rank,
+        driver_license: formData.driver_license || null,
       },
       {
         onSuccess: () => {
@@ -83,6 +87,8 @@ export default function CreateUserDialog() {
             is_drservis: true,
             company: '',
             note: '',
+            rank: null,
+            driver_license: '',
           });
           setOpen(false);
         },
@@ -195,6 +201,44 @@ export default function CreateUserDialog() {
               <Switch
                 checked={formData.is_drservis}
                 onCheckedChange={(checked) => setFormData({ ...formData, is_drservis: checked, company: checked ? '' : formData.company })}
+                disabled={loading}
+              />
+            </div>
+          </div>
+
+          {/* Rank + Driver license */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="rank">Rank (1–4)</Label>
+              <div className="flex gap-1">
+                {[1, 2, 3, 4].map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, rank: formData.rank === r ? null : r })}
+                    disabled={loading}
+                    className={`flex-1 py-1.5 rounded text-sm font-medium border transition-colors ${
+                      formData.rank === r
+                        ? r === 1 ? 'bg-slate-400 text-white border-slate-400'
+                        : r === 2 ? 'bg-blue-400 text-white border-blue-400'
+                        : r === 3 ? 'bg-green-500 text-white border-green-500'
+                        : 'bg-amber-500 text-white border-amber-500'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="driver_license">Řidičský průkaz</Label>
+              <Input
+                id="driver_license"
+                type="text"
+                placeholder="B, C..."
+                value={formData.driver_license}
+                onChange={(e) => setFormData({ ...formData, driver_license: e.target.value })}
                 disabled={loading}
               />
             </div>

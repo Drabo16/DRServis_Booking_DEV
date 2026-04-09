@@ -12,6 +12,8 @@ export const createUserSchema = z.object({
   is_drservis: z.boolean().default(true),
   company: z.string().max(200).optional().nullable(),
   note: z.string().max(2000).optional().nullable(),
+  rank: z.number().int().min(1).max(4).optional().nullable(),
+  driver_license: z.string().max(100).optional().nullable(),
 });
 
 // =====================================================
@@ -27,4 +29,6 @@ export const updateUserSchema = z.object({
   is_drservis: z.boolean().optional(),
   company: z.string().max(200).optional().nullable(),
   note: z.string().max(2000).optional().nullable(),
+  rank: z.number().int().min(1).max(4).optional().nullable(),
+  driver_license: z.string().max(100).optional().nullable(),
 });

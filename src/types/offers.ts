@@ -54,6 +54,7 @@ export interface Offer {
   discount_percent: number;
   discount_amount: number;
   total_amount: number;
+  custom_price: number | null;
   is_vat_payer: boolean;
   event_start_date: string | null;
   event_end_date: string | null;

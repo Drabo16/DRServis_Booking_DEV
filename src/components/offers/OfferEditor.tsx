@@ -60,6 +60,7 @@ interface OfferData {
   title: string;
   status: OfferStatus;
   discount_percent: number;
+  custom_price: number | null;
   offer_set_id: string | null;
   set_label: string | null;
   event_start_date: string | null;
@@ -112,6 +113,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
   const [localSetId, setLocalSetId] = useState<string | null>(null);
   const [localSetLabel, setLocalSetLabel] = useState('');
   const [localIsVatPayer, setLocalIsVatPayer] = useState(true);
+  const [localCustomPrice, setLocalCustomPrice] = useState<number | null>(null);
   const [localTitle, setLocalTitle] = useState('');
   const [localEventStartDate, setLocalEventStartDate] = useState<string | null>(null);
   const [localEventEndDate, setLocalEventEndDate] = useState<string | null>(null);
@@ -179,6 +181,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
   const localDiscountRef = useRef(0);
   const localStatusRef = useRef<OfferStatus>('draft');
   const localIsVatPayerRef = useRef(true);
+  const localCustomPriceRef = useRef<number | null>(null);
   const localSetIdRef = useRef<string | null>(null);
   const localSetLabelRef = useRef('');
   const localTitleRef = useRef('');
@@ -206,6 +209,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     localDiscountRef.current = localDiscount;
     localStatusRef.current = localStatus;
     localIsVatPayerRef.current = localIsVatPayer;
+    localCustomPriceRef.current = localCustomPrice;
     localSetIdRef.current = localSetId;
     localSetLabelRef.current = localSetLabel;
     localTitleRef.current = localTitle;
@@ -216,7 +220,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
     localEventIdRef.current = localEventId;
     isDirtyRef.current = isDirty;
     isSavingRef.current = isSaving;
-  }, [localItems, localDiscount, localStatus, localIsVatPayer, localSetId, localSetLabel, localTitle, localEventStartDate, localEventEndDate, localClientId, localNotes, localEventId, isDirty, isSaving]);
+  }, [localItems, localDiscount, localStatus, localIsVatPayer, localCustomPrice, localSetId, localSetLabel, localTitle, localEventStartDate, localEventEndDate, localClientId, localNotes, localEventId, isDirty, isSaving]);
 
   // Load data once on mount
   useEffect(() => {
@@ -251,6 +255,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
         setLocalStatus(offerData.status);
         setLocalDiscount(offerData.discount_percent);
         setLocalIsVatPayer(offerData.is_vat_payer ?? true);
+        setLocalCustomPrice(offerData.custom_price ?? null);
         setLocalSetId(offerData.offer_set_id || null);
         setLocalSetLabel(offerData.set_label || '');
         setLocalTitle(offerData.title || '');
@@ -510,6 +515,7 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
             status,
             discount_percent: discount,
             is_vat_payer: isVatPayer,
+            custom_price: localCustomPriceRef.current,
             offer_set_id: setId,
             set_label: setLabel || null,
             title: title || null,
@@ -2040,6 +2046,35 @@ export default function OfferEditor({ offerId, isAdmin, onBack }: OfferEditorPro
             </div>
           </div>
         )}
+        <div className="border-t mt-3 pt-3 flex justify-between items-center gap-4">
+          <span className="text-slate-600 text-sm shrink-0">Dohodnutá cena:</span>
+          <div className="flex items-center gap-1">
+            <input
+              type="number"
+              min="0"
+              step="100"
+              placeholder="(nezadáno)"
+              value={localCustomPrice ?? ''}
+              onChange={(e) => {
+                const val = e.target.value;
+                setLocalCustomPrice(val === '' ? null : Number(val));
+                markDirty();
+              }}
+              className="w-36 text-right border rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-300 focus:outline-none"
+            />
+            <span className="text-slate-500 text-sm">Kč</span>
+            {localCustomPrice !== null && (
+              <button
+                type="button"
+                onClick={() => { setLocalCustomPrice(null); markDirty(); }}
+                className="text-slate-400 hover:text-slate-600 text-xs ml-1"
+                title="Vymazat"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Instructions */}

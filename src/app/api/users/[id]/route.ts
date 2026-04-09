@@ -63,7 +63,7 @@ export async function PATCH(
       return apiError('Validation failed', 400);
     }
 
-    const { full_name, email, phone, role, specialization, is_active, is_drservis, company, note } = parsed.data;
+    const { full_name, email, phone, role, specialization, is_active, is_drservis, company, note, rank, driver_license } = parsed.data;
 
     // SECURITY: Manager restrictions
     if (!isPrivileged) {
@@ -92,6 +92,8 @@ export async function PATCH(
     if (is_drservis !== undefined) updates.is_drservis = is_drservis;
     if (company !== undefined) updates.company = company;
     if (note !== undefined) updates.note = note;
+    if (rank !== undefined) updates.rank = rank;
+    if (driver_license !== undefined) updates.driver_license = driver_license;
 
     // Only privileged users can change role
     if (role !== undefined && isPrivileged) {

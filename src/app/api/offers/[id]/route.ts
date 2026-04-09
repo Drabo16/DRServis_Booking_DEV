@@ -51,7 +51,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const { data: offer, error: offerError } = await supabase
       .from('offers')
       .select(`
-        id, offer_number, year, title, event_id, status, valid_until, event_start_date, event_end_date, notes, subtotal_equipment, subtotal_personnel, subtotal_transport, discount_percent, discount_amount, total_amount, is_vat_payer, client_id, created_by, created_at, updated_at, offer_set_id, set_label,
+        id, offer_number, year, title, event_id, status, valid_until, event_start_date, event_end_date, notes, subtotal_equipment, subtotal_personnel, subtotal_transport, discount_percent, discount_amount, total_amount, custom_price, is_vat_payer, client_id, created_by, created_at, updated_at, offer_set_id, set_label,
         event:events(id, title, start_time, end_time, location),
         client:clients(id, name)
       `)
@@ -113,7 +113,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (!parsed.success) {
       return apiError('Validation failed', 400);
     }
-    const { title, event_id, status, valid_until, event_start_date, event_end_date, notes, discount_percent, is_vat_payer, client_id, offer_set_id, set_label, recalculate } = parsed.data;
+    const { title, event_id, status, valid_until, event_start_date, event_end_date, notes, discount_percent, custom_price, is_vat_payer, client_id, offer_set_id, set_label, recalculate } = parsed.data;
 
     // If recalculate is true, recalculate all totals from items
     if (recalculate) {
@@ -160,6 +160,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       if (client_id !== undefined) updateData.client_id = client_id;
       if (notes !== undefined) updateData.notes = notes;
       if (event_id !== undefined) updateData.event_id = event_id;
+      if (custom_price !== undefined) updateData.custom_price = custom_price;
 
       const { data, error } = await supabase
         .from('offers')
@@ -189,6 +190,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (is_vat_payer !== undefined) updateData.is_vat_payer = is_vat_payer;
     if (offer_set_id !== undefined) updateData.offer_set_id = offer_set_id;
     if (set_label !== undefined) updateData.set_label = set_label;
+    if (custom_price !== undefined) updateData.custom_price = custom_price;
 
     // If discount changed, recalculate
     if (discount_percent !== undefined) {
@@ -221,7 +223,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       .update(updateData)
       .eq('id', id)
       .select(`
-        id, offer_number, year, title, event_id, status, valid_until, event_start_date, event_end_date, notes, subtotal_equipment, subtotal_personnel, subtotal_transport, discount_percent, discount_amount, total_amount, is_vat_payer, client_id, created_by, created_at, updated_at, offer_set_id, set_label,
+        id, offer_number, year, title, event_id, status, valid_until, event_start_date, event_end_date, notes, subtotal_equipment, subtotal_personnel, subtotal_transport, discount_percent, discount_amount, total_amount, custom_price, is_vat_payer, client_id, created_by, created_at, updated_at, offer_set_id, set_label,
         event:events(id, title, start_time, end_time, location),
         client:clients(id, name)
       `)

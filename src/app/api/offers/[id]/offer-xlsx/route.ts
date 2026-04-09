@@ -443,6 +443,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       r++;
     }
 
+    // ── Custom / agreed price ────────────────────────────────────────────
+    if (offer.custom_price != null) {
+      set(r, 0, '', 's'); set(r, 1, '', 's'); set(r, 2, '', 's');
+      set(r, 3, 'DOHODNUTÁ CENA:', 's', { ...S.totalLabel, font: { bold: true, sz: 11, color: { rgb: C_GREEN } } });
+      set(r, 4, offer.custom_price, 'n', { ...S.totalValue, font: { bold: true, sz: 12, color: { rgb: C_GREEN } } });
+      r++;
+    }
+
     // ── Valid until ───────────────────────────────────────────────────────
     if (offer.valid_until) {
       r++;

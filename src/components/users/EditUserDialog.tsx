@@ -70,6 +70,8 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
     is_drservis: user.is_drservis ?? true,
     company: user.company || '',
     note: user.note || '',
+    rank: user.rank ?? null as number | null,
+    driver_license: user.driver_license || '',
   });
 
   // Mutation hooks for user CRUD
@@ -155,6 +157,8 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
         is_drservis: user.is_drservis ?? true,
         company: user.company || '',
         note: user.note || '',
+        rank: user.rank ?? null,
+        driver_license: user.driver_license || '',
       });
     }
   }, [open, refetchPermissions, user, canManagePermissions]);
@@ -250,6 +254,8 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
             is_drservis: formData.is_drservis,
             company: formData.company || null,
             note: formData.note || null,
+            rank: formData.rank,
+            driver_license: formData.driver_license || null,
           }
         : {
             full_name: formData.full_name,
@@ -261,6 +267,8 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
             is_drservis: formData.is_drservis,
             company: formData.company || null,
             note: formData.note || null,
+            rank: formData.rank,
+            driver_license: formData.driver_license || null,
           };
 
       // Update user via mutation hook
@@ -433,6 +441,44 @@ export default function EditUserDialog({ user }: EditUserDialogProps) {
               onChange={(e) => setFormData({ ...formData, note: e.target.value })}
               disabled={loading}
             />
+          </div>
+
+          {/* Rank + Driver license */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Rank (1–4)</Label>
+              <div className="flex gap-1">
+                {[1, 2, 3, 4].map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, rank: formData.rank === r ? null : r })}
+                    disabled={loading}
+                    className={`flex-1 py-1.5 rounded text-sm font-medium border transition-colors ${
+                      formData.rank === r
+                        ? r === 1 ? 'bg-slate-400 text-white border-slate-400'
+                        : r === 2 ? 'bg-blue-400 text-white border-blue-400'
+                        : r === 3 ? 'bg-green-500 text-white border-green-500'
+                        : 'bg-amber-500 text-white border-amber-500'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="driver_license">Řidičský průkaz</Label>
+              <Input
+                id="driver_license"
+                type="text"
+                placeholder="B, C..."
+                value={formData.driver_license}
+                onChange={(e) => setFormData({ ...formData, driver_license: e.target.value })}
+                disabled={loading}
+              />
+            </div>
           </div>
 
           {/* Default roles / Specialization */}

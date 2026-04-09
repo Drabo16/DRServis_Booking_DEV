@@ -432,6 +432,14 @@ export function OfferPdfDocument({ offer, logoBase64 }: OfferPdfDocumentProps) {
               </View>
             </>
           )}
+
+          {/* Custom / agreed price */}
+          {offer.custom_price != null && (
+            <View style={[styles.totalRow, { marginTop: 8, paddingTop: 8, borderTopColor: '#16a34a' }]}>
+              <Text style={[styles.totalLabel, { color: '#16a34a' }]}>DOHODNUTÁ CENA:</Text>
+              <Text style={[styles.totalValue, { color: '#16a34a' }]}>{formatCurrency(offer.custom_price)}</Text>
+            </View>
+          )}
         </View>
 
         {/* Valid Until */}

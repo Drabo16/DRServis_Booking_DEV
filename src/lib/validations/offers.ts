@@ -33,6 +33,7 @@ export const updateOfferSchema = z.object({
   notes: z.string().max(5000).optional().nullable(),
   client_id: z.string().uuid().optional().nullable(),
   discount_percent: z.number().min(0).max(100).optional(),
+  custom_price: z.number().min(0).optional().nullable(),
   is_vat_payer: z.boolean().optional(),
   offer_set_id: z.string().uuid().optional().nullable(),
   set_label: z.string().max(200).optional().nullable(),
