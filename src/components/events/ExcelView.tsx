@@ -88,15 +88,15 @@ function TechPickerList({ matching, others, onSelect, roleTypes = [] }: TechPick
       >
         <Info className="w-3 h-3" />
       </button>
-      {tech.rank && (
-        <span className={`text-[10px] font-bold px-1 py-0.5 rounded shrink-0 ${RANK_COLORS[tech.rank]}`}>{tech.rank}</span>
-      )}
       <button
         onClick={() => onSelect(tech.id)}
         className={`flex-1 text-left text-sm truncate min-w-0 ${dimmed ? 'text-slate-400' : ''}`}
       >
         {tech.full_name}
       </button>
+      {tech.rank && (
+        <span className={`text-[10px] font-bold px-1 py-0.5 rounded shrink-0 ${RANK_COLORS[tech.rank]}`}>{tech.rank}</span>
+      )}
     </div>
   );
 

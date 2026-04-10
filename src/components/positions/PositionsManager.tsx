@@ -213,15 +213,15 @@ function TechPickerDropdown({
       >
         <Info className="w-3.5 h-3.5" />
       </button>
-      {tech.rank && (
-        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${RANK_COLORS[tech.rank]}`}>{tech.rank}</span>
-      )}
       <div
         className={`flex-1 min-w-0 text-sm truncate ${dimmed ? 'text-slate-400' : ''}`}
         onClick={() => { onSelect(tech.id); setOpen(false); setInfoTechId(null); setSearch(''); }}
       >
         {tech.full_name}
       </div>
+      {tech.rank && (
+        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${RANK_COLORS[tech.rank]}`}>{tech.rank}</span>
+      )}
     </div>
   );
 
@@ -234,12 +234,12 @@ function TechPickerDropdown({
       >
         {selectedTech ? (
           <span className="flex items-center gap-1.5 truncate min-w-0">
+            <span className="truncate">{selectedTech.full_name}</span>
             {selectedTech.rank && (
               <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${RANK_COLORS[selectedTech.rank]}`}>
                 {selectedTech.rank}
               </span>
             )}
-            <span className="truncate">{selectedTech.full_name}</span>
           </span>
         ) : (
           <span className="text-slate-400">{placeholder}</span>
@@ -297,13 +297,20 @@ function TechPickerDropdown({
         if (!rect) return null;
         const panelWidth = 240; // w-60
         const vh = typeof window !== 'undefined' ? window.innerHeight : 0;
+        // Mirror the dropdown's flip-up logic so info panel opens in the same direction
+        const desiredHeight = 320;
+        const spaceBelow = vh - rect.bottom;
+        const spaceAbove = rect.top;
+        const flipUp = spaceBelow < desiredHeight && spaceAbove > spaceBelow;
         // Place to the LEFT of the trigger; if no room, fall back to right
         const leftPos = rect.left - panelWidth - 8;
         const useLeft = leftPos >= 8;
-        const top = Math.max(8, Math.min(rect.top, vh - 200));
-        const style: React.CSSProperties = useLeft
-          ? { top, left: leftPos, width: panelWidth }
-          : { top, left: Math.min(rect.right + 8, (typeof window !== 'undefined' ? window.innerWidth : 0) - panelWidth - 8), width: panelWidth };
+        const left = useLeft
+          ? leftPos
+          : Math.min(rect.right + 8, (typeof window !== 'undefined' ? window.innerWidth : 0) - panelWidth - 8);
+        const style: React.CSSProperties = flipUp
+          ? { bottom: vh - rect.bottom, left, width: panelWidth }
+          : { top: rect.top, left, width: panelWidth };
         return (
         <div className="fixed z-[100] bg-white border rounded-lg shadow-xl p-3 text-sm" style={style}>
           <div className="flex items-start justify-between mb-2">

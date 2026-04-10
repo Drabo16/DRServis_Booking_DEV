@@ -134,12 +134,12 @@ export default function AssignTechnicianDialog({
               >
                 {selectedTech ? (
                   <div className="flex items-center gap-2 min-w-0">
+                    <span className="truncate">{selectedTech.full_name}</span>
                     {selectedTech.rank && (
                       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${RANK_COLORS[selectedTech.rank]}`}>
                         {selectedTech.rank}
                       </span>
                     )}
-                    <span className="truncate">{selectedTech.full_name}</span>
                   </div>
                 ) : (
                   <span className="text-slate-400">Vyberte technika...</span>
@@ -185,11 +185,6 @@ export default function AssignTechnicianDialog({
                       >
                         <Info className="w-3.5 h-3.5" />
                       </button>
-                      {tech.rank && (
-                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${RANK_COLORS[tech.rank]}`}>
-                          {tech.rank}
-                        </span>
-                      )}
                       {/* Selectable area */}
                       <div
                         className="flex-1 min-w-0 text-sm truncate"
@@ -202,6 +197,11 @@ export default function AssignTechnicianDialog({
                       >
                         {tech.full_name}
                       </div>
+                      {tech.rank && (
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${RANK_COLORS[tech.rank]}`}>
+                          {tech.rank}
+                        </span>
+                      )}
                     </div>
                   ))}
                 </div>
