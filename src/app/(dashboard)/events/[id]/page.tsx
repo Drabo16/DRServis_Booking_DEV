@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -66,8 +66,9 @@ export default async function EventDetailPage({
     notFound();
   }
 
-  // Načti všechny aktivní uživatele pro dropdown (mohou být přiřazeni k akcím)
-  const { data: allTechnicians } = await supabase
+  // Načti všechny aktivní uživatele pro dropdown (service role bypasses RLS)
+  const serviceClient = createServiceRoleClient();
+  const { data: allTechnicians } = await serviceClient
     .from('profiles')
     .select('id, auth_user_id, full_name, email, phone, role, specialization, avatar_url, is_active, has_warehouse_access, is_drservis, company, note, rank, driver_license, created_at, updated_at')
     .eq('is_active', true)

@@ -1,21 +1,24 @@
 'use client';
 
+import { useState } from 'react';
 import { useUsers } from '@/hooks/useUsers';
 import { useMyPermissions, canPerformAction } from '@/hooks/usePermissions';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import CreateUserDialog from '@/components/users/CreateUserDialog';
 import EditUserDialog from '@/components/users/EditUserDialog';
 import ImportUsersDialog from '@/components/users/ImportUsersDialog';
-import { Loader2, Crown, UserCog, User, ShieldAlert, Car } from 'lucide-react';
+import { Loader2, Crown, UserCog, User, ShieldAlert, Car, Search } from 'lucide-react';
 import { ROLE_LABELS } from '@/types/modules';
-import { ROLE_TYPES } from '@/lib/constants';
-
-const SPEC_LABEL: Record<string, string> = Object.fromEntries(ROLE_TYPES.map(r => [r.value, r.label]));
+import { useRoleTypes } from '@/hooks/useRoleTypes';
+import { getRoleTypeLabel } from '@/lib/utils';
 
 export default function UsersPage() {
   const { data: users = [], isLoading, error } = useUsers();
   const { data: permissions, isLoading: permissionsLoading } = useMyPermissions();
+  const { data: roleTypes = [] } = useRoleTypes();
+  const [search, setSearch] = useState('');
 
   // Check permission to manage users
   const canManageUsers = canPerformAction(permissions, 'users_settings_manage_users');
@@ -55,6 +58,23 @@ export default function UsersPage() {
     );
   }
 
+  const filteredUsers = search.trim()
+    ? users.filter(u => {
+        const q = search.toLowerCase();
+        const specLabels = u.specialization?.map((s: string) => getRoleTypeLabel(s, roleTypes).toLowerCase()).join(' ') ?? '';
+        const roleLabel = (ROLE_LABELS[u.role as keyof typeof ROLE_LABELS] || u.role).toLowerCase();
+        return (
+          u.full_name.toLowerCase().includes(q) ||
+          u.email.toLowerCase().includes(q) ||
+          (u.company?.toLowerCase().includes(q) ?? false) ||
+          roleLabel.includes(q) ||
+          specLabels.includes(q) ||
+          (u.driver_license?.toLowerCase().includes(q) ?? false) ||
+          (u.rank != null && `rank ${u.rank}`.includes(q))
+        );
+      })
+    : users;
+
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
@@ -70,8 +90,19 @@ export default function UsersPage() {
         </div>
       </div>
 
+      <div className="relative max-w-sm">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        <Input
+          type="text"
+          placeholder="Hledat (jméno, email, firma, pozice, rank...)"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="pl-9"
+        />
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {users.map((user) => (
+        {filteredUsers.map((user) => (
           <Card key={user.id}>
             <CardHeader>
               <div className="flex items-start justify-between">
@@ -108,11 +139,11 @@ export default function UsersPage() {
               )}
               {user.specialization && user.specialization.length > 0 && (
                 <div className="text-sm">
-                  <span className="text-slate-500">Specializace:</span>
+                  <span className="text-slate-500">Pozice:</span>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {user.specialization.map((spec: string) => (
                       <Badge key={spec} variant="outline" className="text-xs">
-                        {SPEC_LABEL[spec] || spec}
+                        {getRoleTypeLabel(spec, roleTypes)}
                       </Badge>
                     ))}
                   </div>
@@ -122,10 +153,10 @@ export default function UsersPage() {
                 <div className="text-sm flex items-center gap-2">
                   {user.rank && (
                     <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
-                      user.rank === 1 ? 'bg-slate-200 text-slate-700' :
+                      user.rank === 1 ? 'bg-green-100 text-green-700' :
                       user.rank === 2 ? 'bg-blue-100 text-blue-700' :
-                      user.rank === 3 ? 'bg-green-100 text-green-700' :
-                      'bg-amber-100 text-amber-700'
+                      user.rank === 3 ? 'bg-amber-100 text-amber-700' :
+                      'bg-slate-200 text-slate-700'
                     }`}>
                       Rank {user.rank}
                     </span>
@@ -161,10 +192,12 @@ export default function UsersPage() {
         ))}
       </div>
 
-      {users.length === 0 && (
+      {filteredUsers.length === 0 && (
         <Card>
           <CardContent className="py-12 text-center">
-            <p className="text-slate-600">Žádní uživatelé v systému</p>
+            <p className="text-slate-600">
+              {search.trim() ? 'Žádní uživatelé neodpovídají hledání' : 'Žádní uživatelé v systému'}
+            </p>
           </CardContent>
         </Card>
       )}

@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { X, Plus, Check, Loader2, Save, Users, FolderPlus, Settings, FolderOpen, Calendar, Link2, RefreshCw, Trash2, GripVertical, Eye, EyeOff } from 'lucide-react';
+import { X, Plus, Check, Loader2, Save, Users, FolderPlus, Settings, FolderOpen, Calendar, Link2, RefreshCw, Trash2, GripVertical, Eye, EyeOff, Info } from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { cs } from 'date-fns/locale';
@@ -51,6 +51,91 @@ type PendingOperation =
   | { type: 'fillEmptyPosition'; eventId: string; positionId: string; technicianId: string; tempId: string }
   | { type: 'removeAssignment'; assignmentId: string; positionId: string; eventId: string }
   | { type: 'updateStatus'; assignmentId: string; newStatus: AttendanceStatus };
+
+const RANK_COLORS: Record<number, string> = {
+  1: 'bg-green-100 text-green-700',
+  2: 'bg-blue-100 text-blue-700',
+  3: 'bg-amber-100 text-amber-700',
+  4: 'bg-slate-200 text-slate-700',
+};
+
+interface TechPickerListProps {
+  matching: Profile[];
+  others: Profile[];
+  onSelect: (techId: string) => void;
+  roleTypes?: { value: string; label: string }[];
+}
+
+function TechPickerList({ matching, others, onSelect, roleTypes = [] }: TechPickerListProps) {
+  const [infoTechId, setInfoTechId] = useState<string | null>(null);
+  const infoTech = infoTechId ? [...matching, ...others].find(t => t.id === infoTechId) : null;
+
+  const sortByRank = (techs: Profile[]) =>
+    [...techs].sort((a, b) => {
+      const ra = a.rank ?? 999;
+      const rb = b.rank ?? 999;
+      if (ra !== rb) return ra - rb;
+      return a.full_name.localeCompare(b.full_name, 'cs');
+    });
+
+  const renderTech = (tech: Profile, dimmed = false) => (
+    <div key={tech.id} className="flex items-center gap-1 px-2 py-1 hover:bg-slate-100 rounded">
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setInfoTechId(prev => prev === tech.id ? null : tech.id); }}
+        className="shrink-0 text-slate-500 hover:text-blue-600"
+        title="Info"
+      >
+        <Info className="w-3 h-3" />
+      </button>
+      {tech.rank && (
+        <span className={`text-[10px] font-bold px-1 py-0.5 rounded shrink-0 ${RANK_COLORS[tech.rank]}`}>{tech.rank}</span>
+      )}
+      <button
+        onClick={() => onSelect(tech.id)}
+        className={`flex-1 text-left text-sm truncate min-w-0 ${dimmed ? 'text-slate-400' : ''}`}
+      >
+        {tech.full_name}
+      </button>
+    </div>
+  );
+
+  if (infoTech) {
+    return (
+      <div className="p-2">
+        <div className="flex items-start justify-between mb-2">
+          <p className="font-semibold text-sm text-slate-900">{infoTech.full_name}</p>
+          <button type="button" onClick={() => setInfoTechId(null)} className="text-slate-400 hover:text-slate-600 ml-2">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+        <div className="space-y-1 text-xs">
+          <p className="text-slate-600">Rank: {infoTech.rank ? <span className={`font-bold px-1.5 py-0.5 rounded ${RANK_COLORS[infoTech.rank]}`}>{infoTech.rank}</span> : <span className="text-slate-400">–</span>}</p>
+          <p className="text-slate-600">Tel: {infoTech.phone || <span className="text-slate-400">–</span>}</p>
+          <p className="text-slate-600">ŘP: {infoTech.driver_license || <span className="text-slate-400">–</span>}</p>
+          <p className="text-slate-600">Pozice: {infoTech.specialization?.length ? infoTech.specialization.map(s => getRoleTypeLabel(s, roleTypes)).join(', ') : <span className="text-slate-400">–</span>}</p>
+          {infoTech.company && <p className="text-slate-600">Firma: {infoTech.company}</p>}
+          {infoTech.note && <p className="text-slate-500 italic">{infoTech.note}</p>}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-h-48 overflow-y-auto">
+      {matching.length === 0 && others.length === 0 && (
+        <div className="px-2 py-1.5 text-sm text-slate-400">Všichni přiřazeni</div>
+      )}
+      {sortByRank(matching).map(tech => renderTech(tech))}
+      {others.length > 0 && matching.length > 0 && (
+        <div className="border-t my-1">
+          <div className="text-[10px] font-medium text-slate-400 px-2 py-0.5">Ostatní</div>
+        </div>
+      )}
+      {sortByRank(others).map(tech => renderTech(tech, true))}
+    </div>
+  );
+}
 
 export default function ExcelView({ events, isAdmin, allTechnicians, userId }: ExcelViewProps) {
   const queryClient = useQueryClient();
@@ -1163,41 +1248,19 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                               <div className="text-xs font-medium text-slate-500 px-2 py-1">
                                 Poptat osobu
                               </div>
-                              <div className="max-h-48 overflow-y-auto">
-                                {(() => {
+                              {(() => {
                                   const available = allTechnicians.filter(t => !assignments.some(a => a.technician_id === t.id));
                                   const matching = available.filter(t => t.specialization?.some(s => isSpecRelated(s, role.value)));
                                   const others = available.filter(t => !t.specialization?.some(s => isSpecRelated(s, role.value)));
-                                  if (available.length === 0) return <div className="px-2 py-1.5 text-sm text-slate-400">Všichni přiřazeni</div>;
                                   return (
-                                    <>
-                                      {matching.sort((a, b) => a.full_name.localeCompare(b.full_name, 'cs')).map(tech => (
-                                        <button
-                                          key={tech.id}
-                                          onClick={() => addTechnician(event.id, role.value, tech.id)}
-                                          className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-slate-100"
-                                        >
-                                          {tech.full_name}
-                                        </button>
-                                      ))}
-                                      {others.length > 0 && matching.length > 0 && (
-                                        <div className="border-t my-1">
-                                          <div className="text-[10px] font-medium text-slate-400 px-2 py-0.5">Ostatní</div>
-                                        </div>
-                                      )}
-                                      {others.sort((a, b) => a.full_name.localeCompare(b.full_name, 'cs')).map(tech => (
-                                        <button
-                                          key={tech.id}
-                                          onClick={() => addTechnician(event.id, role.value, tech.id)}
-                                          className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-slate-100 text-slate-400"
-                                        >
-                                          {tech.full_name}
-                                        </button>
-                                      ))}
-                                    </>
+                                    <TechPickerList
+                                      matching={matching}
+                                      others={others}
+                                      onSelect={(techId) => addTechnician(event.id, role.value, techId)}
+                                      roleTypes={roleTypes}
+                                    />
                                   );
                                 })()}
-                              </div>
                             </PopoverContent>
                           </Popover>
                         )}
@@ -1418,41 +1481,19 @@ export default function ExcelView({ events, isAdmin, allTechnicians, userId }: E
                                 <div className="text-xs font-medium text-slate-500 px-2 py-1">
                                   Poptat osobu
                                 </div>
-                                <div className="max-h-48 overflow-y-auto">
-                                  {(() => {
+                                {(() => {
                                     const available = allTechnicians.filter(t => !assignments.some(a => a.technician_id === t.id));
                                     const matching = available.filter(t => t.specialization?.some(s => isSpecRelated(s, role.value)));
                                     const others = available.filter(t => !t.specialization?.some(s => isSpecRelated(s, role.value)));
-                                    if (available.length === 0) return <div className="px-2 py-1.5 text-sm text-slate-400">Všichni přiřazeni</div>;
                                     return (
-                                      <>
-                                        {matching.sort((a, b) => a.full_name.localeCompare(b.full_name, 'cs')).map(tech => (
-                                          <button
-                                            key={tech.id}
-                                            onClick={() => addTechnician(event.id, role.value, tech.id)}
-                                            className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-slate-100"
-                                          >
-                                            {tech.full_name}
-                                          </button>
-                                        ))}
-                                        {others.length > 0 && matching.length > 0 && (
-                                          <div className="border-t my-1">
-                                            <div className="text-[10px] font-medium text-slate-400 px-2 py-0.5">Ostatní</div>
-                                          </div>
-                                        )}
-                                        {others.sort((a, b) => a.full_name.localeCompare(b.full_name, 'cs')).map(tech => (
-                                          <button
-                                            key={tech.id}
-                                            onClick={() => addTechnician(event.id, role.value, tech.id)}
-                                            className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-slate-100 text-slate-400"
-                                          >
-                                            {tech.full_name}
-                                          </button>
-                                        ))}
-                                      </>
+                                      <TechPickerList
+                                        matching={matching}
+                                        others={others}
+                                        onSelect={(techId) => addTechnician(event.id, role.value, techId)}
+                                        roleTypes={roleTypes}
+                                      />
                                     );
                                   })()}
-                                </div>
                               </PopoverContent>
                             </Popover>
                           )}

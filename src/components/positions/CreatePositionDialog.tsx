@@ -88,7 +88,7 @@ export default function CreatePositionDialog({ eventId }: CreatePositionDialogPr
           </div>
 
           <div>
-            <Label htmlFor="role_type">Typ role</Label>
+            <Label htmlFor="role_type">Pozice</Label>
             <Select
               value={formData.role_type}
               onValueChange={(value) => setFormData({ ...formData, role_type: value })}

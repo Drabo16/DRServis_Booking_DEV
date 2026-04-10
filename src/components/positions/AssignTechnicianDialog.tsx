@@ -15,13 +15,15 @@ import { ChevronDown, Info, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { useCreateAssignment } from '@/hooks/useAssignments';
+import { useRoleTypes } from '@/hooks/useRoleTypes';
+import { getRoleTypeLabel } from '@/lib/utils';
 import type { Profile } from '@/types';
 
 const RANK_COLORS: Record<number, string> = {
-  1: 'bg-slate-200 text-slate-700',
+  1: 'bg-green-100 text-green-700',
   2: 'bg-blue-100 text-blue-700',
-  3: 'bg-green-100 text-green-700',
-  4: 'bg-amber-100 text-amber-700',
+  3: 'bg-amber-100 text-amber-700',
+  4: 'bg-slate-200 text-slate-700',
 };
 
 interface AssignTechnicianDialogProps {
@@ -41,6 +43,7 @@ export default function AssignTechnicianDialog({
   const [notes, setNotes] = useState('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [infoTechId, setInfoTechId] = useState<string | null>(null);
+  const { data: roleTypes = [] } = useRoleTypes();
   const [search, setSearch] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
   const supabase = createClient();
@@ -130,13 +133,13 @@ export default function AssignTechnicianDialog({
                 className="w-full flex items-center justify-between border rounded px-3 py-2 text-sm bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-300"
               >
                 {selectedTech ? (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
                     {selectedTech.rank && (
-                      <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${RANK_COLORS[selectedTech.rank]}`}>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${RANK_COLORS[selectedTech.rank]}`}>
                         {selectedTech.rank}
                       </span>
                     )}
-                    <span>{selectedTech.full_name}</span>
+                    <span className="truncate">{selectedTech.full_name}</span>
                   </div>
                 ) : (
                   <span className="text-slate-400">Vyberte technika...</span>
@@ -170,27 +173,6 @@ export default function AssignTechnicianDialog({
                         tech.id === selectedTechnicianId ? 'bg-blue-50' : ''
                       }`}
                     >
-                      {/* Selectable area */}
-                      <div
-                        className="flex items-center gap-2 flex-1 min-w-0"
-                        onClick={() => {
-                          setSelectedTechnicianId(tech.id);
-                          setDropdownOpen(false);
-                          setInfoTechId(null);
-                          setSearch('');
-                        }}
-                      >
-                        {tech.rank && (
-                          <span className={`text-xs font-bold px-1.5 py-0.5 rounded shrink-0 ${RANK_COLORS[tech.rank]}`}>
-                            {tech.rank}
-                          </span>
-                        )}
-                        <span className="text-sm truncate">{tech.full_name}</span>
-                        {tech.company && (
-                          <span className="text-xs text-slate-400 truncate ml-auto shrink-0">{tech.company}</span>
-                        )}
-                      </div>
-
                       {/* Info button */}
                       <button
                         type="button"
@@ -198,11 +180,28 @@ export default function AssignTechnicianDialog({
                           e.stopPropagation();
                           setInfoTechId(prev => prev === tech.id ? null : tech.id);
                         }}
-                        className="shrink-0 text-slate-400 hover:text-blue-500"
+                        className="shrink-0 text-slate-500 hover:text-blue-600"
                         title="Info"
                       >
                         <Info className="w-3.5 h-3.5" />
                       </button>
+                      {tech.rank && (
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${RANK_COLORS[tech.rank]}`}>
+                          {tech.rank}
+                        </span>
+                      )}
+                      {/* Selectable area */}
+                      <div
+                        className="flex-1 min-w-0 text-sm truncate"
+                        onClick={() => {
+                          setSelectedTechnicianId(tech.id);
+                          setDropdownOpen(false);
+                          setInfoTechId(null);
+                          setSearch('');
+                        }}
+                      >
+                        {tech.full_name}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -210,21 +209,20 @@ export default function AssignTechnicianDialog({
 
               {/* Info panel */}
               {infoTech && (
-                <div className="absolute z-50 right-0 mt-1 w-52 bg-white border rounded shadow-lg p-3 text-sm">
+                <div className="absolute z-50 left-0 mt-1 w-52 bg-white border rounded shadow-lg p-3 text-sm">
                   <div className="flex items-start justify-between mb-2">
                     <p className="font-medium">{infoTech.full_name}</p>
                     <button type="button" onClick={() => setInfoTechId(null)} className="text-slate-400 hover:text-slate-600 ml-2">
                       <X className="w-3 h-3" />
                     </button>
                   </div>
-                  <div className="space-y-1 text-xs text-slate-500">
-                    {infoTech.rank && (
-                      <p>Rank: <span className={`font-bold px-1 rounded ${RANK_COLORS[infoTech.rank]}`}>{infoTech.rank}</span></p>
-                    )}
-                    {infoTech.phone && <p>Tel: {infoTech.phone}</p>}
-                    {infoTech.driver_license && <p>ŘP: {infoTech.driver_license}</p>}
-                    {infoTech.note && <p className="italic">{infoTech.note}</p>}
-                    {infoTech.company && <p>{infoTech.company}</p>}
+                  <div className="space-y-1.5 text-xs">
+                    <p className="text-slate-600">Rank: {infoTech.rank ? <span className={`font-bold px-1.5 py-0.5 rounded ${RANK_COLORS[infoTech.rank]}`}>{infoTech.rank}</span> : <span className="text-slate-400">–</span>}</p>
+                    <p className="text-slate-600">Tel: {infoTech.phone || <span className="text-slate-400">–</span>}</p>
+                    <p className="text-slate-600">ŘP: {infoTech.driver_license || <span className="text-slate-400">–</span>}</p>
+                    <p className="text-slate-600">Pozice: {infoTech.specialization?.length ? infoTech.specialization.map(s => getRoleTypeLabel(s, roleTypes)).join(', ') : <span className="text-slate-400">–</span>}</p>
+                    {infoTech.company && <p className="text-slate-600">Firma: {infoTech.company}</p>}
+                    {infoTech.note && <p className="text-slate-500 italic">{infoTech.note}</p>}
                   </div>
                 </div>
               )}

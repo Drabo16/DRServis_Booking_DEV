@@ -125,7 +125,7 @@ export default function PositionTable({ positions, eventId }: PositionTableProps
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Typ role</TableHead>
+              <TableHead>Pozice</TableHead>
               <TableHead className="w-20">Akce</TableHead>
             </TableRow>
           </TableHeader>

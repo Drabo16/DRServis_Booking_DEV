@@ -35,7 +35,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, Trash2, X, Mail, UserPlus, Loader2, Check, CalendarDays } from 'lucide-react';
+import { Plus, Trash2, X, Mail, UserPlus, Loader2, Check, CalendarDays, Info, ChevronDown } from 'lucide-react';
 import { getRoleTypeLabel, getAttendanceStatusLabel, getAttendanceStatusColor, cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { cs } from 'date-fns/locale';
@@ -103,7 +103,7 @@ function AddPositionsPopover({
       </PopoverTrigger>
       <PopoverContent align="end" className="w-56 p-0">
         <div className="text-xs font-medium text-slate-500 px-3 py-2 border-b">
-          Vyberte role
+          Vyberte pozice
         </div>
         <div className="py-1 px-1 max-h-60 overflow-y-auto">
           {roleTypes.map((role) => (
@@ -138,6 +138,192 @@ function AddPositionsPopover({
         )}
       </PopoverContent>
     </Popover>
+  );
+}
+
+const RANK_COLORS: Record<number, string> = {
+  1: 'bg-green-100 text-green-700',
+  2: 'bg-blue-100 text-blue-700',
+  3: 'bg-amber-100 text-amber-700',
+  4: 'bg-slate-200 text-slate-700',
+};
+
+function TechPickerDropdown({
+  technicians,
+  selectedId,
+  onSelect,
+  roleTypes = [],
+  placeholder = 'Vyberte technika...',
+  className = '',
+}: {
+  technicians: { matching: Profile[]; others: Profile[] };
+  selectedId: string;
+  onSelect: (id: string) => void;
+  roleTypes?: { value: string; label: string }[];
+  placeholder?: string;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [infoTechId, setInfoTechId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const ref = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setInfoTechId(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const allTechs = [...technicians.matching, ...technicians.others];
+  const selectedTech = selectedId ? allTechs.find(t => t.id === selectedId) : null;
+  const infoTech = infoTechId ? allTechs.find(t => t.id === infoTechId) : null;
+
+  const q = search.toLowerCase();
+  const filterBySearch = (techs: Profile[]) =>
+    q ? techs.filter(t => t.full_name.toLowerCase().includes(q)) : techs;
+
+  const sortByRank = (techs: Profile[]) =>
+    [...techs].sort((a, b) => {
+      const ra = a.rank ?? 999;
+      const rb = b.rank ?? 999;
+      if (ra !== rb) return ra - rb;
+      return a.full_name.localeCompare(b.full_name, 'cs');
+    });
+
+  const filteredMatching = sortByRank(filterBySearch(technicians.matching));
+  const filteredOthers = sortByRank(filterBySearch(technicians.others));
+
+  const renderRow = (tech: Profile, dimmed = false) => (
+    <div
+      key={tech.id}
+      className={`flex items-center gap-1.5 px-3 py-1.5 hover:bg-slate-50 cursor-pointer ${
+        tech.id === selectedId ? 'bg-blue-50' : ''
+      }`}
+    >
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setInfoTechId(prev => prev === tech.id ? null : tech.id); }}
+        className="shrink-0 text-slate-500 hover:text-blue-600"
+        title="Info"
+      >
+        <Info className="w-3.5 h-3.5" />
+      </button>
+      {tech.rank && (
+        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${RANK_COLORS[tech.rank]}`}>{tech.rank}</span>
+      )}
+      <div
+        className={`flex-1 min-w-0 text-sm truncate ${dimmed ? 'text-slate-400' : ''}`}
+        onClick={() => { onSelect(tech.id); setOpen(false); setInfoTechId(null); setSearch(''); }}
+      >
+        {tech.full_name}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className={`relative ${className}`} ref={ref}>
+      <button
+        type="button"
+        onClick={() => { setOpen(v => !v); setInfoTechId(null); setSearch(''); }}
+        className="w-full flex items-center justify-between border rounded px-3 py-2 text-sm bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-300"
+      >
+        {selectedTech ? (
+          <span className="flex items-center gap-1.5 truncate min-w-0">
+            {selectedTech.rank && (
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${RANK_COLORS[selectedTech.rank]}`}>
+                {selectedTech.rank}
+              </span>
+            )}
+            <span className="truncate">{selectedTech.full_name}</span>
+          </span>
+        ) : (
+          <span className="text-slate-400">{placeholder}</span>
+        )}
+        <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+      </button>
+
+      {open && (() => {
+        const rect = ref.current?.getBoundingClientRect();
+        if (!rect) return null;
+        const vh = typeof window !== 'undefined' ? window.innerHeight : 0;
+        const spaceBelow = vh - rect.bottom;
+        const spaceAbove = rect.top;
+        const desiredHeight = 320; // search + ~56 list rows
+        const flipUp = spaceBelow < desiredHeight && spaceAbove > spaceBelow;
+        const maxHeight = Math.max(180, Math.min(desiredHeight, (flipUp ? spaceAbove : spaceBelow) - 12));
+        const positionStyle: React.CSSProperties = flipUp
+          ? { bottom: vh - rect.top + 4, left: rect.left, width: rect.width, maxHeight }
+          : { top: rect.bottom + 4, left: rect.left, width: rect.width, maxHeight };
+        return (
+        <div
+          className="fixed z-[100] bg-white border rounded shadow-lg flex flex-col"
+          style={positionStyle}
+        >
+          <div className="p-2 border-b">
+            <input
+              autoFocus
+              type="text"
+              placeholder="Hledat..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full text-sm border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-300"
+            />
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            {filteredMatching.length === 0 && filteredOthers.length === 0 && (
+              <div className="px-3 py-2 text-sm text-slate-400">
+                {allTechs.length === 0 ? 'Žádní technici' : 'Nic nenalezeno'}
+              </div>
+            )}
+            {filteredMatching.map(tech => renderRow(tech))}
+            {filteredOthers.length > 0 && filteredMatching.length > 0 && (
+              <div className="border-t my-0.5">
+                <div className="text-[10px] font-medium text-slate-400 px-3 py-0.5">Ostatní</div>
+              </div>
+            )}
+            {filteredOthers.map(tech => renderRow(tech, true))}
+          </div>
+        </div>
+        );
+      })()}
+
+      {infoTech && (() => {
+        const rect = ref.current?.getBoundingClientRect();
+        if (!rect) return null;
+        const panelWidth = 240; // w-60
+        const vh = typeof window !== 'undefined' ? window.innerHeight : 0;
+        // Place to the LEFT of the trigger; if no room, fall back to right
+        const leftPos = rect.left - panelWidth - 8;
+        const useLeft = leftPos >= 8;
+        const top = Math.max(8, Math.min(rect.top, vh - 200));
+        const style: React.CSSProperties = useLeft
+          ? { top, left: leftPos, width: panelWidth }
+          : { top, left: Math.min(rect.right + 8, (typeof window !== 'undefined' ? window.innerWidth : 0) - panelWidth - 8), width: panelWidth };
+        return (
+        <div className="fixed z-[100] bg-white border rounded-lg shadow-xl p-3 text-sm" style={style}>
+          <div className="flex items-start justify-between mb-2">
+            <p className="font-semibold text-slate-900">{infoTech.full_name}</p>
+            <button type="button" onClick={() => setInfoTechId(null)} className="text-slate-400 hover:text-slate-600 ml-2">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <div className="space-y-1.5 text-xs">
+            <p className="text-slate-600">Rank: {infoTech.rank ? <span className={`font-bold px-1.5 py-0.5 rounded ${RANK_COLORS[infoTech.rank]}`}>{infoTech.rank}</span> : <span className="text-slate-400">–</span>}</p>
+            <p className="text-slate-600">Tel: {infoTech.phone || <span className="text-slate-400">–</span>}</p>
+            <p className="text-slate-600">ŘP: {infoTech.driver_license || <span className="text-slate-400">–</span>}</p>
+            <p className="text-slate-600">Pozice: {infoTech.specialization?.length ? infoTech.specialization.map(s => getRoleTypeLabel(s, roleTypes)).join(', ') : <span className="text-slate-400">–</span>}</p>
+            {infoTech.company && <p className="text-slate-600">Firma: {infoTech.company}</p>}
+            {infoTech.note && <p className="text-slate-500 italic">{infoTech.note}</p>}
+          </div>
+        </div>
+        );
+      })()}
+    </div>
   );
 }
 
@@ -571,29 +757,6 @@ export default function PositionsManager({
     return posLabel.startsWith(specLabel + ' ');
   };
 
-  // Sort technicians: those with a related specialization come first
-  const sortTechniciansByRole = (technicians: Profile[], roleType: string): Profile[] => {
-    return [...technicians].sort((a, b) => {
-      const aMatch = a.specialization?.some(s => isSpecRelated(s, roleType)) ?? false;
-      const bMatch = b.specialization?.some(s => isSpecRelated(s, roleType)) ?? false;
-      if (aMatch && !bMatch) return -1;
-      if (!aMatch && bMatch) return 1;
-      return a.full_name.localeCompare(b.full_name, 'cs');
-    });
-  };
-
-  // Format technician name showing only specializations related to the position's role
-  const formatTechnicianLabel = (tech: Profile, posRoleType: string): string => {
-    if (tech.specialization?.length) {
-      const related = tech.specialization.filter(s => isSpecRelated(s, posRoleType));
-      // Only show matching specializations, not all
-      if (related.length > 0) {
-        return `${tech.full_name} - ${related.map(s => getRoleTypeLabel(s, roleTypes)).join(', ')}`;
-      }
-    }
-    return tech.full_name;
-  };
-
   // Render a single position row (desktop table)
   const renderPositionRow = (position: typeof positions[0]) => (
     <TableRow key={position.id}>
@@ -667,25 +830,20 @@ export default function PositionsManager({
           ))}
           {isAdmin && (
             <div className="flex items-center gap-2">
-              <Select
-                value={selectedTechnician[position.id] || ''}
-                onValueChange={(value) =>
-                  setSelectedTechnician({ ...selectedTechnician, [position.id]: value })
-                }
-              >
-                <SelectTrigger className="flex-1">
-                  <SelectValue placeholder="Vyberte technika..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {sortTechniciansByRole(allTechnicians, position.role_type)
-                    .filter((tech) => !position.assignments.some((a) => a.technician_id === tech.id))
-                    .map((tech) => (
-                      <SelectItem key={tech.id} value={tech.id}>
-                        {formatTechnicianLabel(tech, position.role_type)}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
+              {(() => {
+                const available = allTechnicians.filter(t => !position.assignments.some(a => a.technician_id === t.id));
+                const matching = available.filter(t => t.specialization?.some(s => isSpecRelated(s, position.role_type)));
+                const others = available.filter(t => !t.specialization?.some(s => isSpecRelated(s, position.role_type)));
+                return (
+                  <TechPickerDropdown
+                    technicians={{ matching, others }}
+                    selectedId={selectedTechnician[position.id] || ''}
+                    onSelect={(id) => setSelectedTechnician({ ...selectedTechnician, [position.id]: id })}
+                    roleTypes={roleTypes}
+                    className="flex-1"
+                  />
+                );
+              })()}
               <Button
                 size="sm"
                 onClick={() => {
@@ -846,28 +1004,21 @@ export default function PositionsManager({
         ))}
         {isAdmin && (
           <div className="flex items-center gap-2 pt-1">
-            <Select
-              value={selectedTechnician[position.id] || ''}
-              onValueChange={(value) =>
-                setSelectedTechnician({ ...selectedTechnician, [position.id]: value })
-              }
-            >
-              <SelectTrigger className="flex-1 h-8 text-xs">
-                <SelectValue placeholder="Přidat technika..." />
-              </SelectTrigger>
-              <SelectContent>
-                {sortTechniciansByRole(allTechnicians, position.role_type)
-                  .filter(
-                    (tech) =>
-                      !position.assignments.some((a) => a.technician_id === tech.id)
-                  )
-                  .map((tech) => (
-                    <SelectItem key={tech.id} value={tech.id}>
-                      {formatTechnicianLabel(tech, position.role_type)}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
+            {(() => {
+              const available = allTechnicians.filter(t => !position.assignments.some(a => a.technician_id === t.id));
+              const matching = available.filter(t => t.specialization?.some(s => isSpecRelated(s, position.role_type)));
+              const others = available.filter(t => !t.specialization?.some(s => isSpecRelated(s, position.role_type)));
+              return (
+                <TechPickerDropdown
+                  technicians={{ matching, others }}
+                  selectedId={selectedTechnician[position.id] || ''}
+                  onSelect={(id) => setSelectedTechnician({ ...selectedTechnician, [position.id]: id })}
+                  roleTypes={roleTypes}
+                  placeholder="Přidat technika..."
+                  className="flex-1"
+                />
+              );
+            })()}
             <Button
               size="sm"
               onClick={() => {
@@ -947,7 +1098,7 @@ export default function PositionsManager({
   );
 
   return (
-    <Card>
+    <Card className="min-h-[420px]">
       <CardHeader className="pb-2 md:pb-6">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base md:text-xl">Pozice a přiřazení</CardTitle>
@@ -1004,7 +1155,7 @@ export default function PositionsManager({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[200px]">Typ role</TableHead>
+                <TableHead className="w-[200px]">Pozice</TableHead>
                 <TableHead>Přiřazení technici</TableHead>
                 {isAdmin && <TableHead className="w-[100px]">Akce</TableHead>}
               </TableRow>

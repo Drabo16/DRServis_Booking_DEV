@@ -219,10 +219,10 @@ export default function CreateUserDialog() {
                     disabled={loading}
                     className={`flex-1 py-1.5 rounded text-sm font-medium border transition-colors ${
                       formData.rank === r
-                        ? r === 1 ? 'bg-slate-400 text-white border-slate-400'
+                        ? r === 1 ? 'bg-green-500 text-white border-green-500'
                         : r === 2 ? 'bg-blue-400 text-white border-blue-400'
-                        : r === 3 ? 'bg-green-500 text-white border-green-500'
-                        : 'bg-amber-500 text-white border-amber-500'
+                        : r === 3 ? 'bg-amber-500 text-white border-amber-500'
+                        : 'bg-slate-400 text-white border-slate-400'
                         : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                     }`}
                   >
@@ -317,7 +317,7 @@ export default function CreateUserDialog() {
           )}
 
           <div className="space-y-2">
-            <Label>Specializace</Label>
+            <Label>Pozice</Label>
             <div className="flex flex-wrap gap-2">
               {ROLE_TYPES.map((type) => (
                 <button

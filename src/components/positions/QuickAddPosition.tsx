@@ -76,7 +76,7 @@ export default function QuickAddPosition({ eventId, variant = 'default', onSucce
   const content = (
     <div onClick={(e) => e.stopPropagation()}>
       <div className="text-xs font-medium text-slate-500 px-2 py-1.5 border-b">
-        Vyberte role
+        Vyberte pozice
       </div>
       {loadingRoles ? (
         <div className="flex items-center justify-center py-4">

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { apiError } from '@/lib/api-response';
 
 export async function GET() {
@@ -15,10 +15,11 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Načti všechny aktivní uživatele (mohou být přiřazeni k akcím)
-    const { data: technicians, error } = await supabase
+    // Načti všechny aktivní uživatele (service role bypasses RLS)
+    const serviceClient = createServiceRoleClient();
+    const { data: technicians, error } = await serviceClient
       .from('profiles')
-      .select('id, full_name, email, phone, specialization, is_active, is_drservis, company, note')
+      .select('id, auth_user_id, full_name, email, phone, role, specialization, avatar_url, is_active, has_warehouse_access, is_drservis, company, note, rank, driver_license, created_at, updated_at')
       .eq('is_active', true)
       .order('full_name');
 

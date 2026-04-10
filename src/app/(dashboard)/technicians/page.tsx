@@ -4,8 +4,11 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Mail, Phone, Loader2 } from 'lucide-react';
+import { useRoleTypes } from '@/hooks/useRoleTypes';
+import { getRoleTypeLabel } from '@/lib/utils';
 
 export default function TechniciansPage() {
+  const { data: roleTypes = [] } = useRoleTypes();
   // Fetch technicians for the list view
   const { data: technicians, isLoading } = useQuery({
     queryKey: ['technicians', 'list'],
@@ -76,11 +79,11 @@ export default function TechniciansPage() {
 
                 {tech.specialization && tech.specialization.length > 0 && (
                   <div className="pt-3 border-t">
-                    <p className="text-xs text-slate-500 mb-2">Specializace:</p>
+                    <p className="text-xs text-slate-500 mb-2">Pozice:</p>
                     <div className="flex flex-wrap gap-1">
                       {tech.specialization.map((spec: string) => (
                         <Badge key={spec} variant="outline" className="text-xs">
-                          {spec}
+                          {getRoleTypeLabel(spec, roleTypes)}
                         </Badge>
                       ))}
                     </div>
