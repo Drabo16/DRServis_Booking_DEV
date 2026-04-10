@@ -308,9 +308,12 @@ function TechPickerDropdown({
         const left = useLeft
           ? leftPos
           : Math.min(rect.right + 8, (typeof window !== 'undefined' ? window.innerWidth : 0) - panelWidth - 8);
+        // Align info panel edge with the dropdown edge:
+        // - dropdown opens DOWN (top: rect.bottom) → info panel top: rect.bottom
+        // - dropdown opens UP   (bottom: vh - rect.top) → info panel bottom: vh - rect.top
         const style: React.CSSProperties = flipUp
-          ? { bottom: vh - rect.bottom, left, width: panelWidth }
-          : { top: rect.top, left, width: panelWidth };
+          ? { bottom: vh - rect.top, left, width: panelWidth }
+          : { top: rect.bottom, left, width: panelWidth };
         return (
         <div className="fixed z-[100] bg-white border rounded-lg shadow-xl p-3 text-sm" style={style}>
           <div className="flex items-start justify-between mb-2">
